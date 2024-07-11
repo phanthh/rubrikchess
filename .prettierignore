@@ -1,0 +1,13 @@
+**/node_modules/
+**/dist/
+**/build/
+**/out/
+**/storybook-static
+.gitlab-ci-local/
+analyze.html
+**/android
+**/ios
+**/.next
+**/.cache
+**/.pk.json
+pnpm-lock.yaml
