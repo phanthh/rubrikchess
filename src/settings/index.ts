@@ -1,25 +1,24 @@
-export const DEBUG = true;
+export const DEBUG_BOARD_CORD = false;
 
-export const CELL_SIZE = 4;
-export const BOARD_SIZE = 8;
-export const CUBE_SIZE = CELL_SIZE * BOARD_SIZE;
-
+export const C_S = 4; // CELL SIZE
+export const B_D = 8; // BOARD DIM
+export const CU_S = C_S * B_D; // CUBE SIZE
 export const sampleConfig = `
-			RNBKQBNR
-			PPPPPPPP
-			--------
-			--------
-			--------
-			--------
-			pppppppp
-			rnbkqbnr
+--------
+-PPPPPP-
+-PTRBTP-
+-PNKCNP-
+-PNCQNP-
+-PTBRTP-
+-PPPPPP-
+--------
 
-			--------
-			--------
-			--------
-			--------
-			--------
-			--------
-			--------
-			--------
+--------
+-pppppp-
+-ptrbtp-
+-pnkcnp-
+-pncqnp-
+-ptbrtp-
+-pppppp-
+--------
 		`;

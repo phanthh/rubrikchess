@@ -67,4 +67,18 @@
 	body {
 		@apply bg-background text-foreground;
 	}
+
+	.tooltip {
+		position: fixed;
+		translate: 5px calc(-100% - 5px);
+		background: hsl(var(--background));
+		color: hsl(var(--foreground));
+		font-size: 0.75rem;
+		border-radius: 4px;
+		user-select: none;
+		border: 2px solid hsl(var(--border));
+		pointer-events: none;
+		transition-property: opacity;
+		transition-timing-function: ease-in-out;
+	}
 }

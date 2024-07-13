@@ -1,17 +1,18 @@
 import { useGameStore } from '../store/game';
-import { vkey } from '../utils/funcs';
 import { Cell } from './cell';
+import { CubeFrame } from './cube-frame';
 
 type CubeProps = {};
 
 export function Cube({}: CubeProps) {
-	const [getFlattenCells] = useGameStore((store) => [store.getFlattenCells]);
-	const flattenCells = getFlattenCells();
+	const cells = useGameStore((store) => store.cells);
+	const walled = useGameStore((store) => store.walled);
 	return (
 		<>
-			{flattenCells.map((cell) => {
-				return <Cell key={vkey(cell.cord)} cell={cell} />;
+			{cells.flat(3).map((cell) => {
+				return <Cell key={cell.id} cell={cell} />;
 			})}
+			{walled && <CubeFrame />}
 		</>
 	);
 }
