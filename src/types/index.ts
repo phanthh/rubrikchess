@@ -12,17 +12,29 @@ export type TCell = {
 	piece?: TPiece;
 	state: TCellState;
 	payload?: Record<any, any>;
+	angle: number;
+	// meshRef?: RefObject<Mesh>;
 };
 
 export type TPiece = {
 	id: string;
 	type: EPiece;
 	player: TPlayer;
-	path?: Vector3[];
 };
 
-export type TGameState = 'play:pick-piece' | 'play:pick-cell';
+export type TGameState = 'play:pick-piece' | 'play:pick-cell' | 'play:animate';
 export type TCellState = 'reachable' | 'capturable' | 'normal' | 'active';
+
+export type TAnimation = TAnimationRotate | TAnimationPath;
+export type TAnimationRotate = {
+	type: 'rotate';
+	axis: Vector3;
+	angle: number;
+};
+export type TAnimationPath = {
+	type: 'path';
+	path: Vector3[]; // 0->path.length <=> start -> end
+};
 
 declare module '@react-three/fiber' {
 	interface ThreeElements {

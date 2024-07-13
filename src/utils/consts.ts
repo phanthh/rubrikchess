@@ -1,8 +1,7 @@
 import { vec } from './funcs';
 
 export enum EPiece {
-	PAWN = 'p',
-	KNIGHT = 'n',
+	PAWN = 'p', KNIGHT = 'n',
 	BISHOP = 'b',
 	ROOK = 'r',
 	QUEEN = 'q',

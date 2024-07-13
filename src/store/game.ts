@@ -10,6 +10,7 @@ interface IGameStore {
 	cells: TCell[][][];
 	state: TGameState;
 	turn: TPlayer;
+	animate: boolean;
 	cords: Record<string, string>; // Vector3 -> cell id
 	locs: Record<string, string>; // Vector3 -> piece id
 	walled: boolean;
@@ -24,6 +25,7 @@ interface IGameStore {
 export const useGameStore = create<IGameStore>((set, get) => ({
 	cells: [],
 	pieces: [],
+	animate: true,
 	turn: 'white',
 	state: 'play:pick-piece',
 	cords: {},
@@ -83,6 +85,7 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 					cells[c][i][j] = {
 						cord: baseCord,
 						id: bkey(c, i, j),
+						angle: 0,
 						side: normal.clone().normalize(),
 						color: color as EColor,
 						state: 'normal',

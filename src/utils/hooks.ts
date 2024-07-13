@@ -31,6 +31,9 @@ export const useInteractiveMesh = (
 
 	useEffect(() => {
 		setColor(isActive ? active : hovered ? hover : normal);
+		if (hovered) {
+			document.body.style.cursor = 'pointer';
+		}
 		return () => {
 			document.body.style.cursor = 'auto';
 			setColor(normal);

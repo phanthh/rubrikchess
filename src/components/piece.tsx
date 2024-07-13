@@ -1,3 +1,4 @@
+import { registerPieceRef } from '@/store/animation';
 import { TCell, TPiece } from '@/types';
 import { EColor, EPiece } from '@/utils/consts';
 import { useInteractiveMesh } from '@/utils/hooks';
@@ -47,9 +48,9 @@ type PieceProps = {
 } & GroupProps;
 
 export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
+	const ref = useRef<Group>(null);
 	const { path, meshProps, tooltip } = useMemo(() => ASSET_CONFIGS[piece.type], [piece.type]);
 	const geometry = useLoader(STLLoader, path);
-	const ref = useRef<Group>(null);
 
 	const [color, interactiveProps] = useInteractiveMesh(
 		{
@@ -66,6 +67,11 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 		geometry.computeBoundingBox();
 		geometry.translate(0, 0, geometry.boundingBox?.max.z ?? 0);
 	}, []);
+
+	useLayoutEffect(() => {
+		if (!ref.current) return;
+		registerPieceRef(piece.id, ref);
+	}, [ref.current]);
 
 	return (
 		<group ref={ref} {...props}>

@@ -6,8 +6,15 @@ import { Switch } from './ui/switch';
 
 type NavBarProps = {};
 export function NavBar(props: NavBarProps) {
-	const [state, turn, walled, sandbox, debug] = useGameStore(
-		useShallow((store) => [store.state, store.turn, store.walled, store.sandbox, store.debug]),
+	const [state, turn, walled, sandbox, debug, animate] = useGameStore(
+		useShallow((store) => [
+			store.state,
+			store.turn,
+			store.walled,
+			store.sandbox,
+			store.debug,
+			store.animate,
+		]),
 	);
 
 	const handleReset = () => {
@@ -44,6 +51,13 @@ export function NavBar(props: NavBarProps) {
 				checked={debug}
 				onCheckedChange={() => {
 					game().set({ debug: !debug });
+				}}
+			/>
+			<span className="text-foreground">ANIMATE:</span>
+			<Switch
+				checked={animate}
+				onCheckedChange={() => {
+					game().set({ animate: !animate });
 				}}
 			/>
 			{!sandbox && <span className="text-foreground">Turn: {turn.toUpperCase()}</span>}
