@@ -7,18 +7,31 @@ export function Animator(props: AnimatorProps) {
 	const state = useGameStore((store) => store.state);
 	useFrame(() => {
 		if (state === 'play:animate') {
-			const { cellRefs, cells, animation: ani } = animation();
-			if (!cells || !ani) return;
+			const { cellRefs, cells, cuboids, cuboidRefs, animation: ani } = animation();
+			if (!ani) return;
 
 			let progressDelta = 0;
 
 			switch (ani.type) {
 				case 'rotate':
 					const { angle, axis } = ani;
-					const delta = 0.03;
+					if (!cuboids || !cells) return;
+
+					const delta = 0.003; // TODO: FPS synced rotation
+
 					progressDelta = delta / Math.abs(angle);
+
+					// rotate cells
 					for (const cell of cells) {
 						const mesh = cellRefs[cell.id].current;
+						if (!mesh) continue;
+						mesh.position.applyAxisAngle(axis, delta * Math.sign(angle));
+						mesh.rotateOnWorldAxis(axis, delta * Math.sign(angle));
+					}
+
+					// rotate cuboids
+					for (const cuboid of cuboids) {
+						const mesh = cuboidRefs[cuboid.id].current;
 						if (!mesh) continue;
 						mesh.position.applyAxisAngle(axis, delta * Math.sign(angle));
 						mesh.rotateOnWorldAxis(axis, delta * Math.sign(angle));

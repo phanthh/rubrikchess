@@ -2,7 +2,7 @@ import { B_D, C_S } from '@/settings';
 import { TCell } from '@/types';
 import { Vector3 } from 'three';
 import { SIDES } from './consts';
-import { assert, bkey, bkeyinv, clampCube, implyDirs, vkey } from './funcs';
+import { assert, nkey, nkeyinv, clampCube, implyDirs, vkey } from './funcs';
 import { createQueue } from './queue';
 
 const MAX_ITER = B_D * B_D * SIDES.length;
@@ -42,7 +42,7 @@ export function walk({
 	while (iter < maxIter) {
 		const id = cords[vkey(cursor)];
 		if (id) {
-			const [cc, ci, cj] = bkeyinv(id);
+			const [cc, ci, cj] = nkeyinv(id);
 			const cell = cells[cc][ci][cj];
 			path.push(cell);
 			if (callback) {
@@ -134,7 +134,7 @@ export function bfs({
 				cand = cand.round();
 				const id = cords[vkey(cand)];
 				assert(id);
-				const [cc, ci, cj] = bkeyinv(id);
+				const [cc, ci, cj] = nkeyinv(id);
 				return cells[cc][ci][cj];
 			})
 			.filter(Boolean) as TCell[];

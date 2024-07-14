@@ -5,14 +5,15 @@ import { Color } from 'three';
 import { Cube } from './components/cube';
 import { CubeFrame } from './components/cube-frame';
 import { NavBar } from './components/nav-bar';
+import { UserInterface } from './components/user-interface';
 import { sampleConfig } from './settings';
 import { game, useGameStore } from './store/game';
-import { UserInterface } from './components/user-interface';
 
 function App() {
 	const debug = useGameStore((store) => store.debug);
 	useLayoutEffect(() => {
 		game().init(sampleConfig);
+
 		if (debug) {
 			const unsub = useGameStore.subscribe((store) => {
 				console.log('[GAME_STATE]: ', store.state);

@@ -1,5 +1,5 @@
 import { useTooltipStore } from '@/store/tooltip';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 export function Tooltip() {
 	const content = useTooltipStore((store) => store.content);

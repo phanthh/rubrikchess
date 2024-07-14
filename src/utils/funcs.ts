@@ -12,11 +12,11 @@ export function vkey(vec: Vector3) {
 	return `${vec.x},${vec.y},${vec.z}`;
 }
 
-export function bkey(c: number, i: number, j: number) {
+export function nkey(c: number, i: number, j: number) {
 	return `${c},${i},${j}`;
 }
 
-export function bkeyinv(key: string) {
+export function nkeyinv(key: string) {
 	return key.split(',').map((i) => Number(i));
 }
 

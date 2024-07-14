@@ -1,5 +1,5 @@
-import { registerCellRef } from '@/store/animation';
-import { ThreeEvent, useFrame } from '@react-three/fiber';
+import { animation } from '@/store/animation';
+import { ThreeEvent } from '@react-three/fiber';
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';
 import { BoxGeometry, Mesh, PlaneGeometry } from 'three';
 import { C_S, DEBUG_BOARD_CORD } from '../settings';
@@ -9,8 +9,9 @@ import { implyDirs, preventProgagation, vec, vkey } from '../utils/funcs';
 import { CellIndicator } from './cell-indicator';
 import { Piece } from './piece';
 import { Text } from './text';
+import { MAX_INT } from '@/utils/consts';
 
-const cellGeometry = new BoxGeometry(C_S, C_S, 0.1);
+const cellGeometry = new BoxGeometry(C_S, C_S, 0.15);
 
 type CellProps = {
 	cell: TCell;
@@ -22,13 +23,16 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 	const ref = useRef<Mesh>(null);
 	const dirs = useMemo(() => implyDirs(cell.side), [cell.cord]);
 	const debug = useGameStore((store) => store.debug);
+	const inverted = useGameStore((store) => store.inverted);
 
 	useLayoutEffect(() => {
 		if (!ref.current) return;
-		ref.current.lookAt(cell.cord.clone().add(cell.side));
+		ref.current.lookAt(
+			cell.cord.clone().add(cell.side.clone().multiplyScalar(inverted ? -MAX_INT : MAX_INT)),
+		);
 		ref.current.rotateOnAxis(vec(0, 0, 1), cell.angle);
-		registerCellRef(cell.id, ref);
-	}, [ref.current, cell]);
+		animation().registerCellRef(cell.id, ref);
+	}, [ref.current, cell, inverted]);
 
 	const handleClick = (e: ThreeEvent<MouseEvent>) => {
 		e.stopPropagation();
@@ -51,15 +55,12 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 		onPickPiece(cell);
 	};
 
-	useFrame(({ clock }) => {
-		// if (!ref.current) return;
-		// if (bkeyinv(cell.id)[0] === 2) {
-		// 	const axis = vec(1, 0, 0);
-		// 	const angle = 0.001 * clock.getElapsedTime();
-		// 	ref.current.position.applyAxisAngle(axis, angle);
-		// 	ref.current.rotateOnAxis(axis, angle);
-		// }
-	});
+	const position = useMemo(() => {
+		if (inverted) {
+			return cell.cord.clone().add(cell.side.clone().multiplyScalar(10));
+		}
+		return cell.cord;
+	}, [cell.cord, cell.side, inverted]);
 
 	return (
 		<>
@@ -69,7 +70,7 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 				onDoubleClick={handleDoubleClick}
 				ref={ref}
 				geometry={cellGeometry}
-				position={cell.cord}
+				position={position}
 				receiveShadow
 			>
 				<meshStandardMaterial color={cell.color} roughness={0.9} metalness={0.1} />

@@ -1,4 +1,4 @@
-import { Object3DNode } from '@react-three/fiber';
+import { Canvas, Object3DNode } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { TextGeometry } from 'three/examples/jsm/Addons.js';
 import { EColor, EPiece } from '../utils/consts';
@@ -22,6 +22,11 @@ export type TPiece = {
 	player: TPlayer;
 };
 
+export type TCuboid = {
+	id: string;
+	cord: Vector3;
+};
+
 export type TGameState = 'play:pick-piece' | 'play:pick-cell' | 'play:animate';
 export type TCellState = 'reachable' | 'capturable' | 'normal' | 'active';
 
@@ -41,3 +46,5 @@ declare module '@react-three/fiber' {
 		textGeometry: Object3DNode<TextGeometry, typeof TextGeometry>;
 	}
 }
+
+export type TCanvasEventFactory = NonNullable<Parameters<typeof Canvas>[0]['events']>

@@ -1,7 +1,8 @@
 import { vec } from './funcs';
 
 export enum EPiece {
-	PAWN = 'p', KNIGHT = 'n',
+	PAWN = 'p',
+	KNIGHT = 'n',
 	BISHOP = 'b',
 	ROOK = 'r',
 	QUEEN = 'q',
@@ -69,3 +70,5 @@ export const ADJ_SIDE_MATRIX = [
 	[3, 0, 5, 2],
 	[4, 1, 3, 0],
 ];
+
+export const MAX_INT = 99999;

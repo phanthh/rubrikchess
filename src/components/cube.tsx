@@ -1,13 +1,13 @@
 import { C_S } from '@/settings';
 import { animation } from '@/store/animation';
-import { TCell } from '@/types';
+import { TCell, TCuboid } from '@/types';
 import { EPiece, XPOS, YPOS, ZPOS } from '@/utils/consts';
 import {
 	assert,
-	bkeyinv,
 	implyDirs,
 	isCornerCell,
 	isEdgeCell,
+	nkeyinv,
 	updateCellState,
 	vkey,
 } from '@/utils/funcs';
@@ -16,15 +16,18 @@ import { produce } from 'immer';
 import { Vector3 } from 'three';
 import { game, useGameStore } from '../store/game';
 import { Animator } from './animator';
-import { Cell } from './cell';
 import { CubeFrame } from './cube-frame';
+import { Cuboid } from './cuboid';
+import { Cell } from './cell';
 
 type CubeProps = {};
 
 export function Cube({}: CubeProps) {
 	const cells = useGameStore((store) => store.cells);
+	const cuboids = useGameStore((store) => store.cuboids);
 	const walled = useGameStore((store) => store.walled);
 	const animate = useGameStore((store) => store.animate);
+	const inverted = useGameStore((store) => store.inverted);
 
 	const handlePickPiece = (cell: TCell) => {
 		const piece = cell.piece;
@@ -177,7 +180,7 @@ export function Cube({}: CubeProps) {
 								const rotated = cell.cord.clone().applyAxisAngle(axis, angle).round();
 								const id = cords[vkey(rotated)];
 								assert(id);
-								const [cc, ci, cj] = bkeyinv(id);
+								const [cc, ci, cj] = nkeyinv(id);
 								const c = draft.cells[cc][ci][cj];
 								c.state = 'reachable';
 								c.payload = { angle, axis };
@@ -234,7 +237,7 @@ export function Cube({}: CubeProps) {
 						break;
 				}
 
-				const [c, i, j] = bkeyinv(cell.id);
+				const [c, i, j] = nkeyinv(cell.id);
 				draft.cells[c][i][j].state = 'active';
 
 				// SWITCH TO NEXT STATE
@@ -253,6 +256,8 @@ export function Cube({}: CubeProps) {
 				// MOVE PIECE
 				assert(activeCell, 'no active cell');
 				assert(activePiece, 'no active piece');
+
+				let isRotating = false;
 
 				const basicMove = () => {
 					game().set((state) => {
@@ -277,6 +282,8 @@ export function Cube({}: CubeProps) {
 							break;
 						}
 
+						isRotating = true;
+
 						// SPECIAL TESSERACT MOVE: ROTATE
 						const { axis, angle } = payload as { axis: Vector3; angle: number };
 						const rotate = (cord: Vector3) => {
@@ -284,22 +291,26 @@ export function Cube({}: CubeProps) {
 						};
 						const adot = activeCell.cord.dot(axis);
 
-						const getRotatingCells = (cells: TCell[]) => {
-							return cells.filter((c) => {
+						const getRotating = <T extends TCell | TCuboid>(objs: T[]) => {
+							return objs.filter((c) => {
 								const cdot = c.cord.dot(axis);
 								return cdot === adot || Math.abs(cdot - adot) === C_S / 2;
 							});
 						};
 
-						const rotateCells = () => {
+						const rotateAllSync = () => {
 							game().set((state) => {
 								return produce(state, (draft) => {
-									for (const c of getRotatingCells(draft.cells.flat(3))) {
+									for (const c of getRotating(draft.cells.flat(3))) {
 										c.cord = rotate(c.cord);
 										c.side = rotate(c.side);
 										// TODO: fix rotating angle bug (see Knight + Tesseract)
 										c.angle += angle * axis.dot(c.side);
 										draft.cords[vkey(c.cord)] = c.id;
+									}
+
+									for (const c of getRotating(draft.cuboids.flat(3))) {
+										c.cord = rotate(c.cord);
 									}
 								});
 							});
@@ -309,13 +320,14 @@ export function Cube({}: CubeProps) {
 							// WITH ANIMATION: update on animation end;
 							animation().set({
 								progress: 0,
-								cells: getRotatingCells(cells.flat(3)),
-								onEnd: rotateCells,
+								cells: getRotating(cells.flat(3)),
+								cuboids: getRotating(cuboids.flat(3)),
+								onEnd: rotateAllSync,
 								animation: { type: 'rotate', axis, angle },
 							});
 						} else {
 							// NO ANIMATION: update straightaway
-							rotateCells();
+							rotateAllSync();
 						}
 
 						break;
@@ -329,7 +341,7 @@ export function Cube({}: CubeProps) {
 				// TURN COMPLETE
 				game().set((state) => ({
 					turn: state.sandbox ? state.turn : state.turn === 'white' ? 'black' : 'white',
-					state: animate ? 'play:animate' : 'play:pick-piece',
+					state: animate && isRotating ? 'play:animate' : 'play:pick-piece',
 				}));
 
 				game().resetCellsState();
@@ -367,6 +379,10 @@ export function Cube({}: CubeProps) {
 					/>
 				);
 			})}
+			{!inverted &&
+				cuboids.flat(3).map((cuboid) => {
+					return <Cuboid key={'cc' + cuboid.id} cuboid={cuboid} />;
+				})}
 			{walled && <CubeFrame />}
 			{animate && <Animator />}
 		</>

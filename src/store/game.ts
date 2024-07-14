@@ -2,14 +2,16 @@ import { produce } from 'immer';
 import { Vector3 } from 'three';
 import { create } from 'zustand';
 import { B_D, C_S, CU_S } from '../settings';
-import { TCell, TGameState, TPiece, TPlayer } from '../types';
+import { TCell, TCuboid, TGameState, TPiece, TPlayer } from '../types';
 import { EColor, EPiece, SIDES, SIDES_COLOR } from '../utils/consts';
-import { bkey, vec, vkey, zip } from '../utils/funcs';
+import { nkey, vec, vkey, zip } from '../utils/funcs';
 
 interface IGameStore {
 	cells: TCell[][][];
+	cuboids: TCuboid[][][];
 	state: TGameState;
 	turn: TPlayer;
+	inverted: boolean;
 	animate: boolean;
 	cords: Record<string, string>; // Vector3 -> cell id
 	locs: Record<string, string>; // Vector3 -> piece id
@@ -17,19 +19,20 @@ interface IGameStore {
 	sandbox: boolean;
 	debug: boolean;
 	getActiveCell: () => TCell | undefined;
-	getPieces: () => TPiece[];
 	resetCellsState: () => void;
 	init: (config: string) => void;
 }
 
 export const useGameStore = create<IGameStore>((set, get) => ({
 	cells: [],
+	cuboids: [],
 	pieces: [],
-	animate: true,
 	turn: 'white',
 	state: 'play:pick-piece',
 	cords: {},
 	locs: {},
+	animate: true,
+	inverted: false,
 	walled: false,
 	sandbox: true,
 	debug: false,
@@ -48,11 +51,6 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 			}),
 		}));
 	},
-	getPieces: () =>
-		get()
-			.cells.flat(3)
-			.map((c) => c.piece)
-			.filter(Boolean) as TPiece[],
 	init: (config: string) => {
 		const cells: TCell[][][] = [];
 		const cords: Record<string, string> = {};
@@ -80,17 +78,33 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 
 					baseCord.sub(adjust).add(normal.multiplyScalar(CU_S / 2));
 
-					const cellId = bkey(c, i, j);
+					const cellId = nkey(c, i, j);
 
 					cells[c][i][j] = {
 						cord: baseCord,
-						id: bkey(c, i, j),
+						id: nkey(c, i, j),
 						angle: 0,
 						side: normal.clone().normalize(),
 						color: color as EColor,
 						state: 'normal',
 					};
 					cords[vkey(baseCord)] = cellId;
+				}
+			}
+		}
+
+		const cuboids: TCuboid[][][] = [];
+		const offset = C_S / 2 - CU_S / 2;
+		// init inner cuboids
+		for (let i = 0; i < B_D; ++i) {
+			cuboids[i] = [];
+			for (let j = 0; j < B_D; ++j) {
+				cuboids[i][j] = [];
+				for (let k = 0; k < B_D; ++k) {
+					cuboids[i][j][k] = {
+						id: nkey(i, j, k),
+						cord: vec(i * C_S + offset, j * C_S + offset, k * C_S + offset),
+					};
 				}
 			}
 		}
@@ -122,7 +136,7 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 					const type = side[i][j];
 					if (type === '-') continue;
 					const piece: TPiece = {
-						id: bkey(c, i, j),
+						id: nkey(c, i, j),
 						type: type.toLowerCase() as EPiece,
 						player: type === type.toLowerCase() ? 'black' : 'white',
 					};
@@ -132,7 +146,7 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 			}
 		}
 
-		set({ cells, cords, locs });
+		set({ cells, cords, locs, cuboids });
 	},
 }));
 
