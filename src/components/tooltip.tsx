@@ -12,8 +12,7 @@ export function Tooltip() {
 
 		const listener = (e: MouseEvent) => {
 			const { clientX, clientY } = e;
-			target.style.top = `${clientY}px`;
-			target.style.left = `${clientX}px`;
+			target.style.transform = `translate(${clientX}px, ${clientY}px)`;
 		};
 
 		document.addEventListener('mousemove', listener);

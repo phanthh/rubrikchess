@@ -1,7 +1,7 @@
 import { MeshProps } from '@react-three/fiber';
 import { Vector3 } from 'three';
-import { C_S, CU_S } from '../settings';
-import { TCell } from '../types';
+import { C_S, CU_S, Z_GS } from '../settings';
+import { TCell, TPathPoint } from '../types';
 import { DIRS2D, SIDES } from './consts';
 
 export function vec(x: number, y: number, z: number) {
@@ -33,7 +33,7 @@ export function implySide(cord: Vector3) {
 	return SIDES.find((side) => {
 		const projected = cord.clone().projectOnPlane(side);
 		const dir = cord.clone().sub(projected);
-		return dir.dot(side) === CU_S / 2;
+		return dir.dot(side) >= CU_S / 2;
 	})?.clone();
 }
 
@@ -72,17 +72,6 @@ export function clampCube(vector: Vector3) {
 		.clamp(vec(-CU_S / 2, -CU_S / 2, -CU_S / 2), vec(CU_S / 2, CU_S / 2, CU_S / 2));
 }
 
-export const preventProgagation = () => {
-	return {
-		onPointerDown: (e) => e.stopPropagation(),
-		onPointerEnter: (e) => e.stopPropagation(),
-		onPointerLeave: (e) => e.stopPropagation(),
-		onPointerOver: (e) => e.stopPropagation(),
-		onPointerUp: (e) => e.stopPropagation(),
-		onClick: (e) => e.stopPropagation(),
-	} as MeshProps as any;
-};
-
 export function updateCellState(cell: TCell, other: TCell) {
 	const otherPiece = other.piece;
 	const thisPiece = cell.piece;
@@ -94,4 +83,44 @@ export function updateCellState(cell: TCell, other: TCell) {
 	} else {
 		other.state = 'reachable';
 	}
+}
+
+export function easeInOutExpo(x: number): number {
+	return x === 0
+		? 0
+		: x === 1
+			? 1
+			: x < 0.5
+				? Math.pow(2, 20 * x - 10) / 2
+				: (2 - Math.pow(2, -20 * x + 10)) / 2;
+}
+
+export function easeInOutQuart(x: number): number {
+	return x < 0.5 ? 8 * x * x * x * x : 1 - Math.pow(-2 * x + 2, 4) / 2;
+}
+
+export function easeInOutQuad(x: number): number {
+	return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+}
+
+export const EASE_FUNCS = {
+	quad: easeInOutQuad,
+	quart: easeInOutQuart,
+	exponential: easeInOutExpo,
+};
+
+export function implyPathPoint(cell: TCell): TPathPoint {
+	return {
+		cord: cell.cord,
+		zCord: cell.cord.clone().add(cell.side.clone().multiplyScalar(Z_GS)),
+	};
+}
+
+export function implyCenter(cell: TCell): Vector3 {
+	return cell.cord.clone().sub(
+		cell.side
+			.clone()
+			.normalize()
+			.multiplyScalar(C_S / 2),
+	);
 }

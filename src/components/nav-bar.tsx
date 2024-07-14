@@ -6,8 +6,9 @@ import { Switch } from './ui/switch';
 
 type NavBarProps = {};
 export function NavBar(props: NavBarProps) {
-	const [state, turn, walled, sandbox, debug, animate, inverted] = useGameStore(
+	const [shadow, state, turn, walled, sandbox, debug, animate, inverted] = useGameStore(
 		useShallow((store) => [
+			store.shadow,
 			store.state,
 			store.turn,
 			store.walled,
@@ -47,14 +48,14 @@ export function NavBar(props: NavBarProps) {
 					game().set({ sandbox: !sandbox });
 				}}
 			/>
-			<span className="text-foreground">DEBUG:</span>
+			<span className="text-foreground">Debug:</span>
 			<Switch
 				checked={debug}
 				onCheckedChange={() => {
 					game().set({ debug: !debug });
 				}}
 			/>
-			<span className="text-foreground">ANIMATE:</span>
+			<span className="text-foreground">Animate:</span>
 			<Switch
 				checked={animate}
 				onCheckedChange={() => {
@@ -68,7 +69,13 @@ export function NavBar(props: NavBarProps) {
 					game().set({ inverted: !inverted });
 				}}
 			/>
-			{!sandbox && <span className="text-foreground">Turn: {turn.toUpperCase()}</span>}
+			{/* <span className="text-foreground">Shadow:</span> */}
+			{/* <Switch */}
+			{/* 	checked={shadow} */}
+			{/* 	onCheckedChange={() => { */}
+			{/* 		game().set({ shadow: !shadow }); */}
+			{/* 	}} */}
+			{/* /> */}
 			{state === 'play:pick-cell' && (
 				<Button style={{ marginLeft: 'auto' }} variant="destructive" onClick={handleCancel}>
 					Cancel

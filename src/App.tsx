@@ -1,7 +1,7 @@
 import { GizmoHelper, GizmoViewport, Stats, TrackballControls } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
-import { Suspense, useLayoutEffect } from 'react';
-import { Color } from 'three';
+import { Suspense, useLayoutEffect, useRef } from 'react';
+import { BasicShadowMap, Color } from 'three';
 import { Cube } from './components/cube';
 import { CubeFrame } from './components/cube-frame';
 import { NavBar } from './components/nav-bar';
@@ -39,7 +39,7 @@ function App() {
 		<div className="w-screen overflow-hidden h-screen flex flex-col">
 			<NavBar />
 			<Canvas
-				shadows="soft"
+				shadows={'soft'}
 				onPointerMissed={handleMissedClick}
 				className="w-full flex-grow"
 				// style={{ border: DEBUG ? '1px solid green' : 'none' }}

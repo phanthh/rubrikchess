@@ -4,6 +4,7 @@ import { TCell, TCuboid } from '@/types';
 import { EPiece, XPOS, YPOS, ZPOS } from '@/utils/consts';
 import {
 	assert,
+	implyCenter,
 	implyDirs,
 	isCornerCell,
 	isEdgeCell,
@@ -11,18 +12,20 @@ import {
 	updateCellState,
 	vkey,
 } from '@/utils/funcs';
-import { bfs, walk } from '@/utils/path';
+import { bfs, move, walk } from '@/utils/path';
+import { useThree } from '@react-three/fiber';
 import { produce } from 'immer';
 import { Vector3 } from 'three';
 import { game, useGameStore } from '../store/game';
 import { Animator } from './animator';
+import { Cell } from './cell';
 import { CubeFrame } from './cube-frame';
 import { Cuboid } from './cuboid';
-import { Cell } from './cell';
 
 type CubeProps = {};
 
 export function Cube({}: CubeProps) {
+	const { scene } = useThree();
 	const cells = useGameStore((store) => store.cells);
 	const cuboids = useGameStore((store) => store.cuboids);
 	const walled = useGameStore((store) => store.walled);
@@ -43,13 +46,8 @@ export function Cube({}: CubeProps) {
 				throw new Error('no cords');
 			}
 			return produce(state, (draft) => {
-				const center = cell.cord.clone().sub(
-					cell.side
-						.clone()
-						.normalize()
-						.multiplyScalar(C_S / 2),
-				);
-
+				let paths: TCell[][] = [];
+				const center = implyCenter(cell);
 				const walkCallback = (c: TCell) => {
 					updateCellState(cell, c);
 					return !c.piece;
@@ -61,7 +59,7 @@ export function Cube({}: CubeProps) {
 				switch (piece.type) {
 					case EPiece.ROOK: {
 						for (const initDir of dirs.slice(0, 4)) {
-							walk({
+							const dirPath = walk({
 								initDir,
 								initSide: cell.side,
 								start: cell.cord,
@@ -72,12 +70,13 @@ export function Cube({}: CubeProps) {
 								cells: draft.cells,
 								callback: walkCallback,
 							});
+							paths.push(dirPath);
 						}
 						break;
 					}
 					case EPiece.BISHOP: {
 						for (const initDir of dirs.slice(4)) {
-							walk({
+							const dirPath = walk({
 								initDir,
 								initSide: cell.side,
 								start: cell.cord,
@@ -88,12 +87,13 @@ export function Cube({}: CubeProps) {
 								cells: draft.cells,
 								callback: walkCallback,
 							});
+							paths.push(dirPath);
 						}
 						break;
 					}
 					case EPiece.QUEEN:
 						for (const initDir of dirs.slice(0, 4)) {
-							walk({
+							const dirPath = walk({
 								initDir,
 								initSide: cell.side,
 								start: cell.cord,
@@ -104,10 +104,11 @@ export function Cube({}: CubeProps) {
 								cells: draft.cells,
 								callback: walkCallback,
 							});
+							paths.push(dirPath);
 						}
 
 						for (const initDir of dirs.slice(4)) {
-							walk({
+							const dirPath = walk({
 								initDir,
 								initSide: cell.side,
 								start: cell.cord,
@@ -118,6 +119,7 @@ export function Cube({}: CubeProps) {
 								cells: draft.cells,
 								callback: walkCallback,
 							});
+							paths.push(dirPath);
 						}
 						break;
 					case EPiece.KNIGHT:
@@ -141,7 +143,7 @@ export function Cube({}: CubeProps) {
 						}
 						break;
 					case EPiece.CAPTAIN: {
-						bfs({
+						draft.tree = bfs({
 							initCell: cell,
 							cords,
 							cells: draft.cells,
@@ -236,7 +238,10 @@ export function Cube({}: CubeProps) {
 					default:
 						break;
 				}
-
+				if (animate) {
+					const sorted = paths.sort((a, b) => a.length - b.length);
+					draft.paths = sorted;
+				}
 				const [c, i, j] = nkeyinv(cell.id);
 				draft.cells[c][i][j].state = 'active';
 
@@ -257,32 +262,15 @@ export function Cube({}: CubeProps) {
 				assert(activeCell, 'no active cell');
 				assert(activePiece, 'no active piece');
 
-				let isRotating = false;
-
-				const basicMove = () => {
-					game().set((state) => {
-						return produce(state, (draft) => {
-							for (const c of draft.cells.flat(3)) {
-								if (c.id === cell.id) {
-									// intent to move piece to this cell
-									c.piece = activePiece;
-								} else if (c.id === activeCell.id) {
-									delete c.piece;
-								}
-							}
-						});
-					});
-				};
+				const { paths, tree } = game();
 
 				switch (activePiece.type) {
 					case EPiece.TESSERACT: {
 						const payload = cell.payload;
 						if (!payload) {
-							basicMove();
+							move(activeCell, cell, paths, animate);
 							break;
 						}
-
-						isRotating = true;
 
 						// SPECIAL TESSERACT MOVE: ROTATE
 						const { axis, angle } = payload as { axis: Vector3; angle: number };
@@ -323,7 +311,7 @@ export function Cube({}: CubeProps) {
 								cells: getRotating(cells.flat(3)),
 								cuboids: getRotating(cuboids.flat(3)),
 								onEnd: rotateAllSync,
-								animation: { type: 'rotate', axis, angle },
+								config: { type: 'rotate', axis, angle },
 							});
 						} else {
 							// NO ANIMATION: update straightaway
@@ -333,7 +321,7 @@ export function Cube({}: CubeProps) {
 						break;
 					}
 					default: {
-						basicMove();
+						move(activeCell, cell, paths, animate);
 						break;
 					}
 				}
@@ -341,7 +329,7 @@ export function Cube({}: CubeProps) {
 				// TURN COMPLETE
 				game().set((state) => ({
 					turn: state.sandbox ? state.turn : state.turn === 'white' ? 'black' : 'white',
-					state: animate && isRotating ? 'play:animate' : 'play:pick-piece',
+					state: animate ? 'play:animate' : 'play:pick-piece',
 				}));
 
 				game().resetCellsState();

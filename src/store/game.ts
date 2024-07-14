@@ -10,6 +10,8 @@ interface IGameStore {
 	cells: TCell[][][];
 	cuboids: TCuboid[][][];
 	state: TGameState;
+	paths: TCell[][];
+	tree: Record<string, string> | null; // needed for bfs
 	turn: TPlayer;
 	inverted: boolean;
 	animate: boolean;
@@ -18,6 +20,7 @@ interface IGameStore {
 	walled: boolean;
 	sandbox: boolean;
 	debug: boolean;
+	shadow: boolean;
 	getActiveCell: () => TCell | undefined;
 	resetCellsState: () => void;
 	init: (config: string) => void;
@@ -27,9 +30,12 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 	cells: [],
 	cuboids: [],
 	pieces: [],
+	paths: [],
+	tree: null,
 	turn: 'white',
 	state: 'play:pick-piece',
 	cords: {},
+	shadow: false,
 	locs: {},
 	animate: true,
 	inverted: false,

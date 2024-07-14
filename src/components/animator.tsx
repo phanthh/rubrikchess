@@ -1,57 +1,82 @@
 import { animation } from '@/store/animation';
 import { game, useGameStore } from '@/store/game';
+import { EASE_FUNCS } from '@/utils/funcs';
 import { useFrame } from '@react-three/fiber';
 
 type AnimatorProps = {};
 export function Animator(props: AnimatorProps) {
 	const state = useGameStore((store) => store.state);
-	useFrame(() => {
-		if (state === 'play:animate') {
-			const { cellRefs, cells, cuboids, cuboidRefs, animation: ani } = animation();
-			if (!ani) return;
+	const inverted = useGameStore((store) => store.inverted);
+	useFrame(({ scene }) => {
+		if (state !== 'play:animate') return;
 
-			let progressDelta = 0;
+		const { pieces, cellRefs, cells, cuboids, cuboidRefs, config, pieceRefs } = animation();
+		if (!config) return;
 
-			switch (ani.type) {
-				case 'rotate':
-					const { angle, axis } = ani;
-					if (!cuboids || !cells) return;
+		let progressDelta = 0;
 
-					const delta = 0.003; // TODO: FPS synced rotation
+		switch (config.type) {
+			case 'rotate': {
+				// ROTATING ANIMATION
+				const { angle, axis } = config;
+				if (!cuboids || !cells) return;
 
-					progressDelta = delta / Math.abs(angle);
+				const delta = 0.01; // TODO: FPS synced rotation
 
-					// rotate cells
-					for (const cell of cells) {
-						const mesh = cellRefs[cell.id].current;
-						if (!mesh) continue;
-						mesh.position.applyAxisAngle(axis, delta * Math.sign(angle));
-						mesh.rotateOnWorldAxis(axis, delta * Math.sign(angle));
-					}
+				progressDelta = delta / Math.abs(angle);
 
-					// rotate cuboids
-					for (const cuboid of cuboids) {
-						const mesh = cuboidRefs[cuboid.id].current;
-						if (!mesh) continue;
-						mesh.position.applyAxisAngle(axis, delta * Math.sign(angle));
-						mesh.rotateOnWorldAxis(axis, delta * Math.sign(angle));
-					}
-					break;
-				case 'path':
-					break;
-				default:
-					break;
+				// rotate cells
+				for (const cell of cells) {
+					const mesh = cellRefs[cell.id].current;
+					if (!mesh) continue;
+					mesh.position.applyAxisAngle(axis, delta * Math.sign(angle));
+					mesh.rotateOnWorldAxis(axis, delta * Math.sign(angle));
+				}
+
+				for (const cuboid of cuboids) {
+					const mesh = cuboidRefs[cuboid.id].current;
+					if (!mesh) continue;
+					mesh.position.applyAxisAngle(axis, delta * Math.sign(angle));
+					mesh.rotateOnWorldAxis(axis, delta * Math.sign(angle));
+				}
+				break;
 			}
+			case 'path':
+				// PATH ANIMATION
+				const { path, ease, zPath } = config;
+				if (!pieces) return;
 
-			animation().set((state) => ({
-				progress: state.progress + progressDelta,
-			}));
+				progressDelta = 0.01; // TODO: FPS synced rotation
 
-			if (animation().progress > 1) {
-				game().set({ state: 'play:pick-piece' });
-				animation().onEnd?.();
-				animation().reset();
-			}
+				const t = EASE_FUNCS[ease](animation().progress);
+				for (const piece of pieces) {
+					try {
+						const mesh = pieceRefs[piece.id].current;
+						if (!mesh) continue;
+						scene.attach(mesh);
+						path.getPointAt(t, mesh.position);
+						mesh.lookAt(zPath.getPointAt(t));
+					} catch (e) {
+						// console.log(e, piece);
+						throw e;
+					}
+				}
+
+				break;
+			default:
+				break;
+		}
+
+		animation().set((state) => ({
+			progress: state.progress + progressDelta,
+		}));
+
+		if (animation().progress >= 1) {
+			game().set({ state: 'play:pick-piece' });
+			animation().onEnd?.();
+			animation().reset();
+			console.log('DONEEEE');
+			console.log('ANIMATION END:', animation().pieceRefs);
 		}
 	});
 	return null;

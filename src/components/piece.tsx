@@ -1,6 +1,8 @@
 import { animation } from '@/store/animation';
+import { useGameStore } from '@/store/game';
 import { TCell, TPiece } from '@/types';
 import { EColor, EPiece } from '@/utils/consts';
+import { vec } from '@/utils/funcs';
 import { useInteractiveMesh } from '@/utils/hooks';
 import { GroupProps, MeshProps, useLoader } from '@react-three/fiber';
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';
@@ -51,6 +53,7 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 	const { path, meshProps, tooltip } = useMemo(() => ASSET_CONFIGS[piece.type], [piece.type]);
 	const ref = useRef<Group>(null);
 	const geometry = useLoader(STLLoader, path);
+	const inverted = useGameStore((store) => store.inverted);
 
 	const [color, interactiveProps] = useInteractiveMesh(
 		{
@@ -65,13 +68,15 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 	useLayoutEffect(() => {
 		geometry.center();
 		geometry.computeBoundingBox();
-		geometry.translate(0, 0, geometry.boundingBox?.max.z ?? 0);
-	}, []);
+		geometry.translate(0, 0, (geometry.boundingBox?.max.z ?? 0) + (inverted ? 0.9 : 0));
+	}, [inverted]);
 
 	useLayoutEffect(() => {
-		if (!ref.current) return;
 		animation().registerPieceRef(piece.id, ref);
-	}, [ref.current]);
+		return () => {
+			animation().unregisterPieceRef(piece.id);
+		};
+	}, [ref.current, piece.id]);
 
 	return (
 		<group ref={ref} {...props}>
@@ -87,6 +92,10 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 			>
 				<meshStandardMaterial roughness={0.5} metalness={0.1} color={color} />
 			</mesh>
+
+			{/* <arrowHelper args={[vec(0, 0, 1), vec(0, 0, 0), 8, 'blue']} /> */}
+			{/* <arrowHelper args={[vec(0, 1, 0), vec(0, 0, 0), 8, 'green']} /> */}
+			{/* <arrowHelper args={[vec(1, 0, 0), vec(0, 0, 0), 8, 'red']} /> */}
 		</group>
 	);
 });
