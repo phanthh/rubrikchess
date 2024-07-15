@@ -1,7 +1,8 @@
-import { GizmoHelper, GizmoViewport, Stats, TrackballControls } from '@react-three/drei';
-import { Canvas } from '@react-three/fiber';
-import { Suspense, useLayoutEffect, useRef } from 'react';
-import { BasicShadowMap, Color } from 'three';
+import { GizmoHelper, GizmoViewport, Stats } from '@react-three/drei';
+import { Canvas, invalidate } from '@react-three/fiber';
+import { Suspense, useLayoutEffect } from 'react';
+import { Color } from 'three';
+import { Controls } from './components/controls';
 import { Cube } from './components/cube';
 import { CubeFrame } from './components/cube-frame';
 import { NavBar } from './components/nav-bar';
@@ -39,6 +40,7 @@ function App() {
 		<div className="w-screen overflow-hidden h-screen flex flex-col">
 			<NavBar />
 			<Canvas
+				frameloop="demand"
 				shadows={'soft'}
 				onPointerMissed={handleMissedClick}
 				className="w-full flex-grow"
@@ -76,9 +78,8 @@ function App() {
 							</GizmoHelper>
 						</>
 					)}
-					{/* <OrbitControls enablePan={false} enableDamping={true} /> */}
-					<TrackballControls noPan dynamicDampingFactor={0.1} />
 				</Suspense>
+				<Controls controlStyle="orbit" />
 			</Canvas>
 			<UserInterface />
 		</div>

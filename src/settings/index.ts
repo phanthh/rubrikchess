@@ -13,7 +13,7 @@ export const sampleConfig = `
 --BRRB--
 --BRRB--
 --RBBR--
---------
+-----C--
 --------
 
 --------

@@ -2,9 +2,22 @@ import { produce } from 'immer';
 import { Vector3 } from 'three';
 import { create } from 'zustand';
 import { B_D, C_S, CU_S } from '../settings';
-import { TCell, TCuboid, TGameState, TPiece, TPlayer } from '../types';
-import { EColor, EPiece, SIDES, SIDES_COLOR } from '../utils/consts';
-import { nkey, vec, vkey, zip } from '../utils/funcs';
+import { TCell, TCuboid, TGameState, TMove, TMoveType, TPiece, TPlayer } from '../types';
+import { EColor, EPiece, SIDES, SIDES_COLOR, ZPOS, YPOS, XPOS } from '../utils/consts';
+import {
+	isEdgeCell,
+	isCornerCell,
+	implyCenter,
+	assert,
+	nkey,
+	updateCellState,
+	nkeyinv,
+	vec,
+	vkey,
+	zip,
+	implyDirs,
+} from '../utils/funcs';
+import { walk, bfs } from '@/utils/path';
 
 interface IGameStore {
 	cells: TCell[][][];
@@ -23,13 +36,13 @@ interface IGameStore {
 	shadow: boolean;
 	getActiveCell: () => TCell | undefined;
 	resetCellsState: () => void;
+	updatePieceMoves: () => void;
 	init: (config: string) => void;
 }
 
 export const useGameStore = create<IGameStore>((set, get) => ({
 	cells: [],
 	cuboids: [],
-	pieces: [],
 	paths: [],
 	tree: null,
 	turn: 'white',
@@ -153,6 +166,283 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 		}
 
 		set({ cells, cords, locs, cuboids });
+	},
+	updatePieceMoves: () => {
+		set((state) => {
+			return produce(state, (draft) => {
+				const cords = draft.cords;
+				const walled = draft.walled;
+
+				for (const cell of draft.cells.flat(3)) {
+					const piece = cell.piece;
+					// HAVE A PIECE IN THIS CELL
+					if (!piece) continue;
+
+					const dirs = implyDirs(cell.side);
+					const center = implyCenter(cell);
+
+					// WE WILL CALCULATE THIS
+					const moves: TMove[] = [];
+
+					const updateCellState = (cell: TCell, other: TCell): TMoveType | false => {
+						const otherPiece = other.piece;
+						const thisPiece = cell.piece;
+						assert(thisPiece);
+						if (otherPiece) {
+							if (otherPiece.player !== thisPiece.player) {
+								return 'capturing';
+							} else {
+								return false;
+							}
+						} else {
+							return 'normal';
+						}
+					};
+
+					const getWalkCallback = (curMoves: TMove[], curPath: TCell[]) => {
+						return (c: TCell) => {
+							curPath.push(c);
+							const type = updateCellState(cell, c);
+							if (!type) return false;
+							curMoves.push({
+								path: curPath.map((c) => c.id),
+								type: type,
+							});
+							return !c.piece;
+						};
+					};
+
+					// different piece type
+					switch (piece.type) {
+						case EPiece.ROOK: {
+							for (const initDir of dirs.slice(0, 4)) {
+								const curMoves: TMove[] = [];
+								const curPath: TCell[] = [];
+
+								walk({
+									initDir,
+									initSide: cell.side,
+									start: cell.cord,
+									end: cell.cord,
+									mode: 'rook',
+									walled,
+									cords,
+									cells: draft.cells,
+									callback: getWalkCallback(curMoves, curPath),
+								});
+								moves.push(...curMoves);
+							}
+							break;
+						}
+						case EPiece.BISHOP: {
+							for (const initDir of dirs.slice(4)) {
+								const curMoves: TMove[] = [];
+								const curPath: TCell[] = [];
+								walk({
+									initDir,
+									initSide: cell.side,
+									start: cell.cord,
+									end: cell.cord,
+									mode: 'bishop',
+									walled,
+									cords,
+									cells: draft.cells,
+									callback: getWalkCallback(curMoves, curPath),
+								});
+								moves.push(...curMoves);
+							}
+							break;
+						}
+						case EPiece.QUEEN:
+							for (const initDir of dirs.slice(0, 4)) {
+								const curMoves: TMove[] = [];
+								const curPath: TCell[] = [];
+
+								walk({
+									initDir,
+									initSide: cell.side,
+									start: cell.cord,
+									end: cell.cord,
+									mode: 'rook',
+									walled,
+									cords,
+									cells: draft.cells,
+									callback: getWalkCallback(curMoves, curPath),
+								});
+								moves.push(...curMoves);
+							}
+
+							for (const initDir of dirs.slice(4)) {
+								const curMoves: TMove[] = [];
+								const curPath: TCell[] = [];
+
+								walk({
+									initDir,
+									initSide: cell.side,
+									start: cell.cord,
+									end: cell.cord,
+									walled,
+									mode: 'bishop',
+									cords,
+									cells: draft.cells,
+									callback: getWalkCallback(curMoves, curPath),
+								});
+								moves.push(...curMoves);
+							}
+							break;
+						case EPiece.KNIGHT:
+							for (const c of draft.cells.flat(3)) {
+								const distSq = c.cord.distanceToSquared(cell.cord);
+								let reachable = false;
+								if (distSq === 5 * C_S * C_S || distSq === 3.5 * C_S * C_S) {
+									reachable = true;
+								} else if (distSq === 4.5 * C_S * C_S && (isEdgeCell(c) || isCornerCell(c))) {
+									if (c.cord.distanceToSquared(center) !== 3.25 * C_S * C_S) {
+										reachable = true;
+									}
+								} else if (distSq === 2.5 * C_S * C_S && (isCornerCell(c) || isCornerCell(cell))) {
+									reachable = true;
+								}
+								if (reachable) {
+									if (!walled || c.side.dot(cell.side) !== 0) {
+										// TODO: More concrete path
+										const type = updateCellState(cell, c);
+										if (type) {
+											moves.push({
+												type,
+												path: [c.id],
+											});
+										}
+									}
+								}
+							}
+							break;
+						case EPiece.CAPTAIN: {
+							const currCellIds: string[] = [];
+							const walkCallback = (c: TCell) => {
+								if (c.color !== cell.color || !!c.piece) {
+									return false;
+								} else {
+									currCellIds.push(c.id);
+									return true;
+								}
+							};
+
+							const tree = bfs({
+								initCell: cell,
+								cords,
+								cells: draft.cells,
+								walled,
+								callback: walkCallback,
+							});
+
+							// FIND MOVES FROM TREE
+							const currMoves: TMove[] = currCellIds.map((id) => {
+								const shortestPath: string[] = [];
+								let cursor = id;
+								while (cursor !== cell.id) {
+									shortestPath.push(cursor);
+									cursor = tree[cursor];
+								}
+								return { path: shortestPath.reverse(), type: 'normal' };
+							});
+
+							moves.push(...currMoves);
+
+							// KING-mode
+							for (const c of draft.cells.flat(3)) {
+								const distSq = c.cord.distanceToSquared(cell.cord);
+								if (
+									(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
+									distSq === C_S * C_S ||
+									distSq === 2 * C_S * C_S
+								) {
+									const type = updateCellState(cell, c);
+									if (type) {
+										moves.push({
+											type,
+											path: [c.id],
+										});
+									}
+								}
+							}
+							break;
+						}
+
+						case EPiece.TESSERACT: {
+							// KING-mode
+							for (const c of draft.cells.flat(3)) {
+								const distSq = c.cord.distanceToSquared(cell.cord);
+								if (
+									(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
+									distSq === C_S * C_S ||
+									distSq === 2 * C_S * C_S
+								) {
+									const type = updateCellState(cell, c);
+									if (type) {
+										moves.push({
+											type,
+											path: [c.id],
+										});
+									}
+								}
+							}
+
+							break;
+						}
+						case EPiece.KING: {
+							for (const c of draft.cells.flat(3)) {
+								const distSq = c.cord.distanceToSquared(cell.cord);
+								if (
+									(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
+									distSq === C_S * C_S ||
+									distSq === 2 * C_S * C_S
+								) {
+									const type = updateCellState(cell, c);
+									if (type) {
+										moves.push({
+											type,
+											path: [c.id],
+										});
+									}
+								}
+							}
+
+							break;
+						}
+
+						case EPiece.PAWN: {
+							for (const c of draft.cells.flat(3)) {
+								const distSq = c.cord.distanceToSquared(cell.cord);
+								if ((!walled && distSq === 0.5 * C_S * C_S) || distSq === C_S * C_S) {
+									if (!c.piece) {
+										moves.push({
+											type: 'normal',
+											path: [c.id],
+										});
+									}
+								}
+								if ((!walled && distSq === 1.5 * C_S * C_S) || distSq === 2 * C_S * C_S) {
+									assert(cell.piece);
+									if (c.piece && c.piece.player !== cell.piece.player) {
+										moves.push({
+											type: 'capturing',
+											path: [c.id],
+										});
+									}
+								}
+							}
+							break;
+						}
+						default:
+							break;
+					}
+
+					// UPDATE
+					piece.moves = moves;
+				}
+			});
+		});
 	},
 }));
 

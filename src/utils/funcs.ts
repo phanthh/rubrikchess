@@ -1,4 +1,3 @@
-import { MeshProps } from '@react-three/fiber';
 import { Vector3 } from 'three';
 import { C_S, CU_S, Z_GS } from '../settings';
 import { TCell, TPathPoint } from '../types';

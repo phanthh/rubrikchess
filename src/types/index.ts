@@ -2,7 +2,6 @@ import { Canvas, Object3DNode } from '@react-three/fiber';
 import { Curve, Vector3 } from 'three';
 import { TextGeometry } from 'three/examples/jsm/Addons.js';
 import { EColor, EPiece } from '../utils/consts';
-import { Tween } from '@tweenjs/tween.js';
 
 export type TPlayer = 'black' | 'white'; // > 2 players?
 export type TCell = {
@@ -26,7 +25,15 @@ export type TPiece = {
 	id: string;
 	type: EPiece;
 	player: TPlayer;
+	moves?: TMove[]; // if moves is undefined, then it the calculating state has not been executed
 };
+
+export type TMove = {
+	path: string[]; // cell ids, final id is the target
+	type: TMoveType;
+};
+
+export type TMoveType = 'capturing' | 'normal';
 
 export type TCuboid = {
 	id: string;

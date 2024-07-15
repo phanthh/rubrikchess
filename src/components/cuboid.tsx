@@ -22,7 +22,7 @@ export const Cuboid = memo(({ cuboid }: CuboidProps) => {
 	}, [cuboid.id, ref.current]);
 
 	return (
-		<group ref={ref} position={cuboid.cord} scale={0.9}>
+		<group ref={ref} position={cuboid.cord} scale={0.95}>
 			<mesh
 				{...preventPropagationProps}
 				position={[0, 0, 0]}

@@ -13,7 +13,6 @@ import {
 	vkey,
 } from '@/utils/funcs';
 import { bfs, move, walk } from '@/utils/path';
-import { useThree } from '@react-three/fiber';
 import { produce } from 'immer';
 import { Vector3 } from 'three';
 import { game, useGameStore } from '../store/game';
@@ -25,7 +24,6 @@ import { Cuboid } from './cuboid';
 type CubeProps = {};
 
 export function Cube({}: CubeProps) {
-	const { scene } = useThree();
 	const cells = useGameStore((store) => store.cells);
 	const cuboids = useGameStore((store) => store.cuboids);
 	const walled = useGameStore((store) => store.walled);
@@ -125,7 +123,7 @@ export function Cube({}: CubeProps) {
 					case EPiece.KNIGHT:
 						for (const c of draft.cells.flat(3)) {
 							const distSq = c.cord.distanceToSquared(cell.cord);
-							let reachable;
+							let reachable = false;
 							if (distSq === 5 * C_S * C_S || distSq === 3.5 * C_S * C_S) {
 								reachable = true;
 							} else if (distSq === 4.5 * C_S * C_S && (isEdgeCell(c) || isCornerCell(c))) {
@@ -137,6 +135,8 @@ export function Cube({}: CubeProps) {
 							}
 							if (reachable) {
 								if (!walled || c.side.dot(cell.side) !== 0) {
+									// TODO: More concrete path
+									paths.push([c]);
 									updateCellState(cell, c);
 								}
 							}
@@ -166,6 +166,7 @@ export function Cube({}: CubeProps) {
 								distSq === C_S * C_S ||
 								distSq === 2 * C_S * C_S
 							) {
+								paths.push([c]);
 								updateCellState(cell, c);
 							}
 						}
@@ -197,6 +198,7 @@ export function Cube({}: CubeProps) {
 								distSq === C_S * C_S ||
 								distSq === 2 * C_S * C_S
 							) {
+								paths.push([c]);
 								updateCellState(cell, c);
 							}
 						}
@@ -211,6 +213,7 @@ export function Cube({}: CubeProps) {
 								distSq === C_S * C_S ||
 								distSq === 2 * C_S * C_S
 							) {
+								paths.push([c]);
 								updateCellState(cell, c);
 							}
 						}
@@ -223,12 +226,14 @@ export function Cube({}: CubeProps) {
 							const distSq = c.cord.distanceToSquared(cell.cord);
 							if ((!walled && distSq === 0.5 * C_S * C_S) || distSq === C_S * C_S) {
 								if (!c.piece) {
+									paths.push([c]);
 									c.state = 'reachable';
 								}
 							}
 							if ((!walled && distSq === 1.5 * C_S * C_S) || distSq === 2 * C_S * C_S) {
 								assert(cell.piece);
 								if (c.piece && c.piece.player !== cell.piece.player) {
+									paths.push([c]);
 									c.state = 'capturable';
 								}
 							}
@@ -238,10 +243,7 @@ export function Cube({}: CubeProps) {
 					default:
 						break;
 				}
-				if (animate) {
-					const sorted = paths.sort((a, b) => a.length - b.length);
-					draft.paths = sorted;
-				}
+				draft.paths = paths.sort((a, b) => a.length - b.length);
 				const [c, i, j] = nkeyinv(cell.id);
 				draft.cells[c][i][j].state = 'active';
 
@@ -265,6 +267,28 @@ export function Cube({}: CubeProps) {
 				const { paths, tree } = game();
 
 				switch (activePiece.type) {
+					case EPiece.CAPTAIN: {
+						assert(tree);
+
+						if (paths.flat(2).find((c) => c.id === cell.id)) {
+							move(activeCell, cell, paths, animate);
+							break;
+						}
+
+						// SPECIAL CAPTAIN MOVE: SAILING
+
+						const shortestPath: TCell[] = [];
+						let cursor = cell;
+						while (cursor.id !== activeCell.id) {
+							shortestPath.push(cursor);
+							const [c, i, j] = nkeyinv(tree[cursor.id]);
+							cursor = cells[c][i][j];
+						}
+						shortestPath.reverse();
+						move(activeCell, cell, [shortestPath], animate);
+						game().set({ tree: null });
+						break;
+					}
 					case EPiece.TESSERACT: {
 						const payload = cell.payload;
 						if (!payload) {

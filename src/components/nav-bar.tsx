@@ -3,14 +3,13 @@ import { game, useGameStore } from '@/store/game';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
+import { TPiece } from '@/types';
 
 type NavBarProps = {};
 export function NavBar(props: NavBarProps) {
-	const [shadow, state, turn, walled, sandbox, debug, animate, inverted] = useGameStore(
+	const [state, walled, sandbox, debug, animate, inverted] = useGameStore(
 		useShallow((store) => [
-			store.shadow,
 			store.state,
-			store.turn,
 			store.walled,
 			store.sandbox,
 			store.debug,
@@ -28,11 +27,18 @@ export function NavBar(props: NavBarProps) {
 		game().set({ state: 'play:pick-piece' });
 	};
 
+	const handleUpdateMoves = () => {
+		game().updatePieceMoves();
+	};
+
 	return (
 		<nav className="flex p-4 h-16 flex-row items-center gap-3 border-gray-500 border-2 bg-background">
 			{/* {debug && <span className="text-foreground">State: {state}</span>} */}
 			<Button variant="outline" onClick={handleReset}>
 				Reset
+			</Button>
+			<Button variant="outline" onClick={handleUpdateMoves}>
+				Update Moves
 			</Button>
 			<span className="text-foreground">Walled:</span>
 			<Switch

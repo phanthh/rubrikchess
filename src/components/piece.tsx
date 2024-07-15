@@ -2,7 +2,6 @@ import { animation } from '@/store/animation';
 import { useGameStore } from '@/store/game';
 import { TCell, TPiece } from '@/types';
 import { EColor, EPiece } from '@/utils/consts';
-import { vec } from '@/utils/funcs';
 import { useInteractiveMesh } from '@/utils/hooks';
 import { GroupProps, MeshProps, useLoader } from '@react-three/fiber';
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';

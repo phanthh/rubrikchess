@@ -1,21 +1,12 @@
 import { B_D, C_S, Z_GS } from '@/settings';
-import { TCell, TPathPoint } from '@/types';
-import { CatmullRomCurve3, ArrowHelper, Vector3 } from 'three';
-import { SIDES } from './consts';
-import {
-	assert,
-	nkey,
-	nkeyinv,
-	clampCube,
-	implyDirs,
-	vkey,
-	implyPathPoint,
-	implyCenter,
-} from './funcs';
-import { createQueue } from './queue';
 import { animation } from '@/store/animation';
 import { game } from '@/store/game';
+import { TCell, TPathPoint } from '@/types';
 import { produce } from 'immer';
+import { CatmullRomCurve3, Vector3 } from 'three';
+import { SIDES } from './consts';
+import { assert, clampCube, implyCenter, implyDirs, implyPathPoint, nkeyinv, vkey } from './funcs';
+import { createQueue } from './queue';
 
 const MAX_ITER = B_D * B_D * SIDES.length;
 
@@ -204,6 +195,7 @@ export function move(
 	};
 
 	if (animate) {
+		// EXECUTE PATH ANIMATION
 		let chosenPath: TCell[] | null = null;
 		let step = 0;
 		const currPaths: TCell[][] = [];
@@ -226,11 +218,11 @@ export function move(
 		assert(chosenPath);
 
 		const getMiddlePointPath = (c: TCell, nc: TCell) => {
-			const ccenter = implyCenter(c);
-			const nccenter = implyCenter(nc);
-			const cccenter = nccenter.add(ccenter).multiplyScalar(0.5);
+			const cc = implyCenter(c);
+			const ncc = implyCenter(nc);
+			const ccc = ncc.add(cc).multiplyScalar(0.5);
 			const newPointSide = c.side.clone().add(nc.side).normalize();
-			const newPoint = cccenter.add(newPointSide.clone().multiplyScalar(Math.SQRT1_2 * C_S));
+			const newPoint = ccc.add(newPointSide.clone().multiplyScalar(Math.SQRT1_2 * C_S));
 			return {
 				cord: newPoint.clone(),
 				zCord: newPoint.clone().add(newPointSide.clone().multiplyScalar(Z_GS)),

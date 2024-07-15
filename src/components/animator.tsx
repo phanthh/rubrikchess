@@ -1,12 +1,23 @@
-import { animation } from '@/store/animation';
+import { animation, useAnimationStore } from '@/store/animation';
 import { game, useGameStore } from '@/store/game';
 import { EASE_FUNCS } from '@/utils/funcs';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useEffect } from 'react';
 
 type AnimatorProps = {};
 export function Animator(props: AnimatorProps) {
 	const state = useGameStore((store) => store.state);
 	const inverted = useGameStore((store) => store.inverted);
+
+	const { invalidate } = useThree();
+
+	useEffect(() => {
+		const unsub = useAnimationStore.subscribe((store) => {
+			invalidate();
+		});
+		return unsub;
+	}, []);
+
 	useFrame(({ scene }) => {
 		if (state !== 'play:animate') return;
 
