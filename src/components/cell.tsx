@@ -1,25 +1,16 @@
 import { animation } from '@/store/animation';
 import { EColor, MAX_INT } from '@/utils/consts';
+import { usePreventPropagation } from '@/utils/hooks';
 import { ThreeEvent } from '@react-three/fiber';
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';
-import {
-	BackSide,
-	BoxGeometry,
-	DoubleSide,
-	FrontSide,
-	Mesh,
-	MeshStandardMaterial,
-	PlaneGeometry,
-	Texture,
-} from 'three';
+import { BackSide, BoxGeometry, DoubleSide, Mesh, MeshStandardMaterial, Texture } from 'three';
 import { C_S, DEBUG_BOARD_CORD } from '../settings';
 import { game, useGameStore } from '../store/game';
-import { TCell } from '../types';
+import { TCell, TCellState } from '../types';
 import { implyDirs, vec, vkey } from '../utils/funcs';
 import { CellIndicator } from './cell-indicator';
 import { Piece } from './piece';
 import { Text } from './text';
-import { usePreventPropagation } from '@/utils/hooks';
 
 const cellGeometry = new BoxGeometry(C_S, C_S, 0.2);
 
@@ -69,7 +60,8 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 
 	const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {
 		e.stopPropagation();
-		game().resetCellsState();
+		game().updatePieceMoves();
+		game().updateIdleCellStates();
 		game().set({ state: 'play:pick-piece' });
 		onPickPiece(cell);
 	};
@@ -132,10 +124,8 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 					<edgesGeometry args={[cellGeometry]} />
 					<lineBasicMaterial color={'black'} />
 				</lineSegments>
-				{(cell.state === 'reachable' || cell.state === 'capturable') && (
-					<CellIndicator cell={cell} />
-				)}
 				{cell.piece && <Piece cell={cell} piece={cell.piece} />}
+				{INDICATED_CELL_STATES.includes(cell.state) && <CellIndicator cell={cell} />}
 				{/* <arrowHelper args={[vec(0, 0, 1), vec(0, 0, 0), 1, 'blue']} /> */}
 				{/* <arrowHelper args={[vec(0, 1, 0), vec(0, 0, 0), 1, 'green']} /> */}
 				{/* <arrowHelper args={[vec(1, 0, 0), vec(0, 0, 0), 1, 'red']} /> */}
@@ -149,3 +139,10 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 		</>
 	);
 });
+
+const INDICATED_CELL_STATES: TCellState[] = [
+	'reachable',
+	'capturable',
+	'targeted',
+	'targeted:path',
+];

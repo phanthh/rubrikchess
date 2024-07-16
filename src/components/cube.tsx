@@ -1,18 +1,9 @@
 import { C_S } from '@/settings';
 import { animation } from '@/store/animation';
-import { TCell, TCuboid } from '@/types';
+import { TCell, TCuboid, TPiece } from '@/types';
 import { EPiece, XPOS, YPOS, ZPOS } from '@/utils/consts';
-import {
-	assert,
-	implyCenter,
-	implyDirs,
-	isCornerCell,
-	isEdgeCell,
-	nkeyinv,
-	updateCellState,
-	vkey,
-} from '@/utils/funcs';
-import { bfs, move, walk } from '@/utils/path';
+import { assert, nkeyinv, vkey } from '@/utils/funcs';
+import { move } from '@/utils/path';
 import { produce } from 'immer';
 import { Vector3 } from 'three';
 import { game, useGameStore } from '../store/game';
@@ -35,149 +26,41 @@ export function Cube({}: CubeProps) {
 		if (!piece) return;
 		const { turn, sandbox } = game();
 		if (turn !== cell.piece?.player && !sandbox) return;
-		const dirs = implyDirs(cell.side);
+		const moves = piece.moves;
+		assert(moves, 'no moves');
 
 		// TODO neightbord hood function for better perf;
 		game().set((state) => {
 			const cords = state.cords;
-			if (!cords) {
-				throw new Error('no cords');
-			}
+			assert(cords, 'no cords');
 			return produce(state, (draft) => {
-				let paths: TCell[][] = [];
-				const center = implyCenter(cell);
-				const walkCallback = (c: TCell) => {
-					updateCellState(cell, c);
-					return !c.piece;
+				// update cells based on the piece's available moves
+
+				const updateCellStatesFromMoves = () => {
+					for (const move of moves) {
+						const target = move.path.at(-1);
+						assert(target, 'path is to short');
+						const [c, i, j] = nkeyinv(target);
+						switch (move.type) {
+							case 'capturing':
+								draft.cells[c][i][j].state = 'capturable';
+								break;
+							case 'normal':
+								draft.cells[c][i][j].state = 'reachable';
+								break;
+							default:
+								break;
+						}
+					}
 				};
 
-				const walled = draft.walled;
-
-				// different piece type
+				// logics for different piece type
 				switch (piece.type) {
-					case EPiece.ROOK: {
-						for (const initDir of dirs.slice(0, 4)) {
-							const dirPath = walk({
-								initDir,
-								initSide: cell.side,
-								start: cell.cord,
-								end: cell.cord,
-								mode: 'rook',
-								walled,
-								cords,
-								cells: draft.cells,
-								callback: walkCallback,
-							});
-							paths.push(dirPath);
-						}
-						break;
-					}
-					case EPiece.BISHOP: {
-						for (const initDir of dirs.slice(4)) {
-							const dirPath = walk({
-								initDir,
-								initSide: cell.side,
-								start: cell.cord,
-								end: cell.cord,
-								mode: 'bishop',
-								walled,
-								cords,
-								cells: draft.cells,
-								callback: walkCallback,
-							});
-							paths.push(dirPath);
-						}
-						break;
-					}
-					case EPiece.QUEEN:
-						for (const initDir of dirs.slice(0, 4)) {
-							const dirPath = walk({
-								initDir,
-								initSide: cell.side,
-								start: cell.cord,
-								end: cell.cord,
-								mode: 'rook',
-								walled,
-								cords,
-								cells: draft.cells,
-								callback: walkCallback,
-							});
-							paths.push(dirPath);
-						}
-
-						for (const initDir of dirs.slice(4)) {
-							const dirPath = walk({
-								initDir,
-								initSide: cell.side,
-								start: cell.cord,
-								end: cell.cord,
-								walled,
-								mode: 'bishop',
-								cords,
-								cells: draft.cells,
-								callback: walkCallback,
-							});
-							paths.push(dirPath);
-						}
-						break;
-					case EPiece.KNIGHT:
-						for (const c of draft.cells.flat(3)) {
-							const distSq = c.cord.distanceToSquared(cell.cord);
-							let reachable = false;
-							if (distSq === 5 * C_S * C_S || distSq === 3.5 * C_S * C_S) {
-								reachable = true;
-							} else if (distSq === 4.5 * C_S * C_S && (isEdgeCell(c) || isCornerCell(c))) {
-								if (c.cord.distanceToSquared(center) !== 3.25 * C_S * C_S) {
-									reachable = true;
-								}
-							} else if (distSq === 2.5 * C_S * C_S && (isCornerCell(c) || isCornerCell(cell))) {
-								reachable = true;
-							}
-							if (reachable) {
-								if (!walled || c.side.dot(cell.side) !== 0) {
-									// TODO: More concrete path
-									paths.push([c]);
-									updateCellState(cell, c);
-								}
-							}
-						}
-						break;
-					case EPiece.CAPTAIN: {
-						draft.tree = bfs({
-							initCell: cell,
-							cords,
-							cells: draft.cells,
-							walled,
-							callback: (c: TCell) => {
-								if (c.color !== cell.color || !!c.piece) {
-									return false;
-								} else {
-									c.state = 'reachable';
-									return true;
-								}
-							},
-						});
-
-						// KING-mode
-						for (const c of draft.cells.flat(3)) {
-							const distSq = c.cord.distanceToSquared(cell.cord);
-							if (
-								(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
-								distSq === C_S * C_S ||
-								distSq === 2 * C_S * C_S
-							) {
-								paths.push([c]);
-								updateCellState(cell, c);
-							}
-						}
-						break;
-					}
-
 					case EPiece.TESSERACT: {
 						for (const angle of [
 							Math.PI / 2,
 							-Math.PI / 2,
-							// Math.PI // NOTE: allowing 180 turn seems a bit too OP
+							// Math.PI // NOTE: allowing 180 turn seems a bit too OP for Tesseract
 						]) {
 							for (const axis of [XPOS, YPOS, ZPOS]) {
 								const rotated = cell.cord.clone().applyAxisAngle(axis, angle).round();
@@ -190,60 +73,14 @@ export function Cube({}: CubeProps) {
 							}
 						}
 
-						// KING-mode
-						for (const c of draft.cells.flat(3)) {
-							const distSq = c.cord.distanceToSquared(cell.cord);
-							if (
-								(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
-								distSq === C_S * C_S ||
-								distSq === 2 * C_S * C_S
-							) {
-								paths.push([c]);
-								updateCellState(cell, c);
-							}
-						}
-
-						break;
-					}
-					case EPiece.KING: {
-						for (const c of draft.cells.flat(3)) {
-							const distSq = c.cord.distanceToSquared(cell.cord);
-							if (
-								(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
-								distSq === C_S * C_S ||
-								distSq === 2 * C_S * C_S
-							) {
-								paths.push([c]);
-								updateCellState(cell, c);
-							}
-						}
-
-						break;
-					}
-
-					case EPiece.PAWN: {
-						for (const c of draft.cells.flat(3)) {
-							const distSq = c.cord.distanceToSquared(cell.cord);
-							if ((!walled && distSq === 0.5 * C_S * C_S) || distSq === C_S * C_S) {
-								if (!c.piece) {
-									paths.push([c]);
-									c.state = 'reachable';
-								}
-							}
-							if ((!walled && distSq === 1.5 * C_S * C_S) || distSq === 2 * C_S * C_S) {
-								assert(cell.piece);
-								if (c.piece && c.piece.player !== cell.piece.player) {
-									paths.push([c]);
-									c.state = 'capturable';
-								}
-							}
-						}
+						updateCellStatesFromMoves();
 						break;
 					}
 					default:
+						updateCellStatesFromMoves();
 						break;
 				}
-				draft.paths = paths.sort((a, b) => a.length - b.length);
+
 				const [c, i, j] = nkeyinv(cell.id);
 				draft.cells[c][i][j].state = 'active';
 
@@ -257,42 +94,19 @@ export function Cube({}: CubeProps) {
 		const activeCell = game().getActiveCell();
 		const activePiece = activeCell?.piece;
 
+		assert(activeCell, 'no active cell');
+		assert(activePiece, 'no active piece');
+
 		switch (cell.state) {
 			case 'reachable':
 			case 'capturable': {
 				// MOVE PIECE
-				assert(activeCell, 'no active cell');
-				assert(activePiece, 'no active piece');
-
-				const { paths, tree } = game();
-
 				switch (activePiece.type) {
-					case EPiece.CAPTAIN: {
-						assert(tree);
-
-						if (paths.flat(2).find((c) => c.id === cell.id)) {
-							move(activeCell, cell, paths, animate);
-							break;
-						}
-
-						// SPECIAL CAPTAIN MOVE: SAILING
-
-						const shortestPath: TCell[] = [];
-						let cursor = cell;
-						while (cursor.id !== activeCell.id) {
-							shortestPath.push(cursor);
-							const [c, i, j] = nkeyinv(tree[cursor.id]);
-							cursor = cells[c][i][j];
-						}
-						shortestPath.reverse();
-						move(activeCell, cell, [shortestPath], animate);
-						game().set({ tree: null });
-						break;
-					}
 					case EPiece.TESSERACT: {
 						const payload = cell.payload;
 						if (!payload) {
-							move(activeCell, cell, paths, animate);
+							// no payload means no rotate
+							move(activeCell, cell, cells, animate);
 							break;
 						}
 
@@ -310,7 +124,7 @@ export function Cube({}: CubeProps) {
 							});
 						};
 
-						const rotateAllSync = () => {
+						const executeRotationMove = () => {
 							game().set((state) => {
 								return produce(state, (draft) => {
 									for (const c of getRotating(draft.cells.flat(3))) {
@@ -326,26 +140,27 @@ export function Cube({}: CubeProps) {
 									}
 								});
 							});
+							game().updatePieceMoves();
+							game().updateIdleCellStates();
 						};
 
 						if (animate) {
 							// WITH ANIMATION: update on animation end;
-							animation().set({
-								progress: 0,
+							animation().start({
 								cells: getRotating(cells.flat(3)),
 								cuboids: getRotating(cuboids.flat(3)),
-								onEnd: rotateAllSync,
+								onEnd: executeRotationMove,
 								config: { type: 'rotate', axis, angle },
 							});
 						} else {
 							// NO ANIMATION: update straightaway
-							rotateAllSync();
+							executeRotationMove();
 						}
 
 						break;
 					}
 					default: {
-						move(activeCell, cell, paths, animate);
+						move(activeCell, cell, cells, animate);
 						break;
 					}
 				}
@@ -355,8 +170,6 @@ export function Cube({}: CubeProps) {
 					turn: state.sandbox ? state.turn : state.turn === 'white' ? 'black' : 'white',
 					state: animate ? 'play:animate' : 'play:pick-piece',
 				}));
-
-				game().resetCellsState();
 			}
 
 			default: {
@@ -364,20 +177,6 @@ export function Cube({}: CubeProps) {
 			}
 		}
 	};
-
-	// useLayoutEffect(() => {
-	// 	switch (state) {
-	// 		case 'play:pick-cell':
-	// 			break;
-	// 		case 'play:pick-piece':
-	// 			break;
-	// 		case 'play:animate':
-	// 			// pending animation
-	// 			break;
-	// 		default:
-	// 			break;
-	// 	}
-	// }, [state]);
 
 	return (
 		<>

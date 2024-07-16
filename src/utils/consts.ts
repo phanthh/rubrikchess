@@ -9,11 +9,14 @@ export enum EPiece {
 	KING = 'k',
 	CAPTAIN = 'c',
 	TESSERACT = 't',
+	PRINCESS = 's',
+	PRINCE = 'x',
+	CANNON = 'o',
 }
 
 export enum EColor {
 	WHITE = '#aaaaaa',
-	BLACK = '#555555',
+	BLACK = '#444444',
 	RED = '#aa0000',
 	BLUE = '#0000aa',
 	YELLOW = '#aaaa00',

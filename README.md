@@ -2,6 +2,11 @@
 
 TODO:
 
-- King Check checks
-- Princess piece: Queen but limited by square
-- Multiplayer (local network?)
+- [x] King Check checks
+- [x] Princess piece: Queen but limited by square
+- [x] Prince piece
+- [x] Cannon piece
+- [] Checkmate check
+- [] UI Interfaces (Menu and Control panels)
+- [] Multiplayer (local network?)
+- [] AI bot

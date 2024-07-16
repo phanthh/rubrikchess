@@ -41,7 +41,13 @@ export type TCuboid = {
 };
 
 export type TGameState = 'play:pick-piece' | 'play:pick-cell' | 'play:animate';
-export type TCellState = 'reachable' | 'capturable' | 'normal' | 'active';
+export type TCellState =
+	| 'reachable'
+	| 'capturable'
+	| 'normal'
+	| 'active'
+	| 'targeted'
+	| 'targeted:path';
 
 export type TAnimationConfig = TAnimationRotateConfig | TAnimationPathConfig;
 export type TAnimationRotateConfig = {

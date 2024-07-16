@@ -1,7 +1,7 @@
 import { B_D, C_S, Z_GS } from '@/settings';
 import { animation } from '@/store/animation';
 import { game } from '@/store/game';
-import { TCell, TPathPoint } from '@/types';
+import { TCell, TMove, TPathPoint } from '@/types';
 import { produce } from 'immer';
 import { CatmullRomCurve3, Vector3 } from 'three';
 import { SIDES } from './consts';
@@ -168,16 +168,12 @@ export function bfs({
 	return tree;
 }
 
-export function move(
-	activeCell: TCell,
-	chosenCell: TCell,
-	possiblePaths: TCell[][],
-	animate: boolean,
-) {
+export function move(activeCell: TCell, chosenCell: TCell, cells: TCell[][][], animate: boolean) {
 	const activePiece = activeCell?.piece;
-
+	const moves = activePiece?.moves;
 	assert(activeCell, 'no active cell');
 	assert(activePiece, 'no active piece');
+	assert(moves, 'no moves');
 
 	const moveCell = () => {
 		game().set((state) => {
@@ -192,30 +188,34 @@ export function move(
 				}
 			});
 		});
+		game().updatePieceMoves();
+		game().updateIdleCellStates();
 	};
 
 	if (animate) {
+		const possibleMoves = moves.filter((move) => move.path[move.path.length - 1] === chosenCell.id);
+
 		// EXECUTE PATH ANIMATION
-		let chosenPath: TCell[] | null = null;
+		let chosenMove: TMove | null = null;
 		let step = 0;
-		const currPaths: TCell[][] = [];
-		while (!chosenPath) {
-			for (const [i, path] of possiblePaths.entries()) {
+		const currPaths: string[][] = [];
+		while (!chosenMove) {
+			for (const [i, { path }] of possibleMoves.entries()) {
 				if (!currPaths[i]) {
 					currPaths[i] = [];
 				}
 				if (step >= path.length) continue;
 				const curr = path[step];
 				currPaths[i].push(curr);
-				if (curr.id === chosenCell.id) {
-					chosenPath = currPaths[i];
+				if (curr === chosenCell.id) {
+					chosenMove = possibleMoves[i];
 					break;
 				}
 			}
 			step += 1;
 		}
 
-		assert(chosenPath);
+		assert(chosenMove);
 
 		const getMiddlePointPath = (c: TCell, nc: TCell) => {
 			const cc = implyCenter(c);
@@ -230,24 +230,27 @@ export function move(
 		};
 
 		// modify animation path for smoother animation (adding additional points)
+		const cellPath: TCell[] = chosenMove.path.map((id) => {
+			const [c, i, j] = nkeyinv(id);
+			return cells[c][i][j];
+		});
 		const path: TPathPoint[] = [implyPathPoint(activeCell)];
 
-		if (chosenPath[0].side.dot(activeCell.side) === 0) {
-			path.push(getMiddlePointPath(activeCell, chosenPath[0]));
+		if (cellPath[0].side.dot(activeCell.side) === 0) {
+			path.push(getMiddlePointPath(activeCell, cellPath[0]));
 		}
 
-		for (const [i, c] of chosenPath.entries()) {
+		for (const [i, c] of cellPath.entries()) {
 			path.push(implyPathPoint(c));
-			if (i < chosenPath.length - 1) {
-				const nc = chosenPath[i + 1];
+			if (i < cellPath.length - 1) {
+				const nc = cellPath[i + 1];
 				if (nc.side.dot(c.side) === 0) {
 					path.push(getMiddlePointPath(c, nc));
 				}
 			}
 		}
 
-		animation().set({
-			progress: 0,
+		animation().start({
 			pieces: [activePiece],
 			onEnd: moveCell,
 			config: {

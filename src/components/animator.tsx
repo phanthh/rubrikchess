@@ -84,10 +84,10 @@ export function Animator(props: AnimatorProps) {
 
 		if (animation().progress >= 1) {
 			game().set({ state: 'play:pick-piece' });
+			console.log(animation());
 			animation().onEnd?.();
 			animation().reset();
-			console.log('DONEEEE');
-			console.log('ANIMATION END:', animation().pieceRefs);
+			console.log('ANIMATION DONEEEE');
 		}
 	});
 	return null;

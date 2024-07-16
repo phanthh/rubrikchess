@@ -3,7 +3,6 @@ import { game, useGameStore } from '@/store/game';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
-import { TPiece } from '@/types';
 
 type NavBarProps = {};
 export function NavBar(props: NavBarProps) {
@@ -23,7 +22,8 @@ export function NavBar(props: NavBarProps) {
 	};
 
 	const handleCancel = () => {
-		game().resetCellsState();
+		game().updatePieceMoves();
+		game().updateIdleCellStates();
 		game().set({ state: 'play:pick-piece' });
 	};
 
@@ -45,6 +45,8 @@ export function NavBar(props: NavBarProps) {
 				checked={walled}
 				onCheckedChange={() => {
 					game().set({ walled: !walled });
+					game().updatePieceMoves();
+					game().updateIdleCellStates();
 				}}
 			/>
 			<span className="text-foreground">Sandbox:</span>

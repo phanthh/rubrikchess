@@ -4,7 +4,7 @@ import { TCell, TPiece } from '@/types';
 import { EColor, EPiece } from '@/utils/consts';
 import { useInteractiveMesh } from '@/utils/hooks';
 import { GroupProps, MeshProps, useLoader } from '@react-three/fiber';
-import { memo, useLayoutEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Group } from 'three';
 import { STLLoader } from 'three/examples/jsm/Addons.js';
 
@@ -40,6 +40,24 @@ const ASSET_CONFIGS: Record<EPiece, { path: string; meshProps?: MeshProps; toolt
 	[EPiece.BISHOP]: {
 		path: '/models/bishop.stl',
 		tooltip: 'Bishop',
+	},
+	[EPiece.PRINCESS]: {
+		path: '/models/princess.stl',
+		tooltip: 'Princess',
+		meshProps: {
+			scale: 0.1,
+		},
+	},
+	[EPiece.PRINCE]: {
+		path: '/models/prince.stl',
+		tooltip: 'Prince',
+	},
+	[EPiece.CANNON]: {
+		path: '/models/cannon.stl',
+		tooltip: 'Cannon',
+		meshProps: {
+			scale: 0.105,
+		},
 	},
 };
 
@@ -89,7 +107,7 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 				castShadow
 				receiveShadow
 			>
-				<meshStandardMaterial roughness={0.5} metalness={0.1} color={color} />
+				<meshStandardMaterial roughness={0.6} metalness={0.1} color={color} />
 			</mesh>
 
 			{/* <arrowHelper args={[vec(0, 0, 1), vec(0, 0, 0), 8, 'blue']} /> */}

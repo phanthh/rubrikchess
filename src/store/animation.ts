@@ -3,6 +3,8 @@ import { TAnimationConfig, TCell, TCuboid, TPiece } from '@/types';
 import { RefObject } from 'react';
 import { Group, Mesh } from 'three';
 import { create } from 'zustand';
+import { game } from './game';
+import { produce } from 'immer';
 
 interface IAnimationStore {
 	cellRefs: Record<string, RefObject<Mesh>>;
@@ -22,6 +24,13 @@ interface IAnimationStore {
 	unregisterPieceRef: (id: string) => void;
 	unregisterCuboidRef: (id: string) => void;
 	reset: () => void;
+	start: (
+		partial:
+			| IAnimationStore
+			| Partial<IAnimationStore>
+			| ((state: IAnimationStore) => IAnimationStore | Partial<IAnimationStore>),
+		replace?: boolean | undefined,
+	) => void;
 }
 
 export const useAnimationStore = create<IAnimationStore>((set, get) => ({
@@ -35,6 +44,13 @@ export const useAnimationStore = create<IAnimationStore>((set, get) => ({
 	config: null,
 	duration: A_D,
 	progress: 0,
+	start: (...params) => {
+		// prehook
+		// clear all game cells state (no indicator at all)
+		game().clearCellStates();
+		set({ progress: 0 });
+		set(...params);
+	},
 	registerCellRef: (id, ref) => {
 		get().cellRefs[id] = ref;
 	},
