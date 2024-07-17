@@ -1,4 +1,5 @@
 import { B_D, CU_S } from '@/settings';
+import { useGameStore } from '@/store/game';
 import { postprocessing } from '@/store/postprocessing';
 import { useRef, useLayoutEffect } from 'react';
 import { AmbientLight, PointLight } from 'three';
@@ -8,6 +9,7 @@ export function Lights() {
 	const ambientLightRef = useRef<AmbientLight>(null);
 	const pointLight1Ref = useRef<PointLight>(null);
 	const pointLight2Ref = useRef<PointLight>(null);
+	const lowPerf = useGameStore((store) => store.lowPerf);
 
 	useLayoutEffect(() => {
 		if (!ambientLightRef.current) return;
@@ -30,14 +32,14 @@ export function Lights() {
 				position={[DIST, DIST, DIST]}
 				color="white"
 				intensity={(10000 * B_D) / 8}
-				castShadow
+				castShadow={!lowPerf}
 			/>
 			<pointLight
 				ref={pointLight2Ref}
 				position={[-DIST, -DIST, -DIST]}
 				color="white"
 				intensity={(10000 * B_D) / 8}
-				castShadow
+				castShadow={!lowPerf}
 			/>
 		</>
 	);

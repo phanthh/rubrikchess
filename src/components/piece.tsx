@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 import { Group } from 'three';
 import { STLLoader } from 'three/examples/jsm/Addons.js';
 import { AxisHelper } from './axis';
-import { debug } from 'console';
 
 const ASSET_CONFIGS: Record<EPiece, { path: string; meshProps?: MeshProps; tooltip?: string }> = {
 	[EPiece.QUEEN]: {
@@ -79,7 +78,7 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 	const debug = useGameStore((store) => store.debug);
 	const checkTarget = useGameStore((store) => store.checkTarget);
 
-	const [color, interactiveProps] = useInteractiveMesh(
+	const [color, interactiveProps, hovered] = useInteractiveMesh(
 		{
 			normal: piece?.player === 'white' ? EColor.WHITE : EColor.BLACK,
 			hover: '#aaffaa',

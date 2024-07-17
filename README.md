@@ -7,6 +7,8 @@ TODO:
 - [x] Prince piece
 - [x] Cannon piece
 - [x] Checkmate check
-- [] UI Interfaces (Menu and Control panels)
 - [] Multiplayer (local network?)
+- [] Multiplayer: spectator (local network?)
+- [] UI Interfaces (Menu and Control panels)
+- [] Knight additional moves
 - [] AI bot

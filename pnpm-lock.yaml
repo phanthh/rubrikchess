@@ -32,6 +32,9 @@ dependencies:
   '@tweenjs/tween.js':
     specifier: ^23.1.2
     version: 23.1.2
+  '@types/lodash':
+    specifier: ^4.17.7
+    version: 4.17.7
   '@types/three':
     specifier: ^0.166.0
     version: 0.166.0
@@ -47,6 +50,9 @@ dependencies:
   immer:
     specifier: ^10.1.1
     version: 10.1.1
+  lodash:
+    specifier: ^4.17.21
+    version: 4.17.21
   lucide-react:
     specifier: ^0.407.0
     version: 0.407.0(react@18.3.1)
@@ -1473,7 +1479,6 @@ packages:
     resolution: {integrity: sha512-8wTvZawATi/lsmNu10/j2hk1KEP0IvjubqPE3cu1Xz7xfXXt5oCq3SNUz4fMIP4XGF9Ky+Ue2tBA3hcS7LSBlA==}
     requiresBuild: true
     dev: false
-    optional: true
 
   /@types/node@20.14.10:
     resolution: {integrity: sha512-MdiXf+nDuMvY0gJKxyfZ7/6UFsETO7mGKF54MVD/ekJS6HdFtpZFBgrh6Pseu64XTb2MLyFPlbW6hj8HYRQNOQ==}
@@ -2536,6 +2541,10 @@ packages:
     requiresBuild: true
     dev: false
     optional: true
+
+  /lodash@4.17.21:
+    resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
+    dev: false
 
   /loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}

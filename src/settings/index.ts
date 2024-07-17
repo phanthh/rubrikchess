@@ -1,4 +1,5 @@
 import { EColor, EPiece } from '@/utils/consts';
+import { vec } from '@/utils/funcs';
 
 export const DEBUG_BOARD_CORD = false;
 
@@ -48,3 +49,5 @@ export const SIDES_COLOR = [
 	EColor.WHITE,
 	EColor.BLACK,
 ];
+
+export const INITAL_CAM_CORD = vec(1.5 * CU_S, 1.5 * CU_S, 1.5 * CU_S);

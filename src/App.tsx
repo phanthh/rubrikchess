@@ -1,12 +1,13 @@
-import { Stats } from '@react-three/drei';
-import { Canvas } from '@react-three/fiber';
-import { Suspense, useEffect, useLayoutEffect } from 'react';
+import { PerformanceMonitor, Stats } from '@react-three/drei';
+import { Canvas, useThree } from '@react-three/fiber';
+import { Suspense, useEffect } from 'react';
 import { Controls } from './components/controls';
 import { Cube } from './components/cube';
 import { CubeFrame } from './components/cube-frame';
 import { Lights } from './components/lights';
 import { NavBar } from './components/nav-bar';
 import { UserInterface } from './components/user-interface';
+import { INITAL_CAM_CORD } from './settings';
 import { game, useGameStore } from './store/game';
 
 function App() {
@@ -44,10 +45,18 @@ function App() {
 				onPointerMissed={handleMissedClick}
 				className="w-full flex-grow"
 				style={{ border: debug ? '1px solid green' : 'none' }}
-				camera={{ position: [38, 50, 38], fov: 50 }}
+				camera={{ position: INITAL_CAM_CORD, fov: 50 }}
 				dpr={[1, 1.5]}
 			>
 				<color attach="background" args={['#101010']} />
+				<PerformanceMonitor
+					onDecline={() => {
+						game().set({ lowPerf: true });
+					}}
+					onIncline={() => {
+						game().set({ lowPerf: false });
+					}}
+				/>
 				<Suspense fallback={<CubeFrame />}>
 					<Lights />
 					<Cube />
@@ -62,8 +71,9 @@ function App() {
 					)}
 					{/* <PostProcessing /> */}
 				</Suspense>
-				<Controls controlStyle="orbit" />
+				<Controls controlStyle="arcball" />
 			</Canvas>
+
 			<UserInterface />
 		</div>
 	);

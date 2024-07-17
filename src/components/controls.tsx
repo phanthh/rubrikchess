@@ -1,24 +1,24 @@
-import { OrbitControls, TrackballControls } from '@react-three/drei';
+import { ArcballControls, OrbitControls } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 
 type ControlsProps = {
-	controlStyle: 'orbit' | 'trackball';
+	controlStyle: 'orbit' | 'arcball';
 };
 
 export function Controls({ controlStyle }: ControlsProps) {
 	const ocRef = useRef<any>(null);
-	const tbRef = useRef<any>(null);
+	const abRef = useRef<any>(null);
 	const camera = useThree((state) => state.camera);
 
 	useEffect(() => {
-		if (!tbRef.current) return;
+		if (!abRef.current) return;
 		if (!ocRef.current) return;
 		let p = camera.position.clone();
 		if (controlStyle === 'orbit') {
-			tbRef.current.reset();
+			abRef.current.reset();
 		}
-		if (controlStyle === 'trackball') {
+		if (controlStyle === 'arcball') {
 			ocRef.current.reset();
 		}
 		camera.position.copy(p);
@@ -32,7 +32,12 @@ export function Controls({ controlStyle }: ControlsProps) {
 				enablePan={false}
 				enableDamping={true}
 			/>
-			<TrackballControls enabled={controlStyle === 'trackball'} ref={tbRef} noPan />
+			<ArcballControls
+				enabled={controlStyle === 'arcball'}
+				enablePan={false}
+				dampingFactor={2}
+				ref={abRef}
+			/>
 		</>
 	);
 }

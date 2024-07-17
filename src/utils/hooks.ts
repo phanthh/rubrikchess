@@ -46,6 +46,7 @@ export const useInteractiveMesh = (
 			onPointerEnter: () => setHovered(true),
 			onPointerLeave: () => setHovered(false),
 		} as Partial<MeshProps>,
+		hovered,
 	] as const;
 };
 

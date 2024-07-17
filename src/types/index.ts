@@ -5,7 +5,8 @@ import { EColor, EPiece } from '../utils/consts';
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
-export type TPlayer = 'black' | 'white'; // > 2 players?
+export type TPlayer = 'black' | 'white';
+
 export type TCell = {
 	id: string;
 	cord: Vector3;

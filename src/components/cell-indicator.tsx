@@ -15,6 +15,7 @@ const CL_H = MAX_INT;
 const CL_R = C_S / 2;
 
 export const CellIndicator = memo(({ cell }: CellIndicatorProps) => {
+	const lowPerf = useGameStore((store) => store.lowPerf);
 	const [color, props] = useInteractiveMesh(
 		{
 			normal: cell.payload
@@ -42,7 +43,7 @@ export const CellIndicator = memo(({ cell }: CellIndicatorProps) => {
 		<mesh {...props} position={[0, 0, 0]} receiveShadow castShadow>
 			<boxGeometry args={[C_S - 1, C_S - 1, 0.5]} />
 			<meshStandardMaterial color={color} roughness={0.9} metalness={0.1} />
-			{cell.state === 'targeted' && (
+			{cell.state === 'targeted' && !lowPerf && (
 				<>
 					<mesh position={[0, 0, CL_H / 2]} rotation={[Math.PI / 2, 0, 0]}>
 						<cylinderGeometry args={[CL_R, CL_R, CL_H, 32]} />
