@@ -2,9 +2,9 @@ import { bfs, walk } from '@/utils/path';
 import { produce } from 'immer';
 import { Vector3 } from 'three';
 import { create } from 'zustand';
-import { B_D, C_S, CU_S, TARGETED_PIECES } from '../settings';
-import { TCell, TCuboid, TGameState, TMove, TMoveType, TPiece, TPlayer } from '../types';
-import { EColor, EPiece, SIDES, SIDES_COLOR, ZPOS, YPOS, XPOS } from '../utils/consts';
+import { B_D, C_S, CU_S, SIDES_COLOR, TARGETED_PIECES } from '../settings';
+import { TAction, TCell, TCuboid, TGameState, TMove, TMoveType, TPiece, TPlayer } from '../types';
+import { EColor, EPiece, SIDES, ZPOS, YPOS, XPOS, PIECES_TYPES } from '../utils/consts';
 import {
 	assert,
 	implyCenter,
@@ -13,6 +13,7 @@ import {
 	isEdgeCell,
 	nkey,
 	nkeyinv,
+	randChoice,
 	vec,
 	vkey,
 	zip,
@@ -23,19 +24,24 @@ interface IGameStore {
 	cuboids: TCuboid[][][];
 	state: TGameState;
 	turn: TPlayer;
+	history: TAction[];
+	cursor: number; // for indexing history
 	inverted: boolean;
 	animate: boolean;
 	cords: Record<string, string>; // Vector3 -> cell id
-	locs: Record<string, string>; // Vector3 -> piece id
 	walled: boolean;
 	sandbox: boolean;
 	debug: boolean;
 	shadow: boolean;
+	checkTarget: boolean;
 	getActiveCell: () => TCell | undefined;
 	clearCellStates: () => void;
 	updateIdleCellStates: () => void;
-	updatePieceMoves: () => void;
-	init: (config: string) => void;
+	updatePieceMoves: (pieceId?: string) => void;
+	resetHistory: () => void;
+	initCube: () => void;
+	initRandomPieces: (density?: number) => void;
+	initConfigPieces: (config: string) => void;
 }
 
 export const useGameStore = create<IGameStore>((set, get) => ({
@@ -45,12 +51,14 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 	state: 'play:pick-piece',
 	cords: {},
 	shadow: false,
-	locs: {},
+	history: [],
+	cursor: 0,
 	animate: true,
 	inverted: false,
 	walled: false,
 	sandbox: true,
 	debug: false,
+	checkTarget: false,
 	getActiveCell: () => {
 		return get()
 			.cells.flat(3)
@@ -98,7 +106,7 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 			}),
 		}));
 	},
-	init: (config: string) => {
+	initCube: () => {
 		const cells: TCell[][][] = [];
 		const cords: Record<string, string> = {};
 
@@ -130,7 +138,6 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 					cells[c][i][j] = {
 						cord: baseCord,
 						id: nkey(c, i, j),
-						angle: 0,
 						side: normal.clone().normalize(),
 						color: color as EColor,
 						state: 'normal',
@@ -156,6 +163,45 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 			}
 		}
 
+		set({ cells, cords, cuboids });
+	},
+	initRandomPieces: (density = 0.2) => {
+		set((state) => {
+			return produce(state, (draft) => {
+				for (let c = 0; c < SIDES.length; ++c) {
+					for (let i = 0; i < B_D; ++i) {
+						for (let j = 0; j < B_D; ++j) {
+							const cell = draft.cells[c][i][j];
+							delete cell.piece;
+							if (Math.random() >= density) continue;
+							const piece: TPiece = {
+								id: nkey(c, i, j),
+								type: randChoice([
+									EPiece.QUEEN,
+									EPiece.ROOK,
+									EPiece.KNIGHT,
+									EPiece.PAWN,
+									EPiece.CANNON,
+									EPiece.TESSERACT,
+									EPiece.BISHOP,
+									EPiece.CAPTAIN,
+									EPiece.PRINCESS,
+									EPiece.PRINCE,
+									EPiece.KING,
+								]),
+								player: randChoice(['black', 'white']),
+							};
+							cell.piece = piece;
+						}
+					}
+				}
+			});
+		});
+		get().updatePieceMoves();
+		get().updateIdleCellStates();
+		get().resetHistory();
+	},
+	initConfigPieces: (config) => {
 		// place pieces based on config
 		// config is a raw string
 		// - is empty cell
@@ -172,31 +218,38 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 
 		const whiteSide = lines.slice(0, B_D);
 		const blackSide = lines.slice(B_D);
-		const zipped = zip([whiteSide, blackSide], [whiteC, blackC]);
 
-		const locs: Record<string, string> = {};
-
-		for (const [side, c] of zipped) {
-			for (let i = 0; i < B_D; ++i) {
-				for (let j = 0; j < B_D; ++j) {
-					const cell = cells[c as number][i][j];
-					const type = side[i][j];
-					if (type === '-') continue;
-					const piece: TPiece = {
-						id: nkey(c, i, j),
-						type: type.toLowerCase() as EPiece,
-						player: type === type.toLowerCase() ? 'black' : 'white',
-					};
-					cell.piece = piece;
-					locs[vkey(cell.cord)] = piece.id;
+		set((state) => {
+			return produce(state, (draft) => {
+				for (let c = 0; c < SIDES.length; ++c) {
+					for (let i = 0; i < B_D; ++i) {
+						for (let j = 0; j < B_D; ++j) {
+							const cell = draft.cells[c][i][j];
+							delete cell.piece;
+							if (c === whiteC || c === blackC) {
+								const side = c === whiteC ? whiteSide : blackSide;
+								const type = side[i][j];
+								if (type === '-') continue;
+								const piece: TPiece = {
+									id: nkey(c, i, j),
+									type: type.toLowerCase() as EPiece,
+									player: type === type.toLowerCase() ? 'black' : 'white',
+								};
+								cell.piece = piece;
+							}
+						}
+					}
 				}
-			}
-		}
-		set({ cells, cords, locs, cuboids });
+			});
+		});
 		get().updatePieceMoves();
 		get().updateIdleCellStates();
+		get().resetHistory();
 	},
-	updatePieceMoves: () => {
+	resetHistory: () => {
+		set({ history: [], cursor: 0 });
+	},
+	updatePieceMoves: (pieceId) => {
 		set((state) => {
 			return produce(state, (draft) => {
 				const cords = draft.cords;
@@ -206,6 +259,7 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 					const piece = cell.piece;
 					// HAVE A PIECE IN THIS CELL
 					if (!piece) continue;
+					if (pieceId && piece.id !== piece.id) continue;
 
 					const dirs = implyDirs(cell.side);
 					const center = implyCenter(cell);
@@ -621,7 +675,10 @@ export const useGameStore = create<IGameStore>((set, get) => ({
 }));
 
 export function game() {
-	return Object.assign(useGameStore.getState(), {
-		set: useGameStore.setState,
-	});
+	return Object.assign(
+		{ ...useGameStore.getState() },
+		{
+			set: useGameStore.setState,
+		},
+	);
 }

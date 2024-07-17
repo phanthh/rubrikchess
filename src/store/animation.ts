@@ -3,8 +3,8 @@ import { TAnimationConfig, TCell, TCuboid, TPiece } from '@/types';
 import { RefObject } from 'react';
 import { Group, Mesh } from 'three';
 import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
 import { game } from './game';
-import { produce } from 'immer';
 
 interface IAnimationStore {
 	cellRefs: Record<string, RefObject<Mesh>>;
@@ -33,55 +33,60 @@ interface IAnimationStore {
 	) => void;
 }
 
-export const useAnimationStore = create<IAnimationStore>((set, get) => ({
-	cellRefs: {},
-	pieceRefs: {},
-	cuboidRefs: {},
-	cells: null,
-	cuboids: null,
-	pieces: null,
-	onEnd: null,
-	config: null,
-	duration: A_D,
-	progress: 0,
-	start: (...params) => {
-		// prehook
-		// clear all game cells state (no indicator at all)
-		game().clearCellStates();
-		set({ progress: 0 });
-		set(...params);
-	},
-	registerCellRef: (id, ref) => {
-		get().cellRefs[id] = ref;
-	},
-	registerPieceRef: (id, ref) => {
-		get().pieceRefs[id] = ref;
-	},
-	registerCuboidRef: (id, ref) => {
-		get().cuboidRefs[id] = ref;
-	},
-	unregisterCellRef: (id) => {
-		delete get().cellRefs[id];
-	},
-	unregisterPieceRef: (id) => {
-		delete get().pieceRefs[id];
-	},
-	unregisterCuboidRef: (id) => {
-		delete get().cuboidRefs[id];
-	},
-	reset: () => {
-		set({
-			cells: null,
-			onEnd: null,
-			config: null,
-			pieces: null,
-			progress: 0,
-		});
-	},
-}));
+export const useAnimationStore = create(
+	subscribeWithSelector<IAnimationStore>((set, get) => ({
+		cellRefs: {},
+		pieceRefs: {},
+		cuboidRefs: {},
+		cells: null,
+		cuboids: null,
+		pieces: null,
+		onEnd: null,
+		config: null,
+		duration: A_D,
+		progress: 0,
+		start: (...params) => {
+			// prehook
+			// clear all game cells state (no indicator at all)
+			game().clearCellStates();
+			set({ progress: 0 });
+			set(...params);
+		},
+		registerCellRef: (id, ref) => {
+			get().cellRefs[id] = ref;
+		},
+		registerPieceRef: (id, ref) => {
+			get().pieceRefs[id] = ref;
+		},
+		registerCuboidRef: (id, ref) => {
+			get().cuboidRefs[id] = ref;
+		},
+		unregisterCellRef: (id) => {
+			delete get().cellRefs[id];
+		},
+		unregisterPieceRef: (id) => {
+			delete get().pieceRefs[id];
+		},
+		unregisterCuboidRef: (id) => {
+			delete get().cuboidRefs[id];
+		},
+		reset: () => {
+			set({
+				cells: null,
+				onEnd: null,
+				config: null,
+				pieces: null,
+				progress: 0,
+			});
+		},
+	})),
+);
 
 export function animation() {
-	return Object.assign(useAnimationStore.getState(), {
-		set: useAnimationStore.setState,
-	});
+	return Object.assign(
+		{ ...useAnimationStore.getState() },
+		{
+			set: useAnimationStore.setState,
+		},
+	);
 }

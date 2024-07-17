@@ -1,7 +1,7 @@
 import { B_D, C_S, Z_GS } from '@/settings';
 import { animation } from '@/store/animation';
 import { game } from '@/store/game';
-import { TCell, TMove, TPathPoint } from '@/types';
+import { TAction, TCell, TMove, TPathPoint } from '@/types';
 import { produce } from 'immer';
 import { CatmullRomCurve3, Vector3 } from 'three';
 import { SIDES } from './consts';
@@ -168,14 +168,19 @@ export function bfs({
 	return tree;
 }
 
-export function move(activeCell: TCell, chosenCell: TCell, cells: TCell[][][], animate: boolean) {
+export function move(
+	activeCell: TCell,
+	chosenCell: TCell,
+	cells: TCell[][][],
+	animate: boolean,
+): TAction {
 	const activePiece = activeCell?.piece;
 	const moves = activePiece?.moves;
 	assert(activeCell, 'no active cell');
 	assert(activePiece, 'no active piece');
 	assert(moves, 'no moves');
 
-	const moveCell = () => {
+	const moveCellSync = () => {
 		game().set((state) => {
 			return produce(state, (draft) => {
 				for (const c of draft.cells.flat(3)) {
@@ -252,7 +257,7 @@ export function move(activeCell: TCell, chosenCell: TCell, cells: TCell[][][], a
 
 		animation().start({
 			pieces: [activePiece],
-			onEnd: moveCell,
+			onEnd: moveCellSync,
 			config: {
 				ease: 'quart',
 				type: 'path',
@@ -261,6 +266,27 @@ export function move(activeCell: TCell, chosenCell: TCell, cells: TCell[][][], a
 			},
 		});
 	} else {
-		moveCell();
+		moveCellSync();
 	}
+
+	return {
+		cell: {
+			id: activeCell.id,
+			piece: {
+				id: activePiece.id,
+				type: activePiece.type,
+				player: activePiece.player,
+			},
+		},
+		target: {
+			id: chosenCell.id,
+			piece: chosenCell.piece
+				? {
+						id: chosenCell.piece.id,
+						type: chosenCell.piece.type,
+						player: chosenCell.piece.player,
+					}
+				: undefined,
+		},
+	};
 }

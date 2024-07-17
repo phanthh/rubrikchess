@@ -3,6 +3,8 @@ import { Curve, Vector3 } from 'three';
 import { TextGeometry } from 'three/examples/jsm/Addons.js';
 import { EColor, EPiece } from '../utils/consts';
 
+type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
+
 export type TPlayer = 'black' | 'white'; // > 2 players?
 export type TCell = {
 	id: string;
@@ -11,8 +13,7 @@ export type TCell = {
 	side: Vector3;
 	piece?: TPiece;
 	state: TCellState;
-	payload?: Record<any, any>;
-	angle: number;
+	payload?: Record<string, any>;
 	// meshRef?: RefObject<Mesh>;
 };
 
@@ -71,3 +72,17 @@ declare module '@react-three/fiber' {
 
 export type TCanvasEventFactory = NonNullable<Parameters<typeof Canvas>[0]['events']>;
 export type TGraphic = 'low' | 'medium' | 'high';
+
+export type TActionCell = {
+	id: string;
+	piece: {
+		id: string;
+		type: EPiece;
+		player: TPlayer;
+	};
+};
+export type TAction = {
+	cell: TActionCell;
+	target?: Optional<TActionCell, 'piece'>;
+	payload?: Record<string, any>;
+};

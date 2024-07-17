@@ -1,3 +1,4 @@
+import { Vector3 } from 'three';
 import { vec } from './funcs';
 
 export enum EPiece {
@@ -13,6 +14,22 @@ export enum EPiece {
 	PRINCE = 'x',
 	CANNON = 'o',
 }
+
+export const PIECE_NAMES: Record<EPiece, string> = {
+	[EPiece.PAWN]: 'Pawn',
+	[EPiece.KNIGHT]: 'Knight',
+	[EPiece.BISHOP]: 'Bishop',
+	[EPiece.ROOK]: 'Rook',
+	[EPiece.QUEEN]: 'Queen',
+	[EPiece.KING]: 'King',
+	[EPiece.CAPTAIN]: 'Captain',
+	[EPiece.TESSERACT]: 'Tesseract',
+	[EPiece.PRINCE]: 'Prince',
+	[EPiece.PRINCESS]: 'Princess',
+	[EPiece.CANNON]: 'Cannon',
+};
+
+export const PIECES_TYPES = Object.keys(EPiece) as EPiece[];
 
 export enum EColor {
 	WHITE = '#aaaaaa',
@@ -45,25 +62,6 @@ export const DIRS2D = [
 	vec(-1, -1, 0).normalize(),
 ];
 
-// RUBRIKS MODES
-// export const SIDES_COLOR = [
-// 	EColor.WHITE,
-// 	EColor.RED,
-// 	EColor.BLUE,
-// 	EColor.BLACK,
-// 	EColor.YELLOW,
-// 	EColor.GREEN,
-// ];
-
-export const SIDES_COLOR = [
-	EColor.WHITE,
-	EColor.WHITE,
-	EColor.BLACK,
-	EColor.BLACK,
-	EColor.WHITE,
-	EColor.BLACK,
-];
-
 //  low i, high i, low j, high j,
 export const ADJ_SIDE_MATRIX = [
 	[4, 1, 5, 2],
@@ -75,3 +73,6 @@ export const ADJ_SIDE_MATRIX = [
 ];
 
 export const MAX_INT = 99999;
+export const zvec = () => {
+	return new Vector3(0, 0, 0);
+};

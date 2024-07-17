@@ -1,12 +1,17 @@
+import { TARGETED_PIECES } from '@/settings';
 import { animation } from '@/store/animation';
 import { useGameStore } from '@/store/game';
 import { TCell, TPiece } from '@/types';
-import { EColor, EPiece } from '@/utils/consts';
+import { EColor, EPiece, PIECE_NAMES } from '@/utils/consts';
 import { useInteractiveMesh } from '@/utils/hooks';
 import { GroupProps, MeshProps, useLoader } from '@react-three/fiber';
+import { capitalCase } from 'change-case';
 import { memo, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
 import { Group } from 'three';
 import { STLLoader } from 'three/examples/jsm/Addons.js';
+import { AxisHelper } from './axis';
+import { debug } from 'console';
 
 const ASSET_CONFIGS: Record<EPiece, { path: string; meshProps?: MeshProps; tooltip?: string }> = {
 	[EPiece.QUEEN]: {
@@ -71,6 +76,8 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 	const ref = useRef<Group>(null);
 	const geometry = useLoader(STLLoader, path);
 	const inverted = useGameStore((store) => store.inverted);
+	const debug = useGameStore((store) => store.debug);
+	const checkTarget = useGameStore((store) => store.checkTarget);
 
 	const [color, interactiveProps] = useInteractiveMesh(
 		{
@@ -95,6 +102,13 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 		};
 	}, [ref.current, piece.id]);
 
+	useEffect(() => {
+		if (!checkTarget) return;
+		if (TARGETED_PIECES.includes(piece.type) && cell.state === 'targeted') {
+			toast.warning(`${capitalCase(piece.player)}'s ${PIECE_NAMES[piece.type]} is targeted!`);
+		}
+	}, [cell, piece, checkTarget]);
+
 	return (
 		<group ref={ref} {...props}>
 			<mesh
@@ -109,10 +123,7 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 			>
 				<meshStandardMaterial roughness={0.6} metalness={0.1} color={color} />
 			</mesh>
-
-			{/* <arrowHelper args={[vec(0, 0, 1), vec(0, 0, 0), 8, 'blue']} /> */}
-			{/* <arrowHelper args={[vec(0, 1, 0), vec(0, 0, 0), 8, 'green']} /> */}
-			{/* <arrowHelper args={[vec(1, 0, 0), vec(0, 0, 0), 8, 'red']} /> */}
+			{debug && <AxisHelper />}
 		</group>
 	);
 });

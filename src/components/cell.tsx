@@ -3,16 +3,15 @@ import { EColor, MAX_INT } from '@/utils/consts';
 import { usePreventPropagation } from '@/utils/hooks';
 import { ThreeEvent } from '@react-three/fiber';
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';
-import { BackSide, BoxGeometry, DoubleSide, Mesh, MeshStandardMaterial, Texture } from 'three';
-import { C_S, DEBUG_BOARD_CORD } from '../settings';
+import { BackSide, DoubleSide, Mesh, MeshStandardMaterial, PlaneGeometry, Texture } from 'three';
+import { C_S } from '../settings';
 import { game, useGameStore } from '../store/game';
 import { TCell, TCellState } from '../types';
-import { implyDirs, vec, vkey } from '../utils/funcs';
+import { implyDirs } from '../utils/funcs';
 import { CellIndicator } from './cell-indicator';
 import { Piece } from './piece';
-import { Text } from './text';
 
-const cellGeometry = new BoxGeometry(C_S, C_S, 0.2);
+const cellGeometry = new PlaneGeometry(C_S, C_S);
 
 type CellProps = {
 	cell: TCell;
@@ -29,13 +28,13 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 	const debug = useGameStore((store) => store.debug);
 	const inverted = useGameStore((store) => store.inverted);
 	const preventProgagationProps = usePreventPropagation();
+	const checkTarget = useGameStore((store) => store.checkTarget);
 
 	useLayoutEffect(() => {
 		ref.current?.lookAt(
 			cell.cord.clone().add(cell.side.clone().multiplyScalar(inverted ? -MAX_INT : MAX_INT)),
 		);
-		ref.current?.rotateOnAxis(vec(0, 0, 1), cell.angle);
-	}, [ref.current, cell.side, cell.angle, cell.cord, inverted]);
+	}, [ref.current, cell.side, cell.cord, inverted]);
 
 	useLayoutEffect(() => {
 		animation().registerCellRef(cell.id, ref);
@@ -74,7 +73,6 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 	}, [cell.cord, cell.side, inverted]);
 
 	const texture = useMemo(() => {
-		const debug = true;
 		const cacheKey = `${cell.id}-${cell.color}-${debug}`;
 		const cached = cache.get(cacheKey);
 		if (cached) {
@@ -100,6 +98,14 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 		return texture;
 	}, [cell.id, cell.color, debug]);
 
+	const indicatedCellStates = useMemo(() => {
+		return [
+			'reachable',
+			'capturable',
+			...(checkTarget ? ['targeted', 'targeted:path'] : []),
+		] as TCellState[];
+	}, [checkTarget]);
+
 	return (
 		<>
 			<mesh
@@ -119,30 +125,13 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 					roughness={0.9}
 					metalness={0.1}
 				/>
-				{DEBUG_BOARD_CORD && <Text position={[-C_S / 2, -C_S / 2, 0]} text={cell.id} />}
 				<lineSegments>
 					<edgesGeometry args={[cellGeometry]} />
 					<lineBasicMaterial color={'black'} />
 				</lineSegments>
 				{cell.piece && <Piece cell={cell} piece={cell.piece} />}
-				{INDICATED_CELL_STATES.includes(cell.state) && <CellIndicator cell={cell} />}
-				{/* <arrowHelper args={[vec(0, 0, 1), vec(0, 0, 0), 1, 'blue']} /> */}
-				{/* <arrowHelper args={[vec(0, 1, 0), vec(0, 0, 0), 1, 'green']} /> */}
-				{/* <arrowHelper args={[vec(1, 0, 0), vec(0, 0, 0), 1, 'red']} /> */}
+				{indicatedCellStates.includes(cell.state) && <CellIndicator cell={cell} />}
 			</mesh>
-			{debug &&
-				cell.state === 'active' &&
-				dirs.map((dir) => {
-					return <arrowHelper key={vkey(dir)} args={[dir, cell.cord, 10, 'red']} />;
-				})}
-			{/* {debug && <arrowHelper args={[cell.side, cell.cord, 10, 'green']} />} */}
 		</>
 	);
 });
-
-const INDICATED_CELL_STATES: TCellState[] = [
-	'reachable',
-	'capturable',
-	'targeted',
-	'targeted:path',
-];

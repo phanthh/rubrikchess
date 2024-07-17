@@ -1,10 +1,11 @@
-import { C_S } from '@/settings';
+import { C_S, STANDARD_CONFIG } from '@/settings';
 import { animation } from '@/store/animation';
-import { TCell, TCuboid, TPiece } from '@/types';
+import { TAction, TCell, TCuboid } from '@/types';
 import { EPiece, XPOS, YPOS, ZPOS } from '@/utils/consts';
 import { assert, nkeyinv, vkey } from '@/utils/funcs';
 import { move } from '@/utils/path';
 import { produce } from 'immer';
+import { useEffect } from 'react';
 import { Vector3 } from 'three';
 import { game, useGameStore } from '../store/game';
 import { Animator } from './animator';
@@ -19,7 +20,11 @@ export function Cube({}: CubeProps) {
 	const cuboids = useGameStore((store) => store.cuboids);
 	const walled = useGameStore((store) => store.walled);
 	const animate = useGameStore((store) => store.animate);
-	const inverted = useGameStore((store) => store.inverted);
+
+	useEffect(() => {
+		game().initCube();
+		game().initRandomPieces();
+	}, []);
 
 	const handlePickPiece = (cell: TCell) => {
 		const piece = cell.piece;
@@ -97,21 +102,38 @@ export function Cube({}: CubeProps) {
 		assert(activeCell, 'no active cell');
 		assert(activePiece, 'no active piece');
 
+		let action: TAction | undefined;
+
 		switch (cell.state) {
 			case 'reachable':
 			case 'capturable': {
 				// MOVE PIECE
 				switch (activePiece.type) {
+					// TESSERACT
 					case EPiece.TESSERACT: {
 						const payload = cell.payload;
 						if (!payload) {
 							// no payload means no rotate
-							move(activeCell, cell, cells, animate);
+							action = move(activeCell, cell, cells, animate);
 							break;
 						}
 
 						// SPECIAL TESSERACT MOVE: ROTATE
 						const { axis, angle } = payload as { axis: Vector3; angle: number };
+						action = {
+							cell: {
+								id: activeCell.id,
+								piece: {
+									id: activePiece.id,
+									type: EPiece.TESSERACT,
+									player: activePiece.player,
+								},
+							},
+							payload: {
+								axis: axis.clone(),
+								angle,
+							},
+						};
 						const rotate = (cord: Vector3) => {
 							return cord.clone().applyAxisAngle(axis, angle).round();
 						};
@@ -131,7 +153,7 @@ export function Cube({}: CubeProps) {
 										c.cord = rotate(c.cord);
 										c.side = rotate(c.side);
 										// TODO: fix rotating angle bug (see Knight + Tesseract)
-										c.angle += angle * axis.dot(c.side);
+										// c.angle += angle * axis.dot(c.side);
 										draft.cords[vkey(c.cord)] = c.id;
 									}
 
@@ -160,15 +182,19 @@ export function Cube({}: CubeProps) {
 						break;
 					}
 					default: {
-						move(activeCell, cell, cells, animate);
+						action = move(activeCell, cell, cells, animate);
 						break;
 					}
 				}
 
 				// TURN COMPLETE
+				assert(action);
+				const newAction = action;
 				game().set((state) => ({
 					turn: state.sandbox ? state.turn : state.turn === 'white' ? 'black' : 'white',
 					state: animate ? 'play:animate' : 'play:pick-piece',
+					history: [...state.history.slice(0, state.cursor), newAction],
+					cursor: state.cursor + 1,
 				}));
 			}
 
@@ -190,10 +216,9 @@ export function Cube({}: CubeProps) {
 					/>
 				);
 			})}
-			{!inverted &&
-				cuboids.flat(3).map((cuboid) => {
-					return <Cuboid key={'cc' + cuboid.id} cuboid={cuboid} />;
-				})}
+			{cuboids.flat(3).map((cuboid) => {
+				return <Cuboid key={'cc' + cuboid.id} cuboid={cuboid} />;
+			})}
 			{walled && <CubeFrame />}
 			{animate && <Animator />}
 		</>

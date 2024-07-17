@@ -2,11 +2,13 @@ import { useGameStore } from '@/store/game';
 
 export function GameTurnBanner() {
 	const turn = useGameStore((store) => store.turn);
-	const sandbox = useGameStore((store) => store.sandbox);
-	if (!sandbox) return null;
 	return (
-		<div className="fixed select-none p-2 bottom-2 left-2 rounded-lg border bg-card text-card-foreground shadow-sm">
-			Turn: {turn}
+		<div className="fixed select-none p-2 top-20 left-1/2 translate-x-[-50%] rounded-lg border bg-card text-card-foreground shadow-sm items-center flex gap-2">
+			<span>Turn:</span>
+			<div
+				className="rounded-full w-8 h-8 border-gray-200 border-2"
+				style={{ backgroundColor: turn }}
+			></div>
 		</div>
 	);
 }

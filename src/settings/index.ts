@@ -1,4 +1,4 @@
-import { EPiece } from '@/utils/consts';
+import { EColor, EPiece } from '@/utils/consts';
 
 export const DEBUG_BOARD_CORD = false;
 
@@ -10,15 +10,15 @@ export const Z_GS = 0.1; // Z GAP SCALER FOR PATH POINTS (ANIMATION)
 
 export const TARGETED_PIECES = [EPiece.KING, EPiece.PRINCE];
 
-export const sampleConfig = `
+export const STANDARD_CONFIG = `
 --------
--NPPPPN-
--PTRBTP-
--PCKSOP-
--POXQCP-
--PTBRTP-
--NPPPPN-
 --------
+--------
+--------
+--------
+--------
+--------
+N-------
 
 --------
 -nppppn-
@@ -29,3 +29,22 @@ export const sampleConfig = `
 -nppppn-
 --------
 		`;
+
+// RUBRIKS MODES
+// export const SIDES_COLOR = [
+// 	EColor.WHITE,
+// 	EColor.RED,
+// 	EColor.BLUE,
+// 	EColor.BLACK,
+// 	EColor.YELLOW,
+// 	EColor.GREEN,
+// ];
+
+export const SIDES_COLOR = [
+	EColor.WHITE,
+	EColor.WHITE,
+	EColor.BLACK,
+	EColor.BLACK,
+	EColor.WHITE,
+	EColor.BLACK,
+];

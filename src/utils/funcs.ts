@@ -123,3 +123,11 @@ export function implyCenter(cell: TCell): Vector3 {
 			.multiplyScalar(C_S / 2),
 	);
 }
+
+export function randChoice<T>(arr: T[]) {
+	return arr[Math.floor(Math.random() * arr.length)];
+}
+
+export function clamp(x: number, min: number, max: number) {
+	return Math.min(Math.max(x, min), max);
+}

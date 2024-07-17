@@ -1,4 +1,5 @@
 import { C_S } from '@/settings';
+import { useGameStore } from '@/store/game';
 import { TCell } from '@/types';
 import { MAX_INT } from '@/utils/consts';
 import { vec } from '@/utils/funcs';

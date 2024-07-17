@@ -1,24 +1,31 @@
-import { sampleConfig } from '@/settings';
+import { STANDARD_CONFIG } from '@/settings';
 import { game, useGameStore } from '@/store/game';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
+import { useAnimationStore } from '@/store/animation';
 
 type NavBarProps = {};
 export function NavBar(props: NavBarProps) {
-	const [state, walled, sandbox, debug, animate, inverted] = useGameStore(
+	const [state, walled, sandbox, debug, animate, checkTarget] = useGameStore(
 		useShallow((store) => [
 			store.state,
 			store.walled,
 			store.sandbox,
 			store.debug,
 			store.animate,
-			store.inverted,
+			store.checkTarget,
 		]),
 	);
 
-	const handleReset = () => {
-		game().init(sampleConfig);
+	const handleNewStandardGame = () => {
+		game().initCube();
+		game().initConfigPieces(STANDARD_CONFIG);
+	};
+
+	const handleNewRandomGame = () => {
+		game().initCube();
+		game().initRandomPieces();
 	};
 
 	const handleCancel = () => {
@@ -34,11 +41,22 @@ export function NavBar(props: NavBarProps) {
 	return (
 		<nav className="flex p-4 h-16 flex-row items-center gap-3 border-gray-500 border-2 bg-background">
 			{/* {debug && <span className="text-foreground">State: {state}</span>} */}
-			<Button variant="outline" onClick={handleReset}>
-				Reset
+			<Button variant="outline" onClick={handleNewStandardGame}>
+				New Standard Game
 			</Button>
-			<Button variant="outline" onClick={handleUpdateMoves}>
-				Update Moves
+			{/* <Button variant="outline" onClick={handleUpdateMoves}> */}
+			{/* 	Update Moves */}
+			{/* </Button> */}
+			<Button variant="outline" onClick={handleNewRandomGame}>
+				New Randomize Game
+			</Button>
+			<Button
+				style={{ opacity: state === 'play:pick-cell' ? 1 : 0 }}
+				variant="destructive"
+				className="mr-auto transition-opacity"
+				onClick={handleCancel}
+			>
+				Cancel
 			</Button>
 			<span className="text-foreground">Walled:</span>
 			<Switch
@@ -70,25 +88,13 @@ export function NavBar(props: NavBarProps) {
 					game().set({ animate: !animate });
 				}}
 			/>
-			<span className="text-foreground">Inverted:</span>
+			<span className="text-foreground">Check Target:</span>
 			<Switch
-				checked={inverted}
+				checked={checkTarget}
 				onCheckedChange={() => {
-					game().set({ inverted: !inverted });
+					game().set({ checkTarget: !checkTarget });
 				}}
 			/>
-			{/* <span className="text-foreground">Shadow:</span> */}
-			{/* <Switch */}
-			{/* 	checked={shadow} */}
-			{/* 	onCheckedChange={() => { */}
-			{/* 		game().set({ shadow: !shadow }); */}
-			{/* 	}} */}
-			{/* /> */}
-			{state === 'play:pick-cell' && (
-				<Button style={{ marginLeft: 'auto' }} variant="destructive" onClick={handleCancel}>
-					Cancel
-				</Button>
-			)}
 		</nav>
 	);
 }

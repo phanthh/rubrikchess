@@ -6,7 +6,7 @@ TODO:
 - [x] Princess piece: Queen but limited by square
 - [x] Prince piece
 - [x] Cannon piece
-- [] Checkmate check
+- [x] Checkmate check
 - [] UI Interfaces (Menu and Control panels)
 - [] Multiplayer (local network?)
 - [] AI bot

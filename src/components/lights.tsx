@@ -1,7 +1,9 @@
+import { B_D, CU_S } from '@/settings';
 import { postprocessing } from '@/store/postprocessing';
 import { useRef, useLayoutEffect } from 'react';
 import { AmbientLight, PointLight } from 'three';
 
+const DIST = Math.sqrt(3) * CU_S;
 export function Lights() {
 	const ambientLightRef = useRef<AmbientLight>(null);
 	const pointLight1Ref = useRef<PointLight>(null);
@@ -22,19 +24,19 @@ export function Lights() {
 	}, [ambientLightRef.current, pointLight1Ref.current, pointLight2Ref.current]);
 	return (
 		<>
-			<ambientLight ref={ambientLightRef} color="white" intensity={0.7} />
+			<ambientLight ref={ambientLightRef} color="white" intensity={B_D / 8} />
 			<pointLight
 				ref={pointLight1Ref}
-				position={[40, 40, 40]}
+				position={[DIST, DIST, DIST]}
 				color="white"
-				intensity={5000}
+				intensity={(10000 * B_D) / 8}
 				castShadow
 			/>
 			<pointLight
 				ref={pointLight2Ref}
-				position={[-40, -40, -40]}
+				position={[-DIST, -DIST, -DIST]}
 				color="white"
-				intensity={5000}
+				intensity={(10000 * B_D) / 8}
 				castShadow
 			/>
 		</>

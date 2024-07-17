@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.1",
     "@radix-ui/react-select": "^2.1.1",
+    "@radix-ui/react-slider": "^1.2.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-switch": "^1.1.0",
     "@react-three/drei": "^9.108.3",
@@ -18,11 +20,13 @@
     "@react-three/postprocessing": "^2.16.2",
     "@tweenjs/tween.js": "^23.1.2",
     "@types/three": "^0.166.0",
+    "change-case": "^5.4.4",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "immer": "^10.1.1",
     "lucide-react": "^0.407.0",
     "next-themes": "^0.3.0",
+    "playroomkit": "^0.0.79",
     "postprocessing": "^6.35.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
