@@ -7,7 +7,7 @@ import { move } from '@/utils/path';
 import { produce } from 'immer';
 import { useEffect } from 'react';
 import { Vector3 } from 'three';
-import { game, useGameStore } from '../store/game';
+import { game, useGameState } from '../store/game';
 import { Animator } from './animator';
 import { Cell } from './cell';
 import { CubeFrame } from './cube-frame';
@@ -16,36 +16,50 @@ import { Cuboid } from './cuboid';
 type CubeProps = {};
 
 export function Cube({}: CubeProps) {
-	const cells = useGameStore((store) => store.cells);
-	const cuboids = useGameStore((store) => store.cuboids);
-	const walled = useGameStore((store) => store.walled);
-	const animate = useGameStore((store) => store.animate);
+	const [cells] = useGameState('cells');
+	const [cuboids] = useGameState('cuboids');
+	const [walled] = useGameState('walled');
+	const [animate] = useGameState('animate');
 
 	useEffect(() => {
 		game().initCube();
-		game().initRandomPieces();
+		game().initConfigPieces(STANDARD_CONFIG);
 	}, []);
 
+	// when user clicking a cell, lokoing for a piece to move
 	const handlePickPiece = (cell: TCell) => {
 		const piece = cell.piece;
+
+		// return if there are no pieces in this cell
 		if (!piece) return;
+
 		const { turn, sandbox } = game();
+
+		// disregard turn if it is currently in sandbox mode
 		if (turn !== cell.piece?.player && !sandbox) return;
+
 		const moves = piece.moves;
 		assert(moves, 'no moves');
 
-		// TODO neightbord hood function for better perf;
-		game().set((state) => {
-			const cords = state.cords;
-			assert(cords, 'no cords');
-			return produce(state, (draft) => {
-				// update cells based on the piece's available moves
+		// TODO neighborhood function for better perf, so rather than looping through all cells
+		// only looking for cells satisfies some conditions
+		//
+		// update cells' state based on the piece's available moves
+		game().set((state) =>
+			produce(state, (draft) => {
+				const cords = draft.cords;
+				assert(cords, 'no cords');
 
-				const updateCellStatesFromMoves = () => {
+				// a function to update the cells's state, given available moves of the chosen piece
+				const updateCellStatesFromPieceMoves = () => {
 					for (const move of moves) {
+						// the final element in `path` is the target
 						const target = move.path.at(-1);
-						assert(target, 'path is to short');
+						assert(target, 'path is too short');
+
 						const [c, i, j] = nkeyinv(target);
+
+						// mark the cell based on the move type
 						switch (move.type) {
 							case 'capturing':
 								draft.cells[c][i][j].state = 'capturable';
@@ -59,13 +73,15 @@ export function Cube({}: CubeProps) {
 					}
 				};
 
-				// logics for different piece type
+				// move additional logics for different piece type
 				switch (piece.type) {
 					case EPiece.TESSERACT: {
+						// TESSERACT
 						for (const angle of [
 							Math.PI / 2,
 							-Math.PI / 2,
-							// Math.PI // NOTE: allowing 180 turn seems a bit too OP for Tesseract
+							// NOTE: allowing 180 turn seems a bit too OP for Tesseract
+							// Math.PI
 						]) {
 							for (const axis of [XPOS, YPOS, ZPOS]) {
 								const rotated = cell.cord.clone().applyAxisAngle(axis, angle).round();
@@ -73,16 +89,20 @@ export function Cube({}: CubeProps) {
 								assert(id);
 								const [cc, ci, cj] = nkeyinv(id);
 								const c = draft.cells[cc][ci][cj];
+
+								// mark cells that are additionally 'clickable' by the Tesseract piece
 								c.state = 'reachable';
+
+								// the payload also includes
 								c.payload = { angle, axis };
 							}
 						}
 
-						updateCellStatesFromMoves();
+						updateCellStatesFromPieceMoves();
 						break;
 					}
 					default:
-						updateCellStatesFromMoves();
+						updateCellStatesFromPieceMoves();
 						break;
 				}
 
@@ -91,8 +111,8 @@ export function Cube({}: CubeProps) {
 
 				// SWITCH TO NEXT STATE
 				draft.state = 'play:pick-cell';
-			});
-		});
+			}),
+		);
 	};
 
 	const handlePickCell = (cell: TCell) => {
@@ -190,11 +210,15 @@ export function Cube({}: CubeProps) {
 				// TURN COMPLETE
 				assert(action);
 				const newAction = action;
+
+				const { cursor, sandbox } = game();
+				game().setState('turn', (turn) => {
+					return sandbox ? turn : turn === 'white' ? 'black' : 'white';
+				});
 				game().set((state) => ({
-					turn: state.sandbox ? state.turn : state.turn === 'white' ? 'black' : 'white',
 					state: animate ? 'play:animate' : 'play:pick-piece',
-					history: [...state.history.slice(0, state.cursor), newAction],
 					cursor: state.cursor + 1,
+					history: [...state.history.slice(0, cursor), newAction],
 				}));
 			}
 

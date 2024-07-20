@@ -1,5 +1,5 @@
 import { C_S } from '@/settings';
-import { game, useGameStore } from '@/store/game';
+import { game, useGameState } from '@/store/game';
 import { TAction, TCell, TCuboid } from '@/types';
 import { EPiece } from '@/utils/consts';
 import { assert, nkeyinv, vkey } from '@/utils/funcs';
@@ -12,10 +12,28 @@ import { Button } from './ui/button';
 import { Slider } from './ui/slider';
 
 export function GameHistoryController() {
-	const cells = useGameStore((store) => store.cells);
-	const history = useGameStore((store) => store.history);
-	const state = useGameStore((store) => store.state);
-	const cursor = useGameStore((store) => store.cursor);
+	const [cells] = useGameState('cells');
+	const [state] = useGameState('state');
+	const [cursor, setCursor] = useGameState('cursor');
+	const [history, setHistory] = useGameState('history');
+	// const [networkHistory, setNetworkHistory] = useMultiplayerState('history', []);
+
+	// useEffect(() => {
+	// 	if (!isHost()) {
+	// 		const n1 = history.length;
+	// 		const n0 = networkHistory.length;
+	// 		const sign = Math.sign(n1 - n0);
+	// 		if (sign !== 0) {
+	// 			setHistory(networkHistory);
+	// 		}
+	// 	}
+	// }, [networkHistory]);
+	//
+	// useEffect(() => {
+	// 	if (isHost()) {
+	// 		setNetworkHistory(history);
+	// 	}
+	// }, [history]);
 
 	const available = useMemo(() => {
 		return state !== 'play:animate';

@@ -1,10 +1,30 @@
 import { bfs, walk } from '@/utils/path';
 import { produce } from 'immer';
+import {
+	getState,
+	onPlayerJoin,
+	insertCoin,
+	setState,
+	useMultiplayerState,
+	PlayerState,
+} from 'playroomkit';
+import { useCallback } from 'react';
 import { Vector3 } from 'three';
 import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
 import { B_D, C_S, CU_S, SIDES_COLOR, TARGETED_PIECES } from '../settings';
-import { TAction, TCell, TCuboid, TGameState, TMove, TMoveType, TPiece, TPlayer } from '../types';
-import { EColor, EPiece, SIDES, ZPOS, YPOS, XPOS, PIECES_TYPES } from '../utils/consts';
+import {
+	TAction,
+	TCell,
+	TCuboid,
+	TGameMode,
+	TGameState,
+	TMove,
+	TMoveType,
+	TPiece,
+	TPlayer,
+} from '../types';
+import { EColor, EPiece, SIDES, XPOS, YPOS, ZPOS } from '../utils/consts';
 import {
 	assert,
 	implyCenter,
@@ -18,7 +38,6 @@ import {
 	vkey,
 	zip,
 } from '../utils/funcs';
-import { subscribeWithSelector } from 'zustand/middleware';
 
 interface IGameStore {
 	cells: TCell[][][];
@@ -36,6 +55,8 @@ interface IGameStore {
 	shadow: boolean;
 	lowPerf: boolean;
 	checkTarget: boolean;
+	mode: TGameMode;
+	players: PlayerState[];
 	getActiveCell: () => TCell | undefined;
 	clearCellStates: () => void;
 	updateIdleCellStates: () => void;
@@ -44,6 +65,7 @@ interface IGameStore {
 	initCube: () => void;
 	initRandomPieces: (density?: number) => void;
 	initConfigPieces: (config: string) => void;
+	initPlayroom: () => Promise<void>;
 }
 
 export const useGameStore = create(
@@ -63,6 +85,7 @@ export const useGameStore = create(
 		debug: false,
 		checkTarget: false,
 		lowPerf: false,
+		mode: 'local',
 		players: [],
 		getActiveCell: () => {
 			return get()
@@ -680,14 +703,71 @@ export const useGameStore = create(
 				});
 			});
 		},
+		initPlayroom: async () => {
+			// Start the game
+			await insertCoin({
+				maxPlayersPerRoom: 2,
+			});
+
+			// Create a joystick controller for each joining player
+			onPlayerJoin((newPlayer) => {
+				const players = game().players;
+				// Joystick will only create UI for current player (myPlayer)
+				// For others, it will only sync their state
+				newPlayer.setState('player', players.length === 0 ? 'white' : 'black');
+				game().set({ players: [...players, newPlayer] });
+				newPlayer.onQuit(() => {
+					game().set((state) => ({ players: state.players.filter((p) => p.id !== newPlayer.id) }));
+				});
+			});
+
+			console.log('INIT PLAYROOM COMPLETE');
+		},
 	})),
 );
 
+const NETWORK_STATES = ['turn'] as const;
+
 export function game() {
-	return Object.assign(
-		{ ...useGameStore.getState() },
-		{
-			set: useGameStore.setState,
+	const state = useGameStore.getState();
+	const shallowClone = { ...state };
+	for (const key of NETWORK_STATES) {
+		shallowClone[key] = state.mode === 'local' ? state[key] : getState(key) ?? state[key];
+	}
+
+	return Object.assign(shallowClone, {
+		set: useGameStore.setState,
+		setState: <T extends IGameStoreMutableKey>(key: T, setter: (value: IGameStore[T]) => void) => {
+			const baseState = useGameStore.getState();
+			if (baseState.mode === 'local') {
+				useGameStore.setState((state) => ({ [key]: setter(state[key]) }));
+			} else {
+				setState(key, setter(getState(key) ?? baseState[key]), true);
+			}
 		},
-	);
+		subscribe: useGameStore.subscribe,
+	});
+}
+
+type IGameStoreMutableKey = keyof {
+	[K in keyof IGameStore as IGameStore[K] extends Function ? never : K]: IGameStore[K];
+};
+
+export function useGameState<T extends IGameStoreMutableKey>(key: T) {
+	const localState = useGameStore((store) => store[key]);
+	const setLocalState = useCallback((value: IGameStore[typeof key]) => {
+		useGameStore.setState({ [key]: value });
+	}, []);
+	const returnVal = [localState, setLocalState] as const;
+
+	if (NETWORK_STATES.includes(key as any)) {
+		const mode = useGameStore((store) => store.mode);
+		const network = useMultiplayerState(key, localState);
+		if (mode === 'local') {
+			return returnVal;
+		} else {
+			return network as typeof returnVal;
+		}
+	}
+	return returnVal;
 }

@@ -1,5 +1,5 @@
 import { PerformanceMonitor, Stats } from '@react-three/drei';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { Suspense, useEffect } from 'react';
 import { Controls } from './components/controls';
 import { Cube } from './components/cube';
@@ -8,15 +8,15 @@ import { Lights } from './components/lights';
 import { NavBar } from './components/nav-bar';
 import { UserInterface } from './components/user-interface';
 import { INITAL_CAM_CORD } from './settings';
-import { game, useGameStore } from './store/game';
+import { game, useGameState } from './store/game';
 
 function App() {
-	const debug = useGameStore((store) => store.debug);
+	const [debug] = useGameState('debug');
 
 	useEffect(() => {
 		if (debug) {
-			const unsub = useGameStore.subscribe((store) => {
-				console.log('[GAME_STATE]: ', store.state);
+			const unsub = game().subscribe((store) => {
+				console.log('STATE CHANGED', store);
 			});
 			return unsub;
 		}

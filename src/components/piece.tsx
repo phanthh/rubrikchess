@@ -1,6 +1,6 @@
 import { TARGETED_PIECES } from '@/settings';
 import { animation } from '@/store/animation';
-import { useGameStore } from '@/store/game';
+import { useGameState } from '@/store/game';
 import { TCell, TPiece } from '@/types';
 import { EColor, EPiece, PIECE_NAMES } from '@/utils/consts';
 import { useInteractiveMesh } from '@/utils/hooks';
@@ -74,9 +74,8 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 	const { path, meshProps, tooltip } = useMemo(() => ASSET_CONFIGS[piece.type], [piece.type]);
 	const ref = useRef<Group>(null);
 	const geometry = useLoader(STLLoader, path);
-	const inverted = useGameStore((store) => store.inverted);
-	const debug = useGameStore((store) => store.debug);
-	const checkTarget = useGameStore((store) => store.checkTarget);
+	const [debug] = useGameState('debug');
+	const [checkTarget] = useGameState('checkTarget');
 
 	const [color, interactiveProps, hovered] = useInteractiveMesh(
 		{
@@ -91,8 +90,8 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 	useLayoutEffect(() => {
 		geometry.center();
 		geometry.computeBoundingBox();
-		geometry.translate(0, 0, (geometry.boundingBox?.max.z ?? 0) + (inverted ? 0.9 : 0));
-	}, [inverted]);
+		geometry.translate(0, 0, geometry.boundingBox?.max.z ?? 0);
+	}, []);
 
 	useLayoutEffect(() => {
 		animation().registerPieceRef(piece.id, ref);

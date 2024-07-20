@@ -43,6 +43,7 @@ export type TCuboid = {
 };
 
 export type TGameState = 'play:pick-piece' | 'play:pick-cell' | 'play:animate';
+export type TGameMode = 'local' | 'multi:human';
 export type TCellState =
 	| 'reachable'
 	| 'capturable'

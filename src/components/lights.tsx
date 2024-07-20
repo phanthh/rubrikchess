@@ -1,5 +1,5 @@
 import { B_D, CU_S } from '@/settings';
-import { useGameStore } from '@/store/game';
+import { useGameState, useGameStore } from '@/store/game';
 import { postprocessing } from '@/store/postprocessing';
 import { useRef, useLayoutEffect } from 'react';
 import { AmbientLight, PointLight } from 'three';
@@ -9,7 +9,7 @@ export function Lights() {
 	const ambientLightRef = useRef<AmbientLight>(null);
 	const pointLight1Ref = useRef<PointLight>(null);
 	const pointLight2Ref = useRef<PointLight>(null);
-	const lowPerf = useGameStore((store) => store.lowPerf);
+	const [lowPerf] = useGameState('lowPerf');
 
 	useLayoutEffect(() => {
 		if (!ambientLightRef.current) return;

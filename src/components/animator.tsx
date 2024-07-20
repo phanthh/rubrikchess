@@ -1,5 +1,5 @@
 import { animation, useAnimationStore } from '@/store/animation';
-import { game, useGameStore } from '@/store/game';
+import { game, useGameState } from '@/store/game';
 import { clamp, EASE_FUNCS } from '@/utils/funcs';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
@@ -9,8 +9,7 @@ type AnimatorProps = {
 	speedFactor?: number;
 };
 export function Animator({ speedFactor = 1.5 }: AnimatorProps) {
-	const state = useGameStore((store) => store.state);
-	const inverted = useGameStore((store) => store.inverted);
+	const [state] = useGameState('state');
 
 	const { invalidate } = useThree();
 

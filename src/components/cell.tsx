@@ -5,7 +5,7 @@ import { ThreeEvent } from '@react-three/fiber';
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';
 import { BackSide, DoubleSide, Mesh, MeshStandardMaterial, PlaneGeometry, Texture } from 'three';
 import { C_S } from '../settings';
-import { game, useGameStore } from '../store/game';
+import { game, useGameState } from '../store/game';
 import { TCell, TCellState } from '../types';
 import { implyDirs } from '../utils/funcs';
 import { CellIndicator } from './cell-indicator';
@@ -24,17 +24,13 @@ const cache = new Map<string, Texture>();
 export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 	const ref = useRef<Mesh>(null);
 	const materialRef = useRef<MeshStandardMaterial>(null);
-	const dirs = useMemo(() => implyDirs(cell.side), [cell.cord]);
-	const debug = useGameStore((store) => store.debug);
-	const inverted = useGameStore((store) => store.inverted);
+	const [debug] = useGameState('debug');
 	const preventProgagationProps = usePreventPropagation();
-	const checkTarget = useGameStore((store) => store.checkTarget);
+	const [checkTarget] = useGameState('checkTarget');
 
 	useLayoutEffect(() => {
-		ref.current?.lookAt(
-			cell.cord.clone().add(cell.side.clone().multiplyScalar(inverted ? -MAX_INT : MAX_INT)),
-		);
-	}, [ref.current, cell.side, cell.cord, inverted]);
+		ref.current?.lookAt(cell.cord.clone().add(cell.side.clone().multiplyScalar(MAX_INT)));
+	}, [ref.current, cell.side, cell.cord]);
 
 	useLayoutEffect(() => {
 		animation().registerCellRef(cell.id, ref);
@@ -64,13 +60,6 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 		game().set({ state: 'play:pick-piece' });
 		onPickPiece(cell);
 	};
-
-	const position = useMemo(() => {
-		if (inverted) {
-			return cell.cord.clone().add(cell.side.clone().multiplyScalar(10));
-		}
-		return cell.cord;
-	}, [cell.cord, cell.side, inverted]);
 
 	const texture = useMemo(() => {
 		const cacheKey = `${cell.id}-${cell.color}-${debug}`;
@@ -114,7 +103,7 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 				onDoubleClick={handleDoubleClick}
 				ref={ref}
 				geometry={cellGeometry}
-				position={position}
+				position={cell.cord}
 				receiveShadow
 			>
 				<meshStandardMaterial

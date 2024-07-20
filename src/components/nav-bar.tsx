@@ -3,11 +3,10 @@ import { game, useGameStore } from '@/store/game';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
-import { useAnimationStore } from '@/store/animation';
 
 type NavBarProps = {};
 export function NavBar(props: NavBarProps) {
-	const [state, walled, sandbox, debug, animate, checkTarget] = useGameStore(
+	const [state, walled, sandbox, debug, animate, checkTarget, mode] = useGameStore(
 		useShallow((store) => [
 			store.state,
 			store.walled,
@@ -15,6 +14,7 @@ export function NavBar(props: NavBarProps) {
 			store.debug,
 			store.animate,
 			store.checkTarget,
+			store.mode,
 		]),
 	);
 
@@ -39,7 +39,7 @@ export function NavBar(props: NavBarProps) {
 	};
 
 	return (
-		<nav className="flex p-4 h-16 flex-row items-center gap-3 border-gray-500 border-2 bg-background">
+		<nav className="flex flex-wrap p-4 flex-row items-center gap-3 border-gray-500 border-2 bg-background">
 			{/* {debug && <span className="text-foreground">State: {state}</span>} */}
 			<Button variant="outline" onClick={handleNewStandardGame}>
 				New Standard Game
@@ -95,6 +95,29 @@ export function NavBar(props: NavBarProps) {
 					game().set({ checkTarget: !checkTarget });
 				}}
 			/>
+			{/* <Select */}
+			{/* 	value={mode} */}
+			{/* 	onValueChange={async (value) => { */}
+			{/* 		if (value === 'local') { */}
+			{/* 			game().set({ mode: 'local' }); */}
+			{/* 		} else { */}
+			{/* 			const me = myPlayer(); */}
+			{/* 			if (!me) { */}
+			{/* 				await game().initPlayroom(); */}
+			{/* 				game().set({ mode: value as TGameMode }); */}
+			{/* 			} */}
+			{/* 		} */}
+			{/* 	}} */}
+			{/* > */}
+			{/* 	<SelectTrigger className="w-[180px]"> */}
+			{/* 		<SelectValue placeholder="Game Mode" /> */}
+			{/* 	</SelectTrigger> */}
+			{/* 	<SelectContent> */}
+			{/* 		<SelectItem value="local">Local</SelectItem> */}
+			{/* 		{/* <SelectItem value="multi:bot">Vs Bot</SelectItem> */}
+			{/* 		<SelectItem value="multi:human">Vs Human</SelectItem> */}
+			{/* 	</SelectContent> */}
+			{/* </Select> */}
 		</nav>
 	);
 }

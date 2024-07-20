@@ -1,5 +1,5 @@
 import { C_S } from '@/settings';
-import { useGameStore } from '@/store/game';
+import { useGameState } from '@/store/game';
 import { TCell } from '@/types';
 import { MAX_INT } from '@/utils/consts';
 import { vec } from '@/utils/funcs';
@@ -15,7 +15,7 @@ const CL_H = MAX_INT;
 const CL_R = C_S / 2;
 
 export const CellIndicator = memo(({ cell }: CellIndicatorProps) => {
-	const lowPerf = useGameStore((store) => store.lowPerf);
+	const [lowPerf] = useGameState('lowPerf');
 	const [color, props] = useInteractiveMesh(
 		{
 			normal: cell.payload

@@ -1,7 +1,7 @@
-import { useGameStore } from '@/store/game';
+import { useGameState } from '@/store/game';
 
 export function GameTurnBanner() {
-	const turn = useGameStore((store) => store.turn);
+	const [turn] = useGameState('turn');
 	return (
 		<div className="fixed select-none p-2 top-20 left-1/2 translate-x-[-50%] rounded-lg border bg-card text-card-foreground shadow-sm items-center flex gap-2">
 			<span>Turn:</span>
