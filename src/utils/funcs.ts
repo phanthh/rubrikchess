@@ -15,7 +15,7 @@ export function nkey(c: number, i: number, j: number) {
 	return `${c},${i},${j}`;
 }
 
-export function nkeyinv(key: string) {
+export function invnkey(key: string) {
 	return key.split(',').map((i) => Number(i));
 }
 
@@ -28,17 +28,17 @@ export function distToPlane(vector: Vector3, planeNormal: Vector3) {
 	return vector.clone().sub(projected).length();
 }
 
-export function implySide(cord: Vector3) {
+export function implySide(pos: Vector3) {
 	return SIDES.find((side) => {
-		const projected = cord.clone().projectOnPlane(side);
-		const dir = cord.clone().sub(projected);
+		const projected = pos.clone().projectOnPlane(side);
+		const dir = pos.clone().sub(projected);
 		return dir.dot(side) >= CU_S / 2;
 	})?.clone();
 }
 
 export function isEdgeCell(cell: TCell) {
 	return (
-		cell.cord
+		cell.pos
 			.clone()
 			.projectOnPlane(cell.side)
 			.toArray()
@@ -52,7 +52,7 @@ export function assert<T>(value: T, msg?: string): asserts value is NonNullable<
 
 export function isCornerCell(cell: TCell) {
 	return (
-		cell.cord
+		cell.pos
 			.clone()
 			.projectOnPlane(cell.side)
 			.toArray()
@@ -84,39 +84,15 @@ export function updateCellState(cell: TCell, other: TCell) {
 	}
 }
 
-export function easeInOutExpo(x: number): number {
-	return x === 0
-		? 0
-		: x === 1
-			? 1
-			: x < 0.5
-				? Math.pow(2, 20 * x - 10) / 2
-				: (2 - Math.pow(2, -20 * x + 10)) / 2;
-}
-
-export function easeInOutQuart(x: number): number {
-	return x < 0.5 ? 8 * x * x * x * x : 1 - Math.pow(-2 * x + 2, 4) / 2;
-}
-
-export function easeInOutQuad(x: number): number {
-	return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
-}
-
-export const EASE_FUNCS = {
-	quad: easeInOutQuad,
-	quart: easeInOutQuart,
-	exponential: easeInOutExpo,
-};
-
 export function implyPathPoint(cell: TCell): TPathPoint {
 	return {
-		cord: cell.cord,
-		zCord: cell.cord.clone().add(cell.side.clone().multiplyScalar(Z_GS)),
+		pos: cell.pos,
+		zPos: cell.pos.clone().add(cell.side.clone().multiplyScalar(Z_GS)),
 	};
 }
 
 export function implyCenter(cell: TCell): Vector3 {
-	return cell.cord.clone().sub(
+	return cell.pos.clone().sub(
 		cell.side
 			.clone()
 			.normalize()

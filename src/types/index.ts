@@ -9,7 +9,7 @@ export type TPlayer = 'black' | 'white';
 
 export type TCell = {
 	id: string;
-	cord: Vector3;
+	pos: Vector3;
 	color: EColor;
 	side: Vector3;
 	piece?: TPiece;
@@ -19,8 +19,8 @@ export type TCell = {
 };
 
 export type TPathPoint = {
-	cord: Vector3;
-	zCord: Vector3;
+	pos: Vector3;
+	zPos: Vector3;
 };
 
 export type TPiece = {
@@ -39,7 +39,7 @@ export type TMoveType = 'capturing' | 'normal';
 
 export type TCuboid = {
 	id: string;
-	cord: Vector3;
+	pos: Vector3;
 };
 
 export type TGameState = 'play:pick-piece' | 'play:pick-cell' | 'play:animate';

@@ -2,7 +2,7 @@ import { C_S } from '@/settings';
 import { game, useGameState } from '@/store/game';
 import { TAction, TCell, TCuboid } from '@/types';
 import { EPiece } from '@/utils/consts';
-import { assert, nkeyinv, vkey } from '@/utils/funcs';
+import { assert, invnkey, vkey } from '@/utils/funcs';
 import { move } from '@/utils/path';
 import { produce } from 'immer';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -45,7 +45,7 @@ export function GameHistoryController() {
 		const action = history.at(cursor);
 		assert(action);
 
-		const [ac, ai, aj] = nkeyinv(action.cell.id);
+		const [ac, ai, aj] = invnkey(action.cell.id);
 		const activeCell = cells[ac][ai][aj];
 		const activePiece = activeCell.piece;
 		assert(activePiece);
@@ -58,7 +58,7 @@ export function GameHistoryController() {
 					// no payload means no rotate
 					const targetCellId = action.target?.id;
 					assert(targetCellId);
-					const [tc, ti, tj] = nkeyinv(targetCellId);
+					const [tc, ti, tj] = invnkey(targetCellId);
 					const cell = cells[tc][ti][tj];
 					move(activeCell, cell, cells, false);
 					break;
@@ -66,14 +66,14 @@ export function GameHistoryController() {
 
 				// SPECIAL TESSERACT MOVE: ROTATE
 				const { axis, angle } = payload as { axis: Vector3; angle: number };
-				const rotate = (cord: Vector3) => {
-					return cord.clone().applyAxisAngle(axis, angle).round();
+				const rotate = (pos: Vector3) => {
+					return pos.clone().applyAxisAngle(axis, angle).round();
 				};
-				const adot = activeCell.cord.dot(axis);
+				const adot = activeCell.pos.dot(axis);
 
 				const getRotating = <T extends TCell | TCuboid>(objs: T[]) => {
 					return objs.filter((c) => {
-						const cdot = c.cord.dot(axis);
+						const cdot = c.pos.dot(axis);
 						return cdot === adot || Math.abs(cdot - adot) === C_S / 2;
 					});
 				};
@@ -82,15 +82,15 @@ export function GameHistoryController() {
 					game().set((state) => {
 						return produce(state, (draft) => {
 							for (const c of getRotating(draft.cells.flat(3))) {
-								c.cord = rotate(c.cord);
+								c.pos = rotate(c.pos);
 								c.side = rotate(c.side);
 								// TODO: fix rotating angle bug (see Knight + Tesseract)
 								// c.angle += angle * axis.dot(c.side);
-								draft.cords[vkey(c.cord)] = c.id;
+								draft.positions[vkey(c.pos)] = c.id;
 							}
 
 							for (const c of getRotating(draft.cuboids.flat(3))) {
-								c.cord = rotate(c.cord);
+								c.pos = rotate(c.pos);
 							}
 						});
 					});
@@ -106,7 +106,7 @@ export function GameHistoryController() {
 				const targetCellId = action.target?.id;
 
 				assert(targetCellId);
-				const [tc, ti, tj] = nkeyinv(targetCellId);
+				const [tc, ti, tj] = invnkey(targetCellId);
 				const cell = cells[tc][ti][tj];
 
 				move(activeCell, cell, cells, false);
@@ -132,8 +132,8 @@ export function GameHistoryController() {
 		const revertMove = (action: TAction) => {
 			const targetId = action.target?.id;
 			assert(targetId);
-			const [ac, ai, aj] = nkeyinv(action.cell.id);
-			const [tc, ti, tj] = nkeyinv(targetId);
+			const [ac, ai, aj] = invnkey(action.cell.id);
+			const [tc, ti, tj] = invnkey(targetId);
 
 			const activeCell = cells[ac][ai][aj]; // target cell is the previous active cell
 			const targetCell = cells[tc][ti][tj];
@@ -172,17 +172,17 @@ export function GameHistoryController() {
 
 				// REVERT ROTATION
 				const axis = oriAxis.clone().negate();
-				const [ac, ai, aj] = nkeyinv(action.cell.id);
+				const [ac, ai, aj] = invnkey(action.cell.id);
 				const activeCell = cells[ac][ai][aj];
 
-				const rotate = (cord: Vector3) => {
-					return cord.clone().applyAxisAngle(axis, angle).round();
+				const rotate = (pos: Vector3) => {
+					return pos.clone().applyAxisAngle(axis, angle).round();
 				};
-				const adot = activeCell.cord.dot(axis);
+				const adot = activeCell.pos.dot(axis);
 
 				const getRotating = <T extends TCell | TCuboid>(objs: T[]) => {
 					return objs.filter((c) => {
-						const cdot = c.cord.dot(axis);
+						const cdot = c.pos.dot(axis);
 						return cdot === adot || Math.abs(cdot - adot) === C_S / 2;
 					});
 				};
@@ -191,15 +191,15 @@ export function GameHistoryController() {
 					game().set((state) => {
 						return produce(state, (draft) => {
 							for (const c of getRotating(draft.cells.flat(3))) {
-								c.cord = rotate(c.cord);
+								c.pos = rotate(c.pos);
 								c.side = rotate(c.side);
 								// TODO: fix rotating angle bug (see Knight + Tesseract)
 								// c.angle += angle * axis.dot(c.side);
-								draft.cords[vkey(c.cord)] = c.id;
+								draft.positions[vkey(c.pos)] = c.id;
 							}
 
 							for (const c of getRotating(draft.cuboids.flat(3))) {
-								c.cord = rotate(c.cord);
+								c.pos = rotate(c.pos);
 							}
 						});
 					});

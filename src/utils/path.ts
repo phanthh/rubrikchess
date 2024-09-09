@@ -5,7 +5,7 @@ import { TAction, TCell, TMove, TPathPoint } from '@/types';
 import { produce } from 'immer';
 import { CatmullRomCurve3, Vector3 } from 'three';
 import { SIDES } from './consts';
-import { assert, clampCube, implyCenter, implyDirs, implyPathPoint, nkeyinv, vkey } from './funcs';
+import { assert, clampCube, implyCenter, implyDirs, implyPathPoint, invnkey, vkey } from './funcs';
 import { createQueue } from './queue';
 
 const MAX_ITER = B_D * B_D * SIDES.length;
@@ -16,7 +16,7 @@ export function walk({
 	start,
 	end,
 	mode,
-	cords,
+	positions,
 	cells,
 	walled,
 	maxIter = MAX_ITER,
@@ -27,7 +27,7 @@ export function walk({
 	start: Vector3;
 	end: Vector3;
 	mode: 'rook' | 'bishop';
-	cords: Record<string, string>;
+	positions: Record<string, string>;
 	cells: TCell[][][];
 	walled: boolean;
 	maxIter?: number;
@@ -43,9 +43,9 @@ export function walk({
 	const path: TCell[] = [];
 
 	while (iter < maxIter) {
-		const id = cords[vkey(cursor)];
+		const id = positions[vkey(cursor)];
 		if (id) {
-			const [cc, ci, cj] = nkeyinv(id);
+			const [cc, ci, cj] = invnkey(id);
 			const cell = cells[cc][ci][cj];
 			path.push(cell);
 			if (callback) {
@@ -110,39 +110,43 @@ export function walk({
 	return path;
 }
 
+const filterNeighboringCells = (
+	cell: TCell,
+	cells: TCell[][][],
+	walled: boolean,
+	positions: Record<string, string>,
+): TCell[] => {
+	return implyDirs(cell.side)
+		.slice(0, 4)
+		.map((dir) => {
+			let cand = cell.pos.clone().add(dir.clone().multiplyScalar(C_S));
+			const clamped = clampCube(cand);
+			if (!clamped.equals(cand)) {
+				if (walled) return false;
+				cand = clamped.clone().sub(cell.side.clone().multiplyScalar(C_S / 2));
+			}
+			cand = cand.round();
+			const id = positions[vkey(cand)];
+			assert(id);
+			const [cc, ci, cj] = invnkey(id);
+			return cells[cc][ci][cj];
+		})
+		.filter(Boolean) as TCell[];
+};
+
 export function bfs({
-	cords,
+	positions,
 	initCell,
 	cells,
 	walled,
 	callback,
 }: {
-	cords: Record<string, string>;
+	positions: Record<string, string>;
 	initCell: TCell;
 	cells: TCell[][][];
 	walled: boolean;
 	callback?: (cell: TCell) => boolean;
 }) {
-	// GET NEIGHBORS
-	const getNeighbors = (cell: TCell, cells: TCell[][][]) => {
-		return implyDirs(cell.side)
-			.slice(0, 4)
-			.map((dir) => {
-				let cand = cell.cord.clone().add(dir.clone().multiplyScalar(C_S));
-				const clamped = clampCube(cand);
-				if (!clamped.equals(cand)) {
-					if (walled) return false;
-					cand = clamped.clone().sub(cell.side.clone().multiplyScalar(C_S / 2));
-				}
-				cand = cand.round();
-				const id = cords[vkey(cand)];
-				assert(id);
-				const [cc, ci, cj] = nkeyinv(id);
-				return cells[cc][ci][cj];
-			})
-			.filter(Boolean) as TCell[];
-	};
-
 	// BFS
 	const tree: Record<string, string> = {};
 	const queue = createQueue<TCell>();
@@ -151,7 +155,7 @@ export function bfs({
 	while (queue.length > 0) {
 		const popped = queue.shift();
 		assert(popped);
-		const neighbors = getNeighbors(popped, cells);
+		const neighbors = filterNeighboringCells(popped, cells, walled, positions);
 		for (const neighbor of neighbors) {
 			if (!visited.includes(neighbor.id)) {
 				tree[neighbor.id] = popped.id;
@@ -222,21 +226,21 @@ export function move(
 
 		assert(chosenMove);
 
-		const getMiddlePointPath = (c: TCell, nc: TCell) => {
+		const getMiddlePointPath = (c: TCell, nc: TCell): TPathPoint => {
 			const cc = implyCenter(c);
 			const ncc = implyCenter(nc);
 			const ccc = ncc.add(cc).multiplyScalar(0.5);
 			const newPointSide = c.side.clone().add(nc.side).normalize();
 			const newPoint = ccc.add(newPointSide.clone().multiplyScalar(Math.SQRT1_2 * C_S));
 			return {
-				cord: newPoint.clone(),
-				zCord: newPoint.clone().add(newPointSide.clone().multiplyScalar(Z_GS)),
+				pos: newPoint.clone(),
+				zPos: newPoint.clone().add(newPointSide.clone().multiplyScalar(Z_GS)),
 			};
 		};
 
 		// modify animation path for smoother animation (adding additional points)
 		const cellPath: TCell[] = chosenMove.path.map((id) => {
-			const [c, i, j] = nkeyinv(id);
+			const [c, i, j] = invnkey(id);
 			return cells[c][i][j];
 		});
 		const path: TPathPoint[] = [implyPathPoint(activeCell)];
@@ -261,8 +265,8 @@ export function move(
 			config: {
 				ease: 'quart',
 				type: 'path',
-				path: new CatmullRomCurve3(path.map((c) => c.cord)),
-				zPath: new CatmullRomCurve3(path.map((c) => c.zCord)),
+				path: new CatmullRomCurve3(path.map((c) => c.pos)),
+				zPath: new CatmullRomCurve3(path.map((c) => c.zPos)),
 			},
 		});
 	} else {

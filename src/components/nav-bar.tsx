@@ -1,4 +1,4 @@
-import { STANDARD_CONFIG } from '@/settings';
+import { CUBE_LAYOUT, PIECE_LAYOUT } from '@/settings';
 import { game, useGameStore } from '@/store/game';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from './ui/button';
@@ -19,13 +19,18 @@ export function NavBar(props: NavBarProps) {
 	);
 
 	const handleNewStandardGame = () => {
-		game().initCube();
-		game().initConfigPieces(STANDARD_CONFIG);
+		game().initCube(CUBE_LAYOUT.standard);
+		game().initConfigPieces(PIECE_LAYOUT.standard);
 	};
 
 	const handleNewRandomGame = () => {
-		game().initCube();
+		game().initCube(CUBE_LAYOUT.standard);
 		game().initRandomPieces();
+	};
+
+	const handleNewRubrikGame = () => {
+		game().initCube(CUBE_LAYOUT.rubrik);
+		game().initConfigPieces(PIECE_LAYOUT.standard);
 	};
 
 	const handleCancel = () => {
@@ -42,13 +47,16 @@ export function NavBar(props: NavBarProps) {
 		<nav className="flex flex-wrap p-4 flex-row items-center gap-3 border-gray-500 border-2 bg-background">
 			{/* {debug && <span className="text-foreground">State: {state}</span>} */}
 			<Button variant="outline" onClick={handleNewStandardGame}>
-				New Standard Game
+				Standard
 			</Button>
 			{/* <Button variant="outline" onClick={handleUpdateMoves}> */}
 			{/* 	Update Moves */}
 			{/* </Button> */}
 			<Button variant="outline" onClick={handleNewRandomGame}>
-				New Randomize Game
+				Randomized
+			</Button>
+			<Button variant="outline" onClick={handleNewRubrikGame}>
+				Rubrik
 			</Button>
 			<Button
 				style={{ opacity: state === 'play:pick-cell' ? 1 : 0 }}

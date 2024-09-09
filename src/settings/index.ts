@@ -11,15 +11,21 @@ export const Z_GS = 0.1; // Z GAP SCALER FOR PATH POINTS (ANIMATION)
 
 export const TARGETED_PIECES = [EPiece.KING, EPiece.PRINCE];
 
-export const STANDARD_CONFIG = `
+export const CUBE_LAYOUT = {
+	rubrik: [EColor.WHITE, EColor.RED, EColor.BLUE, EColor.BLACK, EColor.YELLOW, EColor.GREEN],
+	standard: [EColor.WHITE, EColor.WHITE, EColor.BLACK, EColor.BLACK, EColor.WHITE, EColor.BLACK],
+};
+
+export const PIECE_LAYOUT = {
+	standard: `
 --------
+-NPPPPN-
+-PTRBTP-
+-PCKSOP-
+-POXQCP-
+-PTBRTP-
+-NPPPPN-
 --------
---------
---------
---------
---------
---------
-N-------
 
 --------
 -nppppn-
@@ -29,25 +35,7 @@ N-------
 -ptbrtp-
 -nppppn-
 --------
-		`;
-
-// RUBRIKS MODES
-// export const SIDES_COLOR = [
-// 	EColor.WHITE,
-// 	EColor.RED,
-// 	EColor.BLUE,
-// 	EColor.BLACK,
-// 	EColor.YELLOW,
-// 	EColor.GREEN,
-// ];
-
-export const SIDES_COLOR = [
-	EColor.WHITE,
-	EColor.WHITE,
-	EColor.BLACK,
-	EColor.BLACK,
-	EColor.WHITE,
-	EColor.BLACK,
-];
+	`,
+};
 
 export const INITAL_CAM_CORD = vec(1.5 * CU_S, 1.5 * CU_S, 1.5 * CU_S);

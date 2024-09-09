@@ -29,8 +29,8 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 	const [checkTarget] = useGameState('checkTarget');
 
 	useLayoutEffect(() => {
-		ref.current?.lookAt(cell.cord.clone().add(cell.side.clone().multiplyScalar(MAX_INT)));
-	}, [ref.current, cell.side, cell.cord]);
+		ref.current?.lookAt(cell.pos.clone().add(cell.side.clone().multiplyScalar(MAX_INT)));
+	}, [ref.current, cell.side, cell.pos]);
 
 	useLayoutEffect(() => {
 		animation().registerCellRef(cell.id, ref);
@@ -103,7 +103,7 @@ export const Cell = memo(({ cell, onPickCell, onPickPiece }: CellProps) => {
 				onDoubleClick={handleDoubleClick}
 				ref={ref}
 				geometry={cellGeometry}
-				position={cell.cord}
+				position={cell.pos}
 				receiveShadow
 			>
 				<meshStandardMaterial

@@ -1,6 +1,7 @@
 import { animation, useAnimationStore } from '@/store/animation';
 import { game, useGameState } from '@/store/game';
-import { clamp, EASE_FUNCS } from '@/utils/funcs';
+import { EASE_FUNCS } from '@/utils/animation';
+import { clamp } from '@/utils/funcs';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
 import { Clock } from 'three';

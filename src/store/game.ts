@@ -1,10 +1,10 @@
 import { bfs, walk } from '@/utils/path';
 import { produce } from 'immer';
 import {
-	getState,
+	getState as getNetworkState,
 	onPlayerJoin,
 	insertCoin,
-	setState,
+	setState as setNetworkState,
 	useMultiplayerState,
 	PlayerState,
 } from 'playroomkit';
@@ -12,7 +12,7 @@ import { useCallback } from 'react';
 import { Vector3 } from 'three';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { B_D, C_S, CU_S, SIDES_COLOR, TARGETED_PIECES } from '../settings';
+import { B_D, C_S, CU_S, TARGETED_PIECES } from '../settings';
 import {
 	TAction,
 	TCell,
@@ -32,7 +32,7 @@ import {
 	isCornerCell,
 	isEdgeCell,
 	nkey,
-	nkeyinv,
+	invnkey,
 	randChoice,
 	vec,
 	vkey,
@@ -48,7 +48,7 @@ interface IGameStore {
 	cursor: number; // for indexing history
 	inverted: boolean;
 	animate: boolean;
-	cords: Record<string, string>; // Vector3 -> cell id
+	positions: Record<string, string>; // Vector3 -> cell id
 	walled: boolean;
 	sandbox: boolean;
 	debug: boolean;
@@ -62,7 +62,7 @@ interface IGameStore {
 	updateIdleCellStates: () => void;
 	updatePieceMoves: (pieceId?: string) => void;
 	resetHistory: () => void;
-	initCube: () => void;
+	initCube: (cubeLayout: EColor[]) => void;
 	initRandomPieces: (density?: number) => void;
 	initConfigPieces: (config: string) => void;
 	initPlayroom: () => Promise<void>;
@@ -74,7 +74,7 @@ export const useGameStore = create(
 		cuboids: [],
 		turn: 'white',
 		state: 'play:pick-piece',
-		cords: {},
+		positions: {},
 		shadow: false,
 		history: [],
 		cursor: 0,
@@ -120,11 +120,11 @@ export const useGameStore = create(
 					// if king is targeted: highlight path and that king
 					for (const move of allCapturingMoves) {
 						const id = move.path.at(-1)!;
-						const [c, i, j] = nkeyinv(id);
+						const [c, i, j] = invnkey(id);
 						const cell = cells[c][i][j];
 						if (cell.piece && TARGETED_PIECES.includes(cell.piece.type)) {
 							for (const id of move.path) {
-								const [pc, pi, pj] = nkeyinv(id);
+								const [pc, pi, pj] = invnkey(id);
 								const pcell = cells[pc][pi][pj];
 								pcell.state = 'targeted:path';
 							}
@@ -134,12 +134,12 @@ export const useGameStore = create(
 				}),
 			}));
 		},
-		initCube: () => {
+		initCube: (cubeLayout: EColor[]) => {
 			const cells: TCell[][][] = [];
-			const cords: Record<string, string> = {};
+			const positions: Record<string, string> = {};
 
 			// init cells
-			for (const [c, [_side, color]] of zip(SIDES, SIDES_COLOR).entries()) {
+			for (const [c, [_side, color]] of zip(SIDES, cubeLayout).entries()) {
 				cells[c] = [];
 				for (let i = 0; i < B_D; ++i) {
 					cells[c][i] = [];
@@ -148,29 +148,29 @@ export const useGameStore = create(
 						const normal = (_side as Vector3).clone();
 						adjust.setComponent(normal.toArray().findIndex((i) => i !== 0)!, 0);
 
-						let baseCord: Vector3 | null;
+						let basePos: Vector3 | null;
 						if (normal.x !== 0) {
-							baseCord = vec(0, i * C_S, j * C_S);
+							basePos = vec(0, i * C_S, j * C_S);
 						} else if (normal.y !== 0) {
-							baseCord = vec(i * C_S, 0, j * C_S);
+							basePos = vec(i * C_S, 0, j * C_S);
 						} else if (normal.z !== 0) {
-							baseCord = vec(i * C_S, j * C_S, 0);
+							basePos = vec(i * C_S, j * C_S, 0);
 						} else {
 							throw new Error('bad side');
 						}
 
-						baseCord.sub(adjust).add(normal.multiplyScalar(CU_S / 2));
+						basePos.sub(adjust).add(normal.multiplyScalar(CU_S / 2));
 
 						const cellId = nkey(c, i, j);
 
 						cells[c][i][j] = {
-							cord: baseCord,
+							pos: basePos,
 							id: nkey(c, i, j),
 							side: normal.clone().normalize(),
 							color: color as EColor,
 							state: 'normal',
 						};
-						cords[vkey(baseCord)] = cellId;
+						positions[vkey(basePos)] = cellId;
 					}
 				}
 			}
@@ -185,13 +185,13 @@ export const useGameStore = create(
 					for (let k = 0; k < B_D; ++k) {
 						cuboids[i][j][k] = {
 							id: nkey(i, j, k),
-							cord: vec(i * C_S + offset, j * C_S + offset, k * C_S + offset),
+							pos: vec(i * C_S + offset, j * C_S + offset, k * C_S + offset),
 						};
 					}
 				}
 			}
 
-			set({ cells, cords, cuboids });
+			set({ cells, positions, cuboids });
 		},
 		initRandomPieces: (density = 0.2) => {
 			set((state) => {
@@ -280,7 +280,7 @@ export const useGameStore = create(
 		updatePieceMoves: (pieceId) => {
 			set((state) => {
 				return produce(state, (draft) => {
-					const cords = draft.cords;
+					const positions = draft.positions;
 					const walled = draft.walled;
 
 					for (const cell of draft.cells.flat(3)) {
@@ -333,11 +333,11 @@ export const useGameStore = create(
 									walk({
 										initDir,
 										initSide: cell.side,
-										start: cell.cord,
-										end: cell.cord,
+										start: cell.pos,
+										end: cell.pos,
 										mode: 'rook',
 										walled,
-										cords,
+										positions,
 										cells: draft.cells,
 										callback: getWalkCallback(curMoves, curPath),
 									});
@@ -352,11 +352,11 @@ export const useGameStore = create(
 									walk({
 										initDir,
 										initSide: cell.side,
-										start: cell.cord,
-										end: cell.cord,
+										start: cell.pos,
+										end: cell.pos,
 										mode: 'bishop',
 										walled,
-										cords,
+										positions,
 										cells: draft.cells,
 										callback: getWalkCallback(curMoves, curPath),
 									});
@@ -372,11 +372,11 @@ export const useGameStore = create(
 									walk({
 										initDir,
 										initSide: cell.side,
-										start: cell.cord,
-										end: cell.cord,
+										start: cell.pos,
+										end: cell.pos,
 										mode: 'rook',
 										walled,
-										cords,
+										positions,
 										cells: draft.cells,
 										callback: getWalkCallback(curMoves, curPath),
 									});
@@ -390,11 +390,11 @@ export const useGameStore = create(
 									walk({
 										initDir,
 										initSide: cell.side,
-										start: cell.cord,
-										end: cell.cord,
+										start: cell.pos,
+										end: cell.pos,
 										walled,
 										mode: 'bishop',
-										cords,
+										positions,
 										cells: draft.cells,
 										callback: getWalkCallback(curMoves, curPath),
 									});
@@ -440,11 +440,11 @@ export const useGameStore = create(
 									walk({
 										initDir,
 										initSide: cell.side,
-										start: cell.cord,
-										end: cell.cord,
+										start: cell.pos,
+										end: cell.pos,
 										mode: 'rook',
 										walled,
-										cords,
+										positions,
 										cells: draft.cells,
 										callback: getPrincessWalkCallBack(curMoves, curPath),
 									});
@@ -458,11 +458,11 @@ export const useGameStore = create(
 									walk({
 										initDir,
 										initSide: cell.side,
-										start: cell.cord,
-										end: cell.cord,
+										start: cell.pos,
+										end: cell.pos,
 										walled,
 										mode: 'bishop',
-										cords,
+										positions,
 										cells: draft.cells,
 										callback: getPrincessWalkCallBack(curMoves, curPath),
 									});
@@ -471,12 +471,12 @@ export const useGameStore = create(
 								break;
 							case EPiece.KNIGHT:
 								for (const c of draft.cells.flat(3)) {
-									const distSq = c.cord.distanceToSquared(cell.cord);
+									const distSq = c.pos.distanceToSquared(cell.pos);
 									let reachable = false;
 									if (distSq === 5 * C_S * C_S || distSq === 3.5 * C_S * C_S) {
 										reachable = true;
 									} else if (distSq === 4.5 * C_S * C_S && (isEdgeCell(c) || isCornerCell(c))) {
-										if (c.cord.distanceToSquared(center) !== 3.25 * C_S * C_S) {
+										if (c.pos.distanceToSquared(center) !== 3.25 * C_S * C_S) {
 											reachable = true;
 										}
 									} else if (
@@ -512,7 +512,7 @@ export const useGameStore = create(
 
 								const tree = bfs({
 									initCell: cell,
-									cords,
+									positions,
 									cells: draft.cells,
 									walled,
 									callback: walkCallback,
@@ -533,7 +533,7 @@ export const useGameStore = create(
 
 								// KING-mode
 								for (const c of draft.cells.flat(3)) {
-									const distSq = c.cord.distanceToSquared(cell.cord);
+									const distSq = c.pos.distanceToSquared(cell.pos);
 									if (
 										(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
 										distSq === C_S * C_S ||
@@ -554,7 +554,7 @@ export const useGameStore = create(
 							case EPiece.TESSERACT: {
 								// KING-mode
 								for (const c of draft.cells.flat(3)) {
-									const distSq = c.cord.distanceToSquared(cell.cord);
+									const distSq = c.pos.distanceToSquared(cell.pos);
 									if (
 										(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
 										distSq === C_S * C_S ||
@@ -582,10 +582,10 @@ export const useGameStore = create(
 								]) {
 									for (const axis of [XPOS, YPOS, ZPOS]) {
 										if (axis.dot(cell.side) !== 0) continue;
-										const rotated = cell.cord.clone().applyAxisAngle(axis, angle).round();
-										const id = cords[vkey(rotated)];
+										const rotated = cell.pos.clone().applyAxisAngle(axis, angle).round();
+										const id = positions[vkey(rotated)];
 										assert(id);
-										const [cc, ci, cj] = nkeyinv(id);
+										const [cc, ci, cj] = invnkey(id);
 										const c = draft.cells[cc][ci][cj];
 										const type = updateCellState(cell, c);
 										if (type) {
@@ -610,7 +610,7 @@ export const useGameStore = create(
 								};
 
 								for (const c of draft.cells.flat(3)) {
-									const distSq = c.cord.distanceToSquared(cell.cord);
+									const distSq = c.pos.distanceToSquared(cell.pos);
 									if (
 										(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
 										distSq === C_S * C_S ||
@@ -631,7 +631,7 @@ export const useGameStore = create(
 
 							case EPiece.KING: {
 								for (const c of draft.cells.flat(3)) {
-									const distSq = c.cord.distanceToSquared(cell.cord);
+									const distSq = c.pos.distanceToSquared(cell.pos);
 									if (
 										(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
 										distSq === C_S * C_S ||
@@ -651,7 +651,7 @@ export const useGameStore = create(
 							case EPiece.PRINCE: {
 								for (const c of draft.cells.flat(3)) {
 									if (c.color !== cell.color) continue;
-									const distSq = c.cord.distanceToSquared(cell.cord);
+									const distSq = c.pos.distanceToSquared(cell.pos);
 									if (
 										(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
 										distSq === C_S * C_S ||
@@ -672,7 +672,7 @@ export const useGameStore = create(
 
 							case EPiece.PAWN: {
 								for (const c of draft.cells.flat(3)) {
-									const distSq = c.cord.distanceToSquared(cell.cord);
+									const distSq = c.pos.distanceToSquared(cell.pos);
 									if ((!walled && distSq === 0.5 * C_S * C_S) || distSq === C_S * C_S) {
 										if (!c.piece) {
 											moves.push({
@@ -709,11 +709,8 @@ export const useGameStore = create(
 				maxPlayersPerRoom: 2,
 			});
 
-			// Create a joystick controller for each joining player
 			onPlayerJoin((newPlayer) => {
 				const players = game().players;
-				// Joystick will only create UI for current player (myPlayer)
-				// For others, it will only sync their state
 				newPlayer.setState('player', players.length === 0 ? 'white' : 'black');
 				game().set({ players: [...players, newPlayer] });
 				newPlayer.onQuit(() => {
@@ -730,19 +727,19 @@ const NETWORK_STATES = ['turn'] as const;
 
 export function game() {
 	const state = useGameStore.getState();
-	const shallowClone = { ...state };
+	const cloned = { ...state };
 	for (const key of NETWORK_STATES) {
-		shallowClone[key] = state.mode === 'local' ? state[key] : getState(key) ?? state[key];
+		cloned[key] = state.mode === 'local' ? state[key] : getNetworkState(key) ?? state[key];
 	}
 
-	return Object.assign(shallowClone, {
+	return Object.assign(cloned, {
 		set: useGameStore.setState,
 		setState: <T extends IGameStoreMutableKey>(key: T, setter: (value: IGameStore[T]) => void) => {
 			const baseState = useGameStore.getState();
 			if (baseState.mode === 'local') {
 				useGameStore.setState((state) => ({ [key]: setter(state[key]) }));
 			} else {
-				setState(key, setter(getState(key) ?? baseState[key]), true);
+				setNetworkState(key, setter(getNetworkState(key) ?? baseState[key]), true);
 			}
 		},
 		subscribe: useGameStore.subscribe,

@@ -22,6 +22,7 @@ function App() {
 		}
 	}, [debug]);
 
+	// If clicking without hitting any objects
 	const handleMissedClick = () => {
 		switch (game().state) {
 			case 'play:pick-piece':
@@ -50,9 +51,9 @@ function App() {
 			>
 				<color attach="background" args={['#101010']} />
 				<PerformanceMonitor
-					onDecline={() => {
-						game().set({ lowPerf: true });
-					}}
+					// onDecline={() => {
+					// 	game().set({ lowPerf: true });
+					// }}
 					onIncline={() => {
 						game().set({ lowPerf: false });
 					}}

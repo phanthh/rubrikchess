@@ -1,8 +1,8 @@
-import { C_S, STANDARD_CONFIG } from '@/settings';
+import { C_S, CUBE_LAYOUT, PIECE_LAYOUT } from '@/settings';
 import { animation } from '@/store/animation';
 import { TAction, TCell, TCuboid } from '@/types';
 import { EPiece, XPOS, YPOS, ZPOS } from '@/utils/consts';
-import { assert, nkeyinv, vkey } from '@/utils/funcs';
+import { assert, invnkey, vkey } from '@/utils/funcs';
 import { move } from '@/utils/path';
 import { produce } from 'immer';
 import { useEffect } from 'react';
@@ -22,8 +22,8 @@ export function Cube({}: CubeProps) {
 	const [animate] = useGameState('animate');
 
 	useEffect(() => {
-		game().initCube();
-		game().initConfigPieces(STANDARD_CONFIG);
+		game().initCube(CUBE_LAYOUT.standard);
+		game().initConfigPieces(PIECE_LAYOUT.standard);
 	}, []);
 
 	// when user clicking a cell, lokoing for a piece to move
@@ -47,8 +47,8 @@ export function Cube({}: CubeProps) {
 		// update cells' state based on the piece's available moves
 		game().set((state) =>
 			produce(state, (draft) => {
-				const cords = draft.cords;
-				assert(cords, 'no cords');
+				const positions = draft.positions;
+				assert(positions, 'no positions');
 
 				// a function to update the cells's state, given available moves of the chosen piece
 				const updateCellStatesFromPieceMoves = () => {
@@ -57,7 +57,7 @@ export function Cube({}: CubeProps) {
 						const target = move.path.at(-1);
 						assert(target, 'path is too short');
 
-						const [c, i, j] = nkeyinv(target);
+						const [c, i, j] = invnkey(target);
 
 						// mark the cell based on the move type
 						switch (move.type) {
@@ -84,10 +84,10 @@ export function Cube({}: CubeProps) {
 							// Math.PI
 						]) {
 							for (const axis of [XPOS, YPOS, ZPOS]) {
-								const rotated = cell.cord.clone().applyAxisAngle(axis, angle).round();
-								const id = cords[vkey(rotated)];
+								const rotated = cell.pos.clone().applyAxisAngle(axis, angle).round();
+								const id = positions[vkey(rotated)];
 								assert(id);
-								const [cc, ci, cj] = nkeyinv(id);
+								const [cc, ci, cj] = invnkey(id);
 								const c = draft.cells[cc][ci][cj];
 
 								// mark cells that are additionally 'clickable' by the Tesseract piece
@@ -106,7 +106,7 @@ export function Cube({}: CubeProps) {
 						break;
 				}
 
-				const [c, i, j] = nkeyinv(cell.id);
+				const [c, i, j] = invnkey(cell.id);
 				draft.cells[c][i][j].state = 'active';
 
 				// SWITCH TO NEXT STATE
@@ -154,14 +154,14 @@ export function Cube({}: CubeProps) {
 								angle,
 							},
 						};
-						const rotate = (cord: Vector3) => {
-							return cord.clone().applyAxisAngle(axis, angle).round();
+						const rotate = (pos: Vector3) => {
+							return pos.clone().applyAxisAngle(axis, angle).round();
 						};
-						const adot = activeCell.cord.dot(axis);
+						const adot = activeCell.pos.dot(axis);
 
 						const getRotating = <T extends TCell | TCuboid>(objs: T[]) => {
 							return objs.filter((c) => {
-								const cdot = c.cord.dot(axis);
+								const cdot = c.pos.dot(axis);
 								return cdot === adot || Math.abs(cdot - adot) === C_S / 2;
 							});
 						};
@@ -170,15 +170,15 @@ export function Cube({}: CubeProps) {
 							game().set((state) => {
 								return produce(state, (draft) => {
 									for (const c of getRotating(draft.cells.flat(3))) {
-										c.cord = rotate(c.cord);
+										c.pos = rotate(c.pos);
 										c.side = rotate(c.side);
 										// TODO: fix rotating angle bug (see Knight + Tesseract)
 										// c.angle += angle * axis.dot(c.side);
-										draft.cords[vkey(c.cord)] = c.id;
+										draft.positions[vkey(c.pos)] = c.id;
 									}
 
 									for (const c of getRotating(draft.cuboids.flat(3))) {
-										c.cord = rotate(c.cord);
+										c.pos = rotate(c.pos);
 									}
 								});
 							});

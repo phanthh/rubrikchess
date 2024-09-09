@@ -83,10 +83,9 @@ export const useAnimationStore = create(
 );
 
 export function animation() {
-	return Object.assign(
-		{ ...useAnimationStore.getState() },
-		{
-			set: useAnimationStore.setState,
-		},
-	);
+	const state = useAnimationStore.getState();
+	const cloned = { ...state };
+	return Object.assign(cloned, {
+		set: useAnimationStore.setState,
+	});
 }
