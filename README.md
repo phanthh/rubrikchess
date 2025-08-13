@@ -1,14 +1,5 @@
 # Rubrik Chess
 
-TODO:
+Chess, but on a rubrik cube
 
-- [x] King Check checks
-- [x] Princess piece: Queen but limited by square
-- [x] Prince piece
-- [x] Cannon piece
-- [x] Checkmate check
-- [] Multiplayer (local network?)
-- [] Multiplayer: spectator (local network?)
-- [] UI Interfaces (Menu and Control panels)
-- [] Knight additional moves
-- [] AI bot
+<img width="1428" height="902" alt="image" src="https://github.com/user-attachments/assets/414573b1-f2f2-49a1-a705-f734e4ad2db5" />
