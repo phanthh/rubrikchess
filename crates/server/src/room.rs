@@ -10,6 +10,7 @@ use tokio::sync::broadcast;
 use crate::db;
 use crate::db::User;
 use crate::lobby::ClockSpec;
+use crate::rating;
 use crate::{now_ms, AppState};
 
 /// Server-authoritative clock. `white_ms`/`black_ms` are the remaining times as
@@ -84,6 +85,8 @@ pub struct Room {
     pub clock: Clock,
     pub draw_offer: Option<Color>,
     pub created_at: i64,
+    pub white_diff: Option<i64>,
+    pub black_diff: Option<i64>,
     pub tx: broadcast::Sender<String>,
 }
 
@@ -104,6 +107,8 @@ impl Room {
             clock,
             draw_offer: None,
             created_at,
+            white_diff: None,
+            black_diff: None,
             tx: broadcast::channel(64).0,
         }
     }
@@ -134,7 +139,7 @@ impl Room {
         })
     }
 
-    pub fn play(&mut self, user_id: &str, mv: Move) -> Result<(), String> {
+    pub fn play(&mut self, state: &AppState, user_id: &str, mv: Move) -> Result<(), String> {
         if self.game.status != Status::Playing {
             return Err("game is over".into());
         }
@@ -157,27 +162,84 @@ impl Room {
             "clock": self.clock,
         }));
         if self.game.status != Status::Playing {
-            self.finish();
+            self.finish(state);
         }
         Ok(())
     }
 
-    pub fn end(&mut self, status: Status) {
+    pub fn end(&mut self, state: &AppState, status: Status) {
         if self.game.status != Status::Playing {
             return;
         }
         self.game.end(status);
-        self.finish();
+        self.finish(state);
     }
 
-    fn finish(&mut self) {
+    fn finish(&mut self, state: &AppState) {
         self.clock.stop(now_ms());
         self.draw_offer = None;
+        let (white_diff, black_diff) = self.rate(state);
         self.broadcast(json!({
             "t": "game_end",
             "game_id": self.id,
             "status": self.game.status,
+            "white_diff": white_diff,
+            "black_diff": black_diff,
         }));
+    }
+
+    /// Glicko-2 update for a decided game; abandoned games stay unrated.
+    fn rate(&mut self, state: &AppState) -> (Option<i64>, Option<i64>) {
+        let score = match self.game.status {
+            Status::Won { winner, reason } if reason != EndReason::Abandoned => {
+                if winner == Color::White {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
+            Status::Draw { reason } if reason != EndReason::Abandoned => 0.5,
+            _ => return (None, None),
+        };
+        let conn = state.db.lock();
+        // Re-read: both players may have finished other games since this room started.
+        let (Some(mut white), Some(mut black)) = (
+            db::user(&conn, &self.white.id),
+            db::user(&conn, &self.black.id),
+        ) else {
+            return (None, None);
+        };
+        let (wr, br) = rating::update(&white.glicko(), &black.glicko(), score);
+        let white_diff = wr.r.round() as i64 - white.rating.round() as i64;
+        let black_diff = br.r.round() as i64 - black.rating.round() as i64;
+        db::set_rating(
+            &conn,
+            &white.id,
+            &wr,
+            white.games + 1,
+            white.wins + (score == 1.0) as i64,
+        );
+        db::set_rating(
+            &conn,
+            &black.id,
+            &br,
+            black.games + 1,
+            black.wins + (score == 0.0) as i64,
+        );
+        db::set_game_diffs(&conn, &self.id, white_diff, black_diff);
+        white.rating = wr.r;
+        white.rd = wr.rd;
+        white.vol = wr.vol;
+        white.games += 1;
+        black.rating = br.r;
+        black.rd = br.rd;
+        black.vol = br.vol;
+        black.games += 1;
+        self.white = white;
+        self.black = black;
+        self.white_diff = Some(white_diff);
+        self.black_diff = Some(black_diff);
+        (Some(white_diff), Some(black_diff))
     }
 }
 
@@ -217,10 +279,13 @@ pub fn arm_timeout(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
         if r.clock.remaining(color, now_ms()) > 0 {
             return;
         }
-        r.end(Status::Won {
-            winner: color.other(),
-            reason: EndReason::Timeout,
-        });
+        r.end(
+            &state,
+            Status::Won {
+                winner: color.other(),
+                reason: EndReason::Timeout,
+            },
+        );
         persist(&state, &r);
     });
 }

@@ -3,6 +3,7 @@ import { Toaster } from './components/ui/sonner';
 import { GamePage } from './pages/game';
 import { LobbyPage } from './pages/lobby';
 import { LocalPage } from './pages/local';
+import { UserPage } from './pages/user';
 
 export default function App() {
 	return (
@@ -11,6 +12,7 @@ export default function App() {
 				<Route path="/" element={<LobbyPage />} />
 				<Route path="/local" element={<LocalPage />} />
 				<Route path="/g/:id" element={<GamePage />} />
+				<Route path="/u/:name" element={<UserPage />} />
 			</Routes>
 			<Toaster closeButton richColors />
 		</BrowserRouter>

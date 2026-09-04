@@ -71,6 +71,18 @@ export function connect() {
 	ws.onerror = () => ws.close();
 }
 
+/** Drop the socket and open a new one (session cookie changed → server must re-read it). */
+export function reconnect() {
+	const old = socket;
+	socket = null;
+	if (old) {
+		old.onclose = null;
+		old.close();
+	}
+	backoff = 500;
+	connect();
+}
+
 export function send(msg: ClientMsg) {
 	if (socket && socket.readyState === WebSocket.OPEN) {
 		socket.send(JSON.stringify(msg));

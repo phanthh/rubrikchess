@@ -150,9 +150,7 @@ impl<'a> Gen<'a> {
                 cursor = clamped.sub(side.scale(C_S / 2));
             } else {
                 let new_dir = side.neg();
-                cursor = cursor
-                    .sub(dir.scale(C_S / 2))
-                    .add(new_dir.scale(C_S / 2));
+                cursor = cursor.sub(dir.scale(C_S / 2)).add(new_dir.scale(C_S / 2));
                 dir = new_dir;
             }
             if cursor == start {
@@ -271,7 +269,10 @@ impl<'a> Gen<'a> {
                 if axis.unit().dot(self.cell.side) != 0 {
                     continue;
                 }
-                let target = self.board.at(self.cell.pos.rot90(axis, sign)).expect("rotated cell");
+                let target = self
+                    .board
+                    .at(self.cell.pos.rot90(axis, sign))
+                    .expect("rotated cell");
                 self.try_target(target, false, true);
             }
         }
@@ -378,7 +379,9 @@ mod tests {
         let b = empty_with(PieceKind::Rook, Color::White, 3 * 8 + 3);
         let m = moves_for(&b, Rules::default(), 27);
         assert_eq!(m.len(), 4 * 31);
-        assert!(m.iter().all(|m| matches!(m, Move::Step { capture: false, .. })));
+        assert!(m
+            .iter()
+            .all(|m| matches!(m, Move::Step { capture: false, .. })));
     }
 
     #[test]
@@ -408,7 +411,13 @@ mod tests {
                 let mut prev = 0;
                 for &id in path {
                     let d = b.cell(prev).pos.dist_sq(b.cell(id).pos);
-                    assert!([24, 32].contains(&d), "bad diag step {} from {} to {}", d, prev, id);
+                    assert!(
+                        [24, 32].contains(&d),
+                        "bad diag step {} from {} to {}",
+                        d,
+                        prev,
+                        id
+                    );
                     prev = id;
                 }
             }
@@ -429,10 +438,21 @@ mod tests {
     #[test]
     fn pawn_moves_and_captures() {
         let mut b = empty_with(PieceKind::Pawn, Color::White, 27);
-        b.cells[36].piece = Some(Piece { kind: PieceKind::Pawn, color: Color::Black, id: 36 }); // (4,4) diag
-        b.cells[28].piece = Some(Piece { kind: PieceKind::Pawn, color: Color::Black, id: 28 }); // (3,4) orth
+        b.cells[36].piece = Some(Piece {
+            kind: PieceKind::Pawn,
+            color: Color::Black,
+            id: 36,
+        }); // (4,4) diag
+        b.cells[28].piece = Some(Piece {
+            kind: PieceKind::Pawn,
+            color: Color::Black,
+            id: 28,
+        }); // (3,4) orth
         let m = moves_for(&b, Rules::default(), 27);
-        let caps: Vec<_> = m.iter().filter(|m| matches!(m, Move::Step { capture: true, .. })).collect();
+        let caps: Vec<_> = m
+            .iter()
+            .filter(|m| matches!(m, Move::Step { capture: true, .. }))
+            .collect();
         assert_eq!(caps.len(), 1);
         assert_eq!(caps[0].to(), Some(36));
         assert_eq!(m.len(), 1 + 3); // 4 orth, one blocked
@@ -449,16 +469,28 @@ mod tests {
     fn tesseract_has_six_rotations() {
         let b = empty_with(PieceKind::Tesseract, Color::White, 27);
         let m = moves_for(&b, Rules::default(), 27);
-        assert_eq!(m.iter().filter(|m| matches!(m, Move::Rotate { .. })).count(), 6);
+        assert_eq!(
+            m.iter()
+                .filter(|m| matches!(m, Move::Rotate { .. }))
+                .count(),
+            6
+        );
     }
 
     #[test]
     fn cannon_shoots_across_edges() {
         let mut b = empty_with(PieceKind::Cannon, Color::White, 27);
         let target = b.at(b.cell(27).pos.rot90(Axis::X, 1)).unwrap();
-        b.cells[target as usize].piece = Some(Piece { kind: PieceKind::King, color: Color::Black, id: target });
+        b.cells[target as usize].piece = Some(Piece {
+            kind: PieceKind::King,
+            color: Color::Black,
+            id: target,
+        });
         let m = moves_for(&b, Rules::default(), 27);
-        let caps: Vec<_> = m.iter().filter(|m| matches!(m, Move::Step { capture: true, .. })).collect();
+        let caps: Vec<_> = m
+            .iter()
+            .filter(|m| matches!(m, Move::Step { capture: true, .. }))
+            .collect();
         assert_eq!(caps.len(), 1);
         assert_eq!(caps[0].to(), Some(target));
     }

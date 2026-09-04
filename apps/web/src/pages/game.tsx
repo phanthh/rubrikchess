@@ -1,4 +1,5 @@
 import { GameCanvas } from '@/components/game-canvas';
+import { RatingDiff } from '@/components/rating-diff';
 import { Tooltip } from '@/components/tooltip';
 import { Button } from '@/components/ui/button';
 import { connect, onServerMsg, send, useNetStore } from '@/net/ws';
@@ -12,12 +13,13 @@ import { useShallow } from 'zustand/react/shallow';
 export function GamePage() {
 	const { id } = useParams();
 	const me = useNetStore((store) => store.me);
-	const { history, turn, status, players, clock, myColor, drawOffer, cursor } = useGameStore(
+	const { history, turn, status, players, diffs, clock, myColor, drawOffer, cursor } = useGameStore(
 		useShallow((store) => ({
 			history: store.history,
 			turn: store.turn,
 			status: store.status,
 			players: store.players,
+			diffs: store.diffs,
 			clock: store.clock,
 			myColor: store.myColor,
 			drawOffer: store.drawOffer,
@@ -39,7 +41,7 @@ export function GamePage() {
 					game().applyRemoteMove(msg);
 					break;
 				case 'game_end':
-					game().setEnd(msg.status);
+					game().setEnd(msg);
 					break;
 				case 'draw_offer':
 					game().setDrawOffer(msg.by);
@@ -81,7 +83,15 @@ export function GamePage() {
 					className="rounded-full w-4 h-4 border-gray-200 border"
 					style={{ backgroundColor: color }}
 				/>
-				<span>{players[color]?.name ?? '—'}</span>
+				{players[color] ? (
+					<Link to={`/u/${players[color]!.name}`} className="hover:underline">
+						{players[color]!.name}{' '}
+						<span className="text-muted-foreground">({Math.round(players[color]!.rating)})</span>
+					</Link>
+				) : (
+					<span>—</span>
+				)}
+				<RatingDiff diff={diffs[color]} />
 				{myColor === color && <span className="text-muted-foreground">(you)</span>}
 			</div>
 			<span className={turn === color && !over ? 'font-bold' : 'text-muted-foreground'}>

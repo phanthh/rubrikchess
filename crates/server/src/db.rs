@@ -1,13 +1,45 @@
-use rubrik_core::{Game, GameConfig, Move, Status};
-use rusqlite::{params, Connection, OptionalExtension};
+use rubrik_core::{EndReason, Game, GameConfig, Move, Status};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::Serialize;
 
+use crate::rating::{Rating, DEFAULT_RATING, DEFAULT_RD, DEFAULT_VOL};
 use crate::room::Clock;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct User {
     pub id: String,
     pub name: String,
+    pub rating: f64,
+    pub rd: f64,
+    #[serde(skip)]
+    pub vol: f64,
+    pub games: i64,
+    #[serde(skip)]
+    pub wins: i64,
+    pub registered: bool,
+}
+
+impl User {
+    pub fn anon(id: String, name: String) -> User {
+        User {
+            id,
+            name,
+            rating: DEFAULT_RATING,
+            rd: DEFAULT_RD,
+            vol: DEFAULT_VOL,
+            games: 0,
+            wins: 0,
+            registered: false,
+        }
+    }
+
+    pub fn glicko(&self) -> Rating {
+        Rating {
+            r: self.rating,
+            rd: self.rd,
+            vol: self.vol,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -20,6 +52,9 @@ pub struct GameRow {
     pub status: Status,
     pub clock: Clock,
     pub created_at: i64,
+    pub plies: usize,
+    pub white_diff: Option<i64>,
+    pub black_diff: Option<i64>,
 }
 
 pub fn open(path: &str) -> Connection {
@@ -32,6 +67,11 @@ pub fn open(path: &str) -> Connection {
          CREATE TABLE IF NOT EXISTS users(
            id TEXT PRIMARY KEY,
            name TEXT NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS sessions(
+           sid TEXT PRIMARY KEY,
+           user_id TEXT NOT NULL,
+           created_at INTEGER NOT NULL
          );
          CREATE TABLE IF NOT EXISTS games(
            id TEXT PRIMARY KEY,
@@ -46,28 +86,109 @@ pub fn open(path: &str) -> Connection {
          );",
     )
     .expect("migrate");
+    add_column(&conn, "users", "password_hash", "TEXT");
+    add_column(&conn, "users", "rating", "REAL NOT NULL DEFAULT 1500");
+    add_column(&conn, "users", "rd", "REAL NOT NULL DEFAULT 350");
+    add_column(&conn, "users", "vol", "REAL NOT NULL DEFAULT 0.06");
+    add_column(&conn, "users", "games", "INTEGER NOT NULL DEFAULT 0");
+    add_column(&conn, "users", "wins", "INTEGER NOT NULL DEFAULT 0");
+    add_column(&conn, "games", "white_rating", "REAL NOT NULL DEFAULT 1500");
+    add_column(&conn, "games", "black_rating", "REAL NOT NULL DEFAULT 1500");
+    add_column(&conn, "games", "white_diff", "INTEGER");
+    add_column(&conn, "games", "black_diff", "INTEGER");
     conn
+}
+
+fn add_column(conn: &Connection, table: &str, column: &str, decl: &str) {
+    let exists = conn
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .expect("pragma")
+        .query_map([], |r| r.get::<_, String>(1))
+        .expect("pragma rows")
+        .any(|c| c.as_deref() == Ok(column));
+    if !exists {
+        conn.execute(
+            &format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"),
+            [],
+        )
+        .expect("add column");
+    }
+}
+
+/// Rooms live in memory: anything still `playing` after a restart is lost.
+pub fn abandon_playing(conn: &Connection) {
+    conn.execute(
+        "UPDATE games SET status = ?1 WHERE json_extract(status, '$.kind') = 'playing'",
+        params![json(&Status::Draw {
+            reason: EndReason::Abandoned
+        })],
+    )
+    .expect("abandon playing");
+}
+
+const USER_COLS: &str =
+    "id, name, rating, rd, vol, games, wins, password_hash IS NOT NULL FROM users";
+
+fn user_from_row(r: &Row) -> rusqlite::Result<User> {
+    Ok(User {
+        id: r.get(0)?,
+        name: r.get(1)?,
+        rating: r.get(2)?,
+        rd: r.get(3)?,
+        vol: r.get(4)?,
+        games: r.get(5)?,
+        wins: r.get(6)?,
+        registered: r.get(7)?,
+    })
 }
 
 pub fn user(conn: &Connection, id: &str) -> Option<User> {
     conn.query_row(
-        "SELECT id, name FROM users WHERE id = ?1",
+        &format!("SELECT {USER_COLS} WHERE id = ?1"),
         params![id],
-        |r| {
-            Ok(User {
-                id: r.get(0)?,
-                name: r.get(1)?,
-            })
-        },
+        user_from_row,
     )
     .optional()
     .expect("query user")
 }
 
+pub fn user_by_name(conn: &Connection, name: &str) -> Option<User> {
+    conn.query_row(
+        &format!("SELECT {USER_COLS} WHERE name = ?1 COLLATE NOCASE"),
+        params![name],
+        user_from_row,
+    )
+    .optional()
+    .expect("query user by name")
+}
+
+/// Registered users with a settled rating, best first.
+pub fn leaderboard(conn: &Connection, limit: i64) -> Vec<User> {
+    let mut stmt = conn
+        .prepare(&format!(
+            "SELECT {USER_COLS} WHERE password_hash IS NOT NULL AND rd < 200
+             ORDER BY rating DESC LIMIT ?1"
+        ))
+        .expect("prepare leaderboard");
+    let rows = stmt
+        .query_map(params![limit], user_from_row)
+        .expect("leaderboard");
+    rows.filter_map(|r| r.ok()).collect()
+}
+
 pub fn create_user(conn: &Connection, user: &User) {
     conn.execute(
-        "INSERT OR REPLACE INTO users(id, name) VALUES (?1, ?2)",
-        params![user.id, user.name],
+        "INSERT OR REPLACE INTO users(id, name, rating, rd, vol, games, wins)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            user.id,
+            user.name,
+            user.rating,
+            user.rd,
+            user.vol,
+            user.games,
+            user.wins
+        ],
     )
     .expect("insert user");
 }
@@ -80,6 +201,65 @@ pub fn rename_user(conn: &Connection, id: &str, name: &str) {
     .expect("rename user");
 }
 
+/// Claim an anonymous account: set its name and password.
+pub fn register_user(conn: &Connection, id: &str, name: &str, password_hash: &str) {
+    conn.execute(
+        "UPDATE users SET name = ?1, password_hash = ?2 WHERE id = ?3",
+        params![name, password_hash, id],
+    )
+    .expect("register user");
+}
+
+pub fn password_hash(conn: &Connection, id: &str) -> Option<String> {
+    conn.query_row(
+        "SELECT password_hash FROM users WHERE id = ?1",
+        params![id],
+        |r| r.get::<_, Option<String>>(0),
+    )
+    .optional()
+    .expect("query password")
+    .flatten()
+}
+
+pub fn set_rating(conn: &Connection, id: &str, rating: &Rating, games: i64, wins: i64) {
+    conn.execute(
+        "UPDATE users SET rating = ?1, rd = ?2, vol = ?3, games = ?4, wins = ?5 WHERE id = ?6",
+        params![rating.r, rating.rd, rating.vol, games, wins, id],
+    )
+    .expect("set rating");
+}
+
+pub fn set_game_diffs(conn: &Connection, game_id: &str, white: i64, black: i64) {
+    conn.execute(
+        "UPDATE games SET white_diff = ?1, black_diff = ?2 WHERE id = ?3",
+        params![white, black, game_id],
+    )
+    .expect("set diffs");
+}
+
+pub fn create_session(conn: &Connection, sid: &str, user_id: &str, now: i64) {
+    conn.execute(
+        "INSERT OR REPLACE INTO sessions(sid, user_id, created_at) VALUES (?1, ?2, ?3)",
+        params![sid, user_id, now],
+    )
+    .expect("insert session");
+}
+
+pub fn session_user(conn: &Connection, sid: &str) -> Option<User> {
+    conn.query_row(
+        &format!("SELECT {USER_COLS} WHERE id = (SELECT user_id FROM sessions WHERE sid = ?1)"),
+        params![sid],
+        user_from_row,
+    )
+    .optional()
+    .expect("query session")
+}
+
+pub fn delete_session(conn: &Connection, sid: &str) {
+    conn.execute("DELETE FROM sessions WHERE sid = ?1", params![sid])
+        .expect("delete session");
+}
+
 pub fn insert_game(
     conn: &Connection,
     id: &str,
@@ -90,8 +270,9 @@ pub fn insert_game(
     created_at: i64,
 ) {
     conn.execute(
-        "INSERT INTO games(id, white, black, config, moves, status, clock, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, '[]', ?5, ?6, ?7, ?7)",
+        "INSERT INTO games(id, white, black, config, moves, status, clock, created_at, updated_at,
+                           white_rating, black_rating)
+         VALUES (?1, ?2, ?3, ?4, '[]', ?5, ?6, ?7, ?7, ?8, ?9)",
         params![
             id,
             white.id,
@@ -99,7 +280,9 @@ pub fn insert_game(
             json(config),
             json(&Status::Playing),
             json(clock),
-            created_at
+            created_at,
+            white.rating,
+            black.rating
         ],
     )
     .expect("insert game");
@@ -121,7 +304,8 @@ pub fn update_game(
 }
 
 pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
-    let (white_id, black_id, config, moves, status, clock, created_at): (
+    #[allow(clippy::type_complexity)]
+    let (white_id, black_id, config, moves, status, clock, created_at, white_diff, black_diff): (
         String,
         String,
         String,
@@ -129,9 +313,12 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
         String,
         String,
         i64,
+        Option<i64>,
+        Option<i64>,
     ) = conn
         .query_row(
-            "SELECT white, black, config, moves, status, clock, created_at FROM games WHERE id = ?1",
+            "SELECT white, black, config, moves, status, clock, created_at, white_diff, black_diff
+             FROM games WHERE id = ?1",
             params![id],
             |r| {
                 Ok((
@@ -142,52 +329,77 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
                     r.get(4)?,
                     r.get(5)?,
                     r.get(6)?,
+                    r.get(7)?,
+                    r.get(8)?,
                 ))
             },
         )
         .optional()
         .expect("query game")?;
+    let moves: Vec<Move> = serde_json::from_str(&moves).ok()?;
     Some(GameRow {
         id: id.to_string(),
         white: user(conn, &white_id)?,
         black: user(conn, &black_id)?,
         config: serde_json::from_str(&config).ok()?,
-        moves: serde_json::from_str(&moves).ok()?,
+        plies: moves.len(),
+        moves,
         status: serde_json::from_str(&status).ok()?,
         clock: serde_json::from_str(&clock).ok()?,
         created_at,
+        white_diff,
+        black_diff,
     })
 }
 
-/// Recent games, newest first: `[{id, white, black, status, created_at, plies}]`.
-pub fn list_games(conn: &Connection, limit: i64) -> Vec<serde_json::Value> {
+/// Recent games, newest first. `user_id` restricts to that player's games.
+pub fn list_games(conn: &Connection, limit: i64, user_id: Option<&str>) -> Vec<serde_json::Value> {
     let mut stmt = conn
         .prepare(
-            "SELECT g.id, wu.id, wu.name, bu.id, bu.name, g.status, g.moves, g.created_at
+            "SELECT g.id, g.white, g.black, g.status, g.clock, g.moves, g.created_at,
+                    g.white_diff, g.black_diff
              FROM games g
-             JOIN users wu ON wu.id = g.white
-             JOIN users bu ON bu.id = g.black
+             WHERE ?2 IS NULL OR g.white = ?2 OR g.black = ?2
              ORDER BY g.created_at DESC LIMIT ?1",
         )
         .expect("prepare list");
     let rows = stmt
-        .query_map(params![limit], |r| {
-            let moves: String = r.get(6)?;
-            let status: String = r.get(5)?;
-            let plies = serde_json::from_str::<Vec<Move>>(&moves)
-                .map(|m| m.len())
-                .unwrap_or(0);
-            Ok(serde_json::json!({
-                "id": r.get::<_, String>(0)?,
-                "white": {"id": r.get::<_, String>(1)?, "name": r.get::<_, String>(2)?},
-                "black": {"id": r.get::<_, String>(3)?, "name": r.get::<_, String>(4)?},
-                "status": serde_json::from_str::<serde_json::Value>(&status).unwrap_or(serde_json::Value::Null),
-                "created_at": r.get::<_, i64>(7)?,
-                "plies": plies,
-            }))
+        .query_map(params![limit, user_id], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, String>(4)?,
+                r.get::<_, String>(5)?,
+                r.get::<_, i64>(6)?,
+                r.get::<_, Option<i64>>(7)?,
+                r.get::<_, Option<i64>>(8)?,
+            ))
         })
-        .expect("list games");
-    rows.filter_map(|r| r.ok()).collect()
+        .expect("list games")
+        .filter_map(|r| r.ok())
+        .collect::<Vec<_>>();
+    rows.into_iter()
+        .filter_map(
+            |(id, white, black, status, clock, moves, created_at, white_diff, black_diff)| {
+                let plies = serde_json::from_str::<Vec<Move>>(&moves)
+                    .map(|m| m.len())
+                    .unwrap_or(0);
+                Some(serde_json::json!({
+                    "id": id,
+                    "white": user(conn, &white)?,
+                    "black": user(conn, &black)?,
+                    "status": serde_json::from_str::<serde_json::Value>(&status).unwrap_or(serde_json::Value::Null),
+                    "clock": serde_json::from_str::<serde_json::Value>(&clock).unwrap_or(serde_json::Value::Null),
+                    "created_at": created_at,
+                    "plies": plies,
+                    "white_diff": white_diff,
+                    "black_diff": black_diff,
+                }))
+            },
+        )
+        .collect()
 }
 
 /// Rebuild a playable game from a stored row (validating every move).

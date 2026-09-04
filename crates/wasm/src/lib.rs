@@ -32,7 +32,8 @@ impl WasmGame {
 
     /// Rebuild from config + move list, validating.
     pub fn replay(config: JsValue, moves: JsValue) -> Result<WasmGame, JsValue> {
-        let config: GameConfig = from_value(config).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        let config: GameConfig =
+            from_value(config).map_err(|e| JsValue::from_str(&e.to_string()))?;
         let moves: Vec<Move> = from_value(moves).map_err(|e| JsValue::from_str(&e.to_string()))?;
         Game::replay(config, &moves)
             .map(WasmGame)
@@ -75,7 +76,9 @@ impl WasmGame {
 
     pub fn play(&mut self, mv: JsValue) -> Result<(), JsValue> {
         let mv: Move = from_value(mv).map_err(|e| JsValue::from_str(&e.to_string()))?;
-        self.0.play(mv).map_err(|e| JsValue::from_str(&e.to_string()))
+        self.0
+            .play(mv)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     pub fn undo(&mut self) {

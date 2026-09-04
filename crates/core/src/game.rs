@@ -110,9 +110,14 @@ impl Game {
             .into_iter()
             .find(|c| match (&c, &mv) {
                 (Move::Step { .. }, Move::Step { .. }) => c.to() == mv.to(),
-                (Move::Rotate { axis: a1, sign: s1, .. }, Move::Rotate { axis: a2, sign: s2, .. }) => {
-                    a1 == a2 && s1 == s2
-                }
+                (
+                    Move::Rotate {
+                        axis: a1, sign: s1, ..
+                    },
+                    Move::Rotate {
+                        axis: a2, sign: s2, ..
+                    },
+                ) => a1 == a2 && s1 == s2,
                 _ => false,
             })
             .ok_or(PlayError::Illegal)?;
@@ -160,13 +165,18 @@ impl Game {
         for (_, moves) in self.all_moves() {
             for m in moves {
                 if let Move::Step {
-                    path, capture: true, ..
+                    path,
+                    capture: true,
+                    ..
                 } = m
                 {
                     let to = *path.last().unwrap();
                     if matches!(
                         self.board.cell(to).piece,
-                        Some(Piece { kind: PieceKind::King | PieceKind::Prince, .. })
+                        Some(Piece {
+                            kind: PieceKind::King | PieceKind::Prince,
+                            ..
+                        })
                     ) {
                         out.push((to, path));
                     }
@@ -190,13 +200,23 @@ mod tests {
         let mut g = Game::new(GameConfig::default());
         // black piece first → wrong turn
         let black_pawn = 3 * 64 + 8 + 1;
-        let m = g.all_moves().into_iter().find(|(id, _)| *id == black_pawn).unwrap().1[0].clone();
+        let m = g
+            .all_moves()
+            .into_iter()
+            .find(|(id, _)| *id == black_pawn)
+            .unwrap()
+            .1[0]
+            .clone();
         assert_eq!(g.play(m), Err(PlayError::WrongTurn));
         // white pawn at (0,1,1)
         let from = 9;
         let legal = g.legal_moves(from);
         assert!(!legal.is_empty());
-        let bogus = Move::Step { from, path: vec![200], capture: false };
+        let bogus = Move::Step {
+            from,
+            path: vec![200],
+            capture: false,
+        };
         assert_eq!(g.play(bogus), Err(PlayError::Illegal));
         g.play(legal[0].clone()).unwrap();
         assert_eq!(g.turn, Color::Black);
@@ -212,15 +232,37 @@ mod tests {
     fn king_capture_ends_game() {
         let mut g = Game::new(GameConfig::default());
         g.board.cells.iter_mut().for_each(|c| c.piece = None);
-        g.board.cells[27].piece = Some(Piece { kind: PieceKind::Rook, color: Color::White, id: 27 });
-        g.board.cells[29].piece = Some(Piece { kind: PieceKind::King, color: Color::Black, id: 29 });
-        let m = g.legal_moves(27).into_iter().find(|m| m.to() == Some(29)).unwrap();
+        g.board.cells[27].piece = Some(Piece {
+            kind: PieceKind::Rook,
+            color: Color::White,
+            id: 27,
+        });
+        g.board.cells[29].piece = Some(Piece {
+            kind: PieceKind::King,
+            color: Color::Black,
+            id: 29,
+        });
+        let m = g
+            .legal_moves(27)
+            .into_iter()
+            .find(|m| m.to() == Some(29))
+            .unwrap();
         g.play(m).unwrap();
         assert_eq!(
             g.status,
-            Status::Won { winner: Color::White, reason: EndReason::KingCaptured }
+            Status::Won {
+                winner: Color::White,
+                reason: EndReason::KingCaptured
+            }
         );
-        assert_eq!(g.play(Move::Rotate { from: 29, axis: Axis::X, sign: 1 }), Err(PlayError::GameOver));
+        assert_eq!(
+            g.play(Move::Rotate {
+                from: 29,
+                axis: Axis::X,
+                sign: 1
+            }),
+            Err(PlayError::GameOver)
+        );
     }
 
     #[test]
@@ -228,7 +270,12 @@ mod tests {
         let mut g = Game::new(GameConfig::default());
         let t = 2 * 8 + 2; // (0,2,2) white tesseract
         assert_eq!(g.board.cell(t).piece.unwrap().kind, PieceKind::Tesseract);
-        g.play(Move::Rotate { from: t, axis: Axis::Y, sign: 1 }).unwrap();
+        g.play(Move::Rotate {
+            from: t,
+            axis: Axis::Y,
+            sign: 1,
+        })
+        .unwrap();
         // Tesseract's cell rotated; piece still on same cell id but new pos.
         assert_eq!(g.board.cell(t).piece.unwrap().kind, PieceKind::Tesseract);
         let replayed = Game::replay(g.config.clone(), &g.history).unwrap();

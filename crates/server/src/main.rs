@@ -1,15 +1,19 @@
 mod db;
 mod lobby;
+mod rating;
 mod room;
 mod ws;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use argon2::password_hash::rand_core::OsRng;
+use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use argon2::Argon2;
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use parking_lot::Mutex;
 use rand::Rng;
@@ -73,30 +77,50 @@ pub fn rand_id(n: usize) -> String {
         .collect()
 }
 
-/// Resolve the `sid` cookie to a user, creating an anonymous one if needed.
-/// Returns the `Set-Cookie` value when a new session was minted.
-pub fn session(state: &AppState, headers: &HeaderMap) -> (User, Option<String>) {
-    let sid = headers
+fn sid_cookie(headers: &HeaderMap) -> Option<String> {
+    headers
         .get(header::COOKIE)
         .and_then(|v| v.to_str().ok())
         .and_then(|c| c.split(';').find_map(|kv| kv.trim().strip_prefix("sid=")))
-        .map(str::to_string);
+        .map(str::to_string)
+}
+
+fn set_cookie(sid: &str) -> String {
+    format!("sid={sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000")
+}
+
+/// Fresh session bound to `user_id`; returns the `Set-Cookie` value.
+fn new_session(conn: &rusqlite::Connection, user_id: &str) -> String {
+    let sid = rand_id(32);
+    db::create_session(conn, &sid, user_id, now_ms());
+    set_cookie(&sid)
+}
+
+/// Resolve the `sid` cookie to a user, creating an anonymous one if needed.
+/// Returns the `Set-Cookie` value when a new session was minted.
+pub fn session(state: &AppState, headers: &HeaderMap) -> (User, Option<String>) {
     let conn = state.db.lock();
-    if let Some(id) = &sid {
-        if let Some(u) = db::user(&conn, id) {
+    if let Some(sid) = sid_cookie(headers) {
+        if let Some(u) = db::session_user(&conn, &sid) {
             return (u, None);
         }
     }
-    let user = User {
-        id: rand_id(16),
-        name: format!("Anon-{}", rand_id(4)),
-    };
+    let user = User::anon(rand_id(16), format!("Anon-{}", rand_id(4)));
     db::create_user(&conn, &user);
-    let cookie = format!(
-        "sid={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000",
-        user.id
-    );
+    let cookie = new_session(&conn, &user.id);
     (user, Some(cookie))
+}
+
+/// 3..32 chars of `[A-Za-z0-9_-]`.
+fn valid_name(name: &str) -> bool {
+    (3..=32).contains(&name.chars().count())
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+fn error(status: StatusCode, msg: &str) -> Response {
+    (status, Json(json!({ "error": msg }))).into_response()
 }
 
 fn with_cookie(cookie: Option<String>, body: serde_json::Value) -> Response {
@@ -111,7 +135,7 @@ fn with_cookie(cookie: Option<String>, body: serde_json::Value) -> Response {
 
 async fn get_me(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
     let (user, cookie) = session(&state, &headers);
-    with_cookie(cookie, json!({"id": user.id, "name": user.name}))
+    with_cookie(cookie, json!(user))
 }
 
 #[derive(Deserialize)]
@@ -124,15 +148,114 @@ async fn post_me(
     headers: HeaderMap,
     Json(body): Json<NameBody>,
 ) -> Response {
-    let (user, cookie) = session(&state, &headers);
-    let name = body.name.trim().chars().take(32).collect::<String>();
-    let name = if name.is_empty() {
-        user.name
-    } else {
-        db::rename_user(&state.db.lock(), &user.id, &name);
-        name
+    let (mut user, cookie) = session(&state, &headers);
+    let name = body.name.trim().to_string();
+    if !valid_name(&name) {
+        return error(StatusCode::BAD_REQUEST, "invalid name");
+    }
+    let conn = state.db.lock();
+    match db::user_by_name(&conn, &name) {
+        Some(u) if u.id != user.id => return error(StatusCode::CONFLICT, "name taken"),
+        _ => db::rename_user(&conn, &user.id, &name),
+    }
+    user.name = name;
+    with_cookie(cookie, json!(user))
+}
+
+#[derive(Deserialize)]
+struct CredsBody {
+    name: String,
+    password: String,
+}
+
+fn hash_password(password: &str) -> Option<String> {
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .ok()
+        .map(|h| h.to_string())
+}
+
+fn verify_password(password: &str, hash: &str) -> bool {
+    PasswordHash::new(hash)
+        .map(|h| {
+            Argon2::default()
+                .verify_password(password.as_bytes(), &h)
+                .is_ok()
+        })
+        .unwrap_or(false)
+}
+
+/// Claim the current anonymous account with a name + password.
+async fn post_register(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<CredsBody>,
+) -> Response {
+    let (mut user, cookie) = session(&state, &headers);
+    let name = body.name.trim().to_string();
+    if !valid_name(&name) {
+        return error(StatusCode::BAD_REQUEST, "invalid name");
+    }
+    if body.password.chars().count() < 6 {
+        return error(StatusCode::BAD_REQUEST, "password too short");
+    }
+    if user.registered {
+        return error(StatusCode::CONFLICT, "already registered");
+    }
+    let Some(hash) = hash_password(&body.password) else {
+        return error(StatusCode::INTERNAL_SERVER_ERROR, "hash failed");
     };
-    with_cookie(cookie, json!({"id": user.id, "name": name}))
+    let conn = state.db.lock();
+    if db::user_by_name(&conn, &name).is_some_and(|u| u.id != user.id) {
+        return error(StatusCode::CONFLICT, "name taken");
+    }
+    db::register_user(&conn, &user.id, &name, &hash);
+    user.name = name;
+    user.registered = true;
+    with_cookie(cookie, json!(user))
+}
+
+async fn post_login(State(state): State<Arc<AppState>>, Json(body): Json<CredsBody>) -> Response {
+    let conn = state.db.lock();
+    let user = db::user_by_name(&conn, body.name.trim());
+    let ok = user.as_ref().is_some_and(|u| {
+        db::password_hash(&conn, &u.id).is_some_and(|h| verify_password(&body.password, &h))
+    });
+    let Some(user) = user.filter(|_| ok) else {
+        return error(StatusCode::UNAUTHORIZED, "bad credentials");
+    };
+    let cookie = new_session(&conn, &user.id);
+    with_cookie(Some(cookie), json!(user))
+}
+
+/// Drop the session and hand out a fresh anonymous one.
+async fn post_logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    let conn = state.db.lock();
+    if let Some(sid) = sid_cookie(&headers) {
+        db::delete_session(&conn, &sid);
+    }
+    let user = User::anon(rand_id(16), format!("Anon-{}", rand_id(4)));
+    db::create_user(&conn, &user);
+    let cookie = new_session(&conn, &user.id);
+    with_cookie(Some(cookie), json!(user))
+}
+
+async fn get_user(State(state): State<Arc<AppState>>, Path(name): Path<String>) -> Response {
+    let conn = state.db.lock();
+    let Some(user) = db::user_by_name(&conn, &name) else {
+        return error(StatusCode::NOT_FOUND, "not found");
+    };
+    let games = db::list_games(&conn, 20, Some(&user.id));
+    Json(json!({"user": user, "games": games})).into_response()
+}
+
+async fn get_leaderboard(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<ListQuery>,
+) -> Response {
+    let limit = q.limit.unwrap_or(20).clamp(1, 200);
+    Json(db::leaderboard(&state.db.lock(), limit)).into_response()
 }
 
 #[derive(Deserialize)]
@@ -142,7 +265,7 @@ struct ListQuery {
 
 async fn get_games(State(state): State<Arc<AppState>>, Query(q): Query<ListQuery>) -> Response {
     let limit = q.limit.unwrap_or(20).clamp(1, 200);
-    let games = db::list_games(&state.db.lock(), limit);
+    let games = db::list_games(&state.db.lock(), limit, None);
     Json(games).into_response()
 }
 
@@ -160,6 +283,9 @@ async fn get_game(State(state): State<Arc<AppState>>, Path(id): Path<String>) ->
             "status": r.game.status,
             "clock": r.clock,
             "created_at": r.created_at,
+            "plies": r.game.history.len(),
+            "white_diff": r.white_diff,
+            "black_diff": r.black_diff,
         }))
         .into_response();
     }
@@ -175,6 +301,11 @@ pub fn router(state: Arc<AppState>) -> Router {
     let static_files = ServeDir::new(&dist).fallback(ServeFile::new(index));
     Router::new()
         .route("/api/me", get(get_me).post(post_me))
+        .route("/api/register", post(post_register))
+        .route("/api/login", post(post_login))
+        .route("/api/logout", post(post_logout))
+        .route("/api/users/{name}", get(get_user))
+        .route("/api/leaderboard", get(get_leaderboard))
         .route("/api/games", get(get_games))
         .route("/api/games/{id}", get(get_game))
         .route("/ws", get(ws::handler))
@@ -199,6 +330,7 @@ async fn main() {
         .and_then(|p| p.parse().ok())
         .unwrap_or(3000);
     let state = Arc::new(AppState::new(&db_path));
+    db::abandon_playing(&state.db.lock());
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
         .await
         .expect("bind");

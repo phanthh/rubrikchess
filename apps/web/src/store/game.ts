@@ -145,6 +145,8 @@ interface IGameStore {
 	gameId: string | null;
 	myColor: Color | null;
 	players: { white: User | null; black: User | null };
+	/** Rating change per colour, known only when the game ends while we watch. */
+	diffs: { white: number | null; black: number | null };
 	clock: ClockState | null;
 	drawOffer: Color | null;
 	// settings
@@ -161,7 +163,7 @@ interface IGameStore {
 	setCursor: (n: number) => void;
 	loadOnline: (msg: Extract<ServerMsg, { t: 'game_state' }>) => void;
 	applyRemoteMove: (msg: Extract<ServerMsg, { t: 'move' }>) => void;
-	setEnd: (status: Status) => void;
+	setEnd: (msg: Extract<ServerMsg, { t: 'game_end' }>) => void;
 	setDrawOffer: (by: Color | null) => void;
 	setSetting: (patch: Partial<Pick<IGameStore, 'animate' | 'walled' | 'debug' | 'lowPerf'>>) => void;
 }
@@ -184,6 +186,7 @@ export const useGameStore = create(
 		gameId: null,
 		myColor: null,
 		players: { white: null, black: null },
+		diffs: { white: null, black: null },
 		clock: null,
 		drawOffer: null,
 		animate: true,
@@ -227,6 +230,7 @@ export const useGameStore = create(
 				gameId: null,
 				myColor: null,
 				players: { white: null, black: null },
+				diffs: { white: null, black: null },
 				clock: null,
 				drawOffer: null,
 				cursor: 0,
@@ -297,6 +301,7 @@ export const useGameStore = create(
 				mode: 'online',
 				gameId: msg.game_id,
 				players: { white: msg.white, black: msg.black },
+				diffs: { white: null, black: null },
 				clock: msg.clock,
 				drawOffer: msg.draw_offer,
 				myColor:
@@ -335,10 +340,11 @@ export const useGameStore = create(
 			else commit();
 		},
 
-		setEnd: (status) => {
+		setEnd: (msg) => {
 			const clock = get().clock;
 			set({
-				endStatus: status,
+				endStatus: msg.status,
+				diffs: { white: msg.white_diff, black: msg.black_diff },
 				selected: null,
 				drawOffer: null,
 				clock: clock && { ...clock, running: null },

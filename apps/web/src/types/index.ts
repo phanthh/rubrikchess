@@ -112,7 +112,14 @@ export type TAnimationPathConfig = {
 // Server protocol (see NOTES.md)
 // ---------------------------------------------------------------------------
 
-export type User = { id: string; name: string };
+export type User = {
+	id: string;
+	name: string;
+	rating: number;
+	rd: number;
+	games: number;
+	registered: boolean;
+};
 export type ClockSpec = { initial_ms: number; increment_ms: number };
 /** Server clock: remaining times as of `at`, extrapolate for `running`. */
 export type ClockState = ClockSpec & {
@@ -123,13 +130,16 @@ export type ClockState = ClockSpec & {
 };
 export type Seek = { id: string; user: User; clock: ClockSpec; walled: boolean };
 
-export type GameSummary = {
+export type GameRow = {
 	id: string;
 	white: User;
 	black: User;
 	status: Status;
+	clock: ClockSpec;
 	created_at: number;
 	plies: number;
+	white_diff: number | null;
+	black_diff: number | null;
 };
 
 export type ClientMsg =
@@ -165,7 +175,13 @@ export type ServerMsg =
 			status: Status;
 			clock: ClockState;
 		}
-	| { t: 'game_end'; game_id: string; status: Status }
+	| {
+			t: 'game_end';
+			game_id: string;
+			status: Status;
+			white_diff: number | null;
+			black_diff: number | null;
+		}
 	| { t: 'draw_offer'; game_id: string; by: Color | null }
 	| { t: 'error'; msg: string }
 	| { t: 'pong' };

@@ -136,4 +136,121 @@ async fn seek_accept_move() {
     assert_eq!(seen["turn"], "black");
     assert_eq!(seen["move"], serde_json::to_value(&mv).expect("json"));
     assert!(seen["clock"]["white_ms"].as_i64().expect("white_ms") <= 61000);
+
+    // white resigns: both sides get rated, with opposite diffs
+    send(white, json!({"t":"resign","game_id":game_id})).await;
+    let end = wait_for(black, "game_end").await;
+    let wd = end["white_diff"].as_i64().expect("white_diff");
+    let bd = end["black_diff"].as_i64().expect("black_diff");
+    assert!(wd < 0 && bd > 0, "diffs {wd} {bd}");
+
+    let http = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let row: Value = http
+        .get(format!("{base}/api/games/{game_id}"))
+        .send()
+        .await
+        .expect("get game")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(row["white_diff"], wd);
+    assert_eq!(row["black_diff"], bd);
+
+    let loser = row["white"]["name"].as_str().expect("name").to_string();
+    let profile: Value = http
+        .get(format!("{base}/api/users/{loser}"))
+        .send()
+        .await
+        .expect("get user")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(profile["user"]["games"], 1);
+    assert!(profile["user"]["rating"].as_f64().expect("rating") < 1500.0);
+    assert_eq!(profile["games"][0]["id"], game_id.as_str());
+}
+
+#[tokio::test]
+async fn register_logout_login() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let http = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("client");
+
+    let me: Value = http
+        .get(format!("{base}/api/me"))
+        .send()
+        .await
+        .expect("me")
+        .json()
+        .await
+        .expect("json");
+    let id = me["id"].as_str().expect("id").to_string();
+    assert_eq!(me["registered"], false);
+    assert_eq!(me["rating"], 1500.0);
+
+    let creds = json!({"name": "Kasparov", "password": "hunter22"});
+    let reg: Value = http
+        .post(format!("{base}/api/register"))
+        .json(&creds)
+        .send()
+        .await
+        .expect("register")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(reg["id"], id.as_str());
+    assert_eq!(reg["name"], "Kasparov");
+    assert_eq!(reg["registered"], true);
+
+    let out: Value = http
+        .post(format!("{base}/api/logout"))
+        .send()
+        .await
+        .expect("logout")
+        .json()
+        .await
+        .expect("json");
+    assert_ne!(out["id"], id.as_str());
+
+    // the freed name is now taken by the registered account
+    let taken = http
+        .post(format!("{base}/api/register"))
+        .json(&creds)
+        .send()
+        .await
+        .expect("register twice");
+    assert_eq!(taken.status(), reqwest::StatusCode::CONFLICT);
+
+    let bad = http
+        .post(format!("{base}/api/login"))
+        .json(&json!({"name": "Kasparov", "password": "wrong!!"}))
+        .send()
+        .await
+        .expect("login");
+    assert_eq!(bad.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    let back: Value = http
+        .post(format!("{base}/api/login"))
+        .json(&creds)
+        .send()
+        .await
+        .expect("login")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(back["id"], id.as_str());
+
+    let me2: Value = http
+        .get(format!("{base}/api/me"))
+        .send()
+        .await
+        .expect("me")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(me2["id"], id.as_str());
 }

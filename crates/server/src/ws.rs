@@ -209,7 +209,7 @@ fn handle(
             };
             {
                 let mut r = room.lock();
-                if let Err(e) = r.play(&user.id, mv) {
+                if let Err(e) = r.play(state, &user.id, mv) {
                     err(out, &e);
                     return;
                 }
@@ -227,10 +227,13 @@ fn handle(
                 err(out, "not a player");
                 return;
             };
-            r.end(Status::Won {
-                winner: color.other(),
-                reason: EndReason::Resign,
-            });
+            r.end(
+                state,
+                Status::Won {
+                    winner: color.other(),
+                    reason: EndReason::Resign,
+                },
+            );
             persist(state, &r);
         }
         ClientMsg::Draw { game_id, offer } => {
@@ -248,9 +251,12 @@ fn handle(
                 return;
             }
             if offer && r.draw_offer == Some(color.other()) {
-                r.end(Status::Draw {
-                    reason: EndReason::Agreement,
-                });
+                r.end(
+                    state,
+                    Status::Draw {
+                        reason: EndReason::Agreement,
+                    },
+                );
             } else {
                 r.draw_offer = if offer { Some(color) } else { None };
                 r.broadcast(json!({"t": "draw_offer", "game_id": r.id, "by": r.draw_offer}));
@@ -267,14 +273,17 @@ fn room_of(state: &Arc<AppState>, game_id: &str) -> Option<Arc<Mutex<Room>>> {
     }
     let row = db::load_game(&state.db.lock(), game_id)?;
     let game = db::game_from_row(&row)?;
-    let room = Arc::new(Mutex::new(Room::new(
+    let mut room = Room::new(
         row.id.clone(),
         game,
         row.white,
         row.black,
         row.clock,
         row.created_at,
-    )));
+    );
+    room.white_diff = row.white_diff;
+    room.black_diff = row.black_diff;
+    let room = Arc::new(Mutex::new(room));
     Some(state.rooms.lock().entry(row.id).or_insert(room).clone())
 }
 

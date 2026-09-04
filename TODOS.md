@@ -10,11 +10,14 @@
 - [x] crates/server: axum, WS protocol, lobby (seeks), game rooms, clocks, anon sessions
 - [x] sqlite persistence (games, moves)
 - [x] apps/web: lobby page, game page over WS, spectate
-- [ ] camera oriented to player's own face (black sees -Y face up)
+- [x] camera oriented to player's own face
 - [ ] disconnect handling: abandon after grace period
 - [ ] rate limits on seeks/moves
 
 ## Phase 3 — platform
-- [ ] accounts (username/password), ratings (glicko2)
-- [ ] game list / replay / analysis board
+- [x] accounts (username/password), ratings (glicko2), profiles, leaderboard
+- [x] game list / replay (cursor stepping on game page)
+- [ ] rematch button
+- [ ] in-game chat
+- [ ] piece move-rule help panel (11 piece types)
 - [x] Dockerfile + CI
