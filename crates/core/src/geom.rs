@@ -54,6 +54,7 @@ pub const SIDES: [V3; 6] = [
     v(0, 0, -1),
 ];
 
+#[allow(clippy::should_implement_trait)]
 impl V3 {
     pub const ZERO: V3 = v(0, 0, 0);
 

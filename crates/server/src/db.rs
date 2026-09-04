@@ -50,12 +50,16 @@ pub fn open(path: &str) -> Connection {
 }
 
 pub fn user(conn: &Connection, id: &str) -> Option<User> {
-    conn.query_row("SELECT id, name FROM users WHERE id = ?1", params![id], |r| {
-        Ok(User {
-            id: r.get(0)?,
-            name: r.get(1)?,
-        })
-    })
+    conn.query_row(
+        "SELECT id, name FROM users WHERE id = ?1",
+        params![id],
+        |r| {
+            Ok(User {
+                id: r.get(0)?,
+                name: r.get(1)?,
+            })
+        },
+    )
     .optional()
     .expect("query user")
 }
@@ -69,8 +73,11 @@ pub fn create_user(conn: &Connection, user: &User) {
 }
 
 pub fn rename_user(conn: &Connection, id: &str, name: &str) {
-    conn.execute("UPDATE users SET name = ?1 WHERE id = ?2", params![name, id])
-        .expect("rename user");
+    conn.execute(
+        "UPDATE users SET name = ?1 WHERE id = ?2",
+        params![name, id],
+    )
+    .expect("rename user");
 }
 
 pub fn insert_game(
@@ -98,7 +105,14 @@ pub fn insert_game(
     .expect("insert game");
 }
 
-pub fn update_game(conn: &Connection, id: &str, moves: &[Move], status: &Status, clock: &Clock, now: i64) {
+pub fn update_game(
+    conn: &Connection,
+    id: &str,
+    moves: &[Move],
+    status: &Status,
+    clock: &Clock,
+    now: i64,
+) {
     conn.execute(
         "UPDATE games SET moves = ?1, status = ?2, clock = ?3, updated_at = ?4 WHERE id = ?5",
         params![json(&moves), json(status), json(clock), now, id],

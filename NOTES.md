@@ -113,6 +113,8 @@ server→client
   {t:"error", msg}
   {t:"pong"}
 ```
+Clock object everywhere = {initial_ms, increment_ms, white_ms, black_ms, running, at}. Ended game → running:null.
+Color on accept: random. draw_offer broadcast to whole room; decline → by:null.
 Clock: server authoritative. white_ms/black_ms = remaining at `at`; client extrapolates for `running` colour.
 Timeout: on each move, spawn tokio timer for deadline; on fire, if ply unchanged → end game Won{other, Timeout}.
 Persistence (sqlite `data/rubrik.db`, env DATABASE_PATH): users(id TEXT pk, name), games(id TEXT pk, white, black, config JSON, moves JSON, status JSON, clock JSON, created_at, updated_at). Write on every move (cheap).
