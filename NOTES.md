@@ -120,3 +120,25 @@ Timeout: on each move, spawn tokio timer for deadline; on fire, if ply unchanged
 Persistence (sqlite `data/rubrik.db`, env DATABASE_PATH): users(id TEXT pk, name), games(id TEXT pk, white, black, config JSON, moves JSON, status JSON, clock JSON, created_at, updated_at). Write on every move (cheap).
 Live rooms in memory: HashMap<game_id, Room{game: rubrik_core::Game, clock, subscribers broadcast}>. Load from DB on watch if not live and finished.
 Ids: 8-char random alnum for game, uuid-ish for user. Env PORT default 3000.
+
+## Accounts + ratings (phase 3)
+
+Every user (anon included) has a Glicko-2 rating (r=1500, rd=350, vol=0.06, tau=0.5), updated per game on end
+(Won → 1/0, Draw → 0.5; Abandoned games not rated). Anon users can *register* to claim their account.
+Sessions: table `sessions(sid pk, user_id, created_at)`; cookie `sid` → session → user. Users: `+ password_hash (argon2, nullable), rating, rd, vol, games INT, wins INT`.
+Games: `+ white_rating, black_rating (at start), white_diff, black_diff (nullable until rated)`.
+Server startup: every game still `playing` in DB → status Draw{Abandoned} (rooms were in memory).
+
+HTTP:
+```
+GET  /api/me                          → User = {id, name, rating, rd, games, registered: bool}
+POST /api/me {name}                   → User          (rename; name unique, 3..32 chars [A-Za-z0-9_-]; 409 if taken)
+POST /api/register {name, password}   → User          (claims current anon user; 409 if name taken / already registered)
+POST /api/login {name, password}      → User          (new session bound to that user; 401 on fail)
+POST /api/logout                      → User          (new anon user + session)
+GET  /api/users/:name                 → {user: User, games: GameRow[]}   (404)
+GET  /api/leaderboard?limit=20        → User[]  (registered users only, sorted by rating, rd < 200)
+GET  /api/games, /api/games/:id       → GameRow = {id, white: User, black: User, status, clock, created_at, plies, white_diff, black_diff}
+```
+WS: `game_state.white/black` and lobby `seeks[].user` are `User` (with rating). `game_end` gains `white_diff, black_diff` (ints, null if unrated).
+Web: lobby header shows name+rating, Register/Login/Logout; leaderboard on lobby; `/u/:name` profile; game page shows ratings + diff at end.
