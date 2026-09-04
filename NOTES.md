@@ -16,7 +16,7 @@ rubrikchess/
   apps/
     web/                  # vite + react + r3f client (moved from repo root)
   packages/
-    protocol/             # TS types for WS/HTTP messages (mirror of server/src/protocol.rs)
+    core-wasm/            # wasm-pack output (gitignored); npm name `rubrik-wasm`
 ```
 
 ## Game rules (as implemented in original TS `src/store/game.ts`)

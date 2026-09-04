@@ -1,9 +1,9 @@
 # TODOS
 
 ## Phase 1 — foundation
-- [ ] Monorepo: move web to apps/web, pnpm workspace, Cargo workspace
-- [ ] crates/core: board, movegen (all pieces), apply, status, tests vs rules in NOTES.md
-- [ ] crates/wasm: bindings (new game, legal moves, apply, state json)
+- [x] Monorepo: apps/web, pnpm + cargo workspaces
+- [x] crates/core: rules engine, 19 tests, parity vs old TS engine verified (2832 piece-positions, 0 diff)
+- [x] crates/wasm bindings
 - [ ] apps/web: use wasm core instead of TS movegen; drop playroomkit
 
 ## Phase 2 — server
