@@ -20,7 +20,7 @@ export function Tooltip() {
 		return () => {
 			document.removeEventListener('mousemove', listener);
 		};
-	}, [ref.current, content]);
+	}, [content]);
 
 	return (
 		<div

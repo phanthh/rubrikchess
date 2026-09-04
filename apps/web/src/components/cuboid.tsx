@@ -19,7 +19,7 @@ export const Cuboid = memo(({ cuboid }: CuboidProps) => {
 		return () => {
 			animation().unregisterCuboidRef(cuboid.id);
 		};
-	}, [cuboid.id, ref.current]);
+	}, [cuboid.id]);
 
 	return (
 		<group ref={ref} position={cuboid.pos} scale={0.95}>

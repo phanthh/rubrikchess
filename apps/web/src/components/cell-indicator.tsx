@@ -1,5 +1,5 @@
 import { C_S } from '@/settings';
-import { useGameState } from '@/store/game';
+import { useGameStore } from '@/store/game';
 import { TCell } from '@/types';
 import { MAX_INT } from '@/utils/consts';
 import { vec } from '@/utils/funcs';
@@ -15,15 +15,16 @@ const CL_H = MAX_INT;
 const CL_R = C_S / 2;
 
 export const CellIndicator = memo(({ cell }: CellIndicatorProps) => {
-	const [lowPerf] = useGameState('lowPerf');
+	const lowPerf = useGameStore((store) => store.lowPerf);
+	const rotate = cell.move?.kind === 'rotate';
 	const [color, props] = useInteractiveMesh(
 		{
-			normal: cell.payload
+			normal: rotate
 				? '#ffff00'
 				: cell.state === 'targeted:path' || cell.state === 'targeted'
 					? '#ffbb00'
 					: '#00ff00',
-			hover: cell.payload
+			hover: rotate
 				? '#ffffaa'
 				: cell.state === 'targeted:path' || cell.state === 'targeted'
 					? '#eecc11'
@@ -31,7 +32,9 @@ export const CellIndicator = memo(({ cell }: CellIndicatorProps) => {
 			active: '#ff0000',
 			tooltip:
 				cell.state === 'reachable'
-					? 'Move Here'
+					? rotate
+						? 'Rotate Here'
+						: 'Move Here'
 					: cell.state === 'capturable'
 						? 'Capture Piece'
 						: undefined,

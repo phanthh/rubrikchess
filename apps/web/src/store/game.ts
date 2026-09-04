@@ -1,770 +1,392 @@
-import { bfs, walk } from '@/utils/path';
-import { produce } from 'immer';
+import { C_S } from '@/settings';
+import { useNetStore, send } from '@/net/ws';
 import {
-	getState as getNetworkState,
-	onPlayerJoin,
-	insertCoin,
-	setState as setNetworkState,
-	useMultiplayerState,
-	PlayerState,
-} from 'playroomkit';
-import { useCallback } from 'react';
+	CellId,
+	Color,
+	GameConfig,
+	GameState,
+	Move,
+	Piece,
+	RawCell,
+	ServerMsg,
+	Status,
+	TCell,
+	TCellState,
+	User,
+	V3,
+	ClockState,
+} from '@/types';
+import { AXES } from '@/utils/consts';
+import { CUBOIDS } from '@/utils/cuboids';
+import { clamp, vec, vkey } from '@/utils/funcs';
+import { stepCurves } from '@/utils/path';
+import { WasmGame } from 'rubrik-wasm';
+import { toast } from 'sonner';
 import { Vector3 } from 'three';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { B_D, C_S, CU_S, TARGETED_PIECES } from '../settings';
-import {
-	TAction,
-	TCell,
-	TCuboid,
-	TGameMode,
-	TGameState,
-	TMove,
-	TMoveType,
-	TPiece,
-	TPlayer,
-} from '../types';
-import { EColor, EPiece, SIDES, XPOS, YPOS, ZPOS } from '../utils/consts';
-import {
-	assert,
-	implyCenter,
-	implyDirs,
-	isCornerCell,
-	isEdgeCell,
-	nkey,
-	invnkey,
-	randChoice,
-	vec,
-	vkey,
-	zip,
-} from '../utils/funcs';
+import { startAnimation } from './animation';
+
+type Threat = [CellId, CellId[]];
+
+/** Default config from the engine, so the setup string lives in one place (Rust). */
+let defaultConfig: GameConfig | null = null;
+export function baseConfig(): GameConfig {
+	if (!defaultConfig) {
+		const g = new WasmGame(undefined);
+		defaultConfig = (g.state() as GameState).config;
+		g.free();
+	}
+	return structuredClone(defaultConfig);
+}
+
+export function localConfig(walled: boolean): GameConfig {
+	const config = baseConfig();
+	config.rules.walled = walled;
+	return config;
+}
+
+export function notation(move: Move): string {
+	return move.kind === 'step'
+		? `${move.from}>${move.path[move.path.length - 1]}${move.capture ? 'x' : ''}`
+		: `${move.from}@${move.axis}${move.sign > 0 ? '+' : '-'}`;
+}
+
+const v3 = (v: V3) => vec(v.x, v.y, v.z);
+const sameV3 = (a: Vector3, b: V3) => a.x === b.x && a.y === b.y && a.z === b.z;
+const samePiece = (a: Piece | null, b: Piece | null | undefined) =>
+	a === (b ?? null) || (!!a && !!b && a.id === b.id && a.kind === b.kind && a.color === b.color);
+
+/**
+ * Derive render cells from an engine snapshot + selection/threats.
+ * Reuses unchanged cell objects so memoised meshes don't re-render.
+ */
+function computeCells(
+	view: GameState,
+	selected: CellId | null,
+	legal: Move[],
+	threats: Threat[],
+	prev: TCell[],
+): TCell[] {
+	const raw = view.board.cells;
+	const states: TCellState[] = raw.map(() => 'normal');
+	const moves: (Move | undefined)[] = raw.map(() => undefined);
+
+	for (const [id, path] of threats) {
+		for (const p of path) states[p] = 'targeted:path';
+		states[id] = 'targeted';
+	}
+
+	if (selected !== null) {
+		const byPos: Record<string, CellId> = {};
+		raw.forEach((c, id) => (byPos[`${c.pos.x},${c.pos.y},${c.pos.z}`] = id));
+
+		for (const move of legal) {
+			if (move.kind !== 'step') continue;
+			const to = move.path[move.path.length - 1];
+			states[to] = move.capture ? 'capturable' : 'reachable';
+			moves[to] = move;
+		}
+		// Rotations are picked by clicking where the tesseract lands.
+		for (const move of legal) {
+			if (move.kind !== 'rotate') continue;
+			const from = v3(raw[move.from].pos);
+			const landing = from.applyAxisAngle(AXES[move.axis], (move.sign * Math.PI) / 2).round();
+			const to = byPos[vkey(landing)];
+			if (to === undefined) continue;
+			states[to] = 'reachable';
+			moves[to] = move;
+		}
+		states[selected] = 'active';
+		moves[selected] = undefined;
+	}
+
+	return raw.map((c: RawCell, id) => {
+		const old = prev[id];
+		if (
+			old &&
+			old.state === states[id] &&
+			old.move === moves[id] &&
+			old.color === c.color &&
+			sameV3(old.pos, c.pos) &&
+			sameV3(old.side, c.side) &&
+			samePiece(old.piece, c.piece)
+		) {
+			return old;
+		}
+		return {
+			id,
+			pos: v3(c.pos),
+			side: v3(c.side),
+			color: c.color,
+			piece: c.piece ?? null,
+			state: states[id],
+			move: moves[id],
+		};
+	});
+}
 
 interface IGameStore {
-	cells: TCell[][][];
-	cuboids: TCuboid[][][];
-	state: TGameState;
-	turn: TPlayer;
-	history: TAction[];
-	cursor: number; // for indexing history
-	inverted: boolean;
+	engine: WasmGame | null;
+	config: GameConfig | null;
+	// board snapshot
+	cells: TCell[];
+	turn: Color;
+	status: Status;
+	history: Move[];
+	cursor: number; // replay index, === history.length when live
+	selected: CellId | null;
+	legal: Move[];
+	threats: Threat[];
+	animating: boolean;
+	endStatus: Status | null; // server-declared end (resign/timeout/...), engine can't know it
+	// session
+	mode: 'local' | 'online';
+	gameId: string | null;
+	myColor: Color | null;
+	players: { white: User | null; black: User | null };
+	clock: ClockState | null;
+	drawOffer: Color | null;
+	// settings
 	animate: boolean;
-	positions: Record<string, string>; // Vector3 -> cell id
 	walled: boolean;
-	sandbox: boolean;
 	debug: boolean;
-	shadow: boolean;
 	lowPerf: boolean;
-	checkTarget: boolean;
-	mode: TGameMode;
-	players: PlayerState[];
-	getActiveCell: () => TCell | undefined;
-	clearCellStates: () => void;
-	updateIdleCellStates: () => void;
-	updatePieceMoves: (pieceId?: string) => void;
-	resetHistory: () => void;
-	initCube: (cubeLayout: EColor[]) => void;
-	initRandomPieces: (density?: number) => void;
-	initConfigPieces: (config: string) => void;
-	initPlayroom: () => Promise<void>;
+	// actions
+	render: () => void;
+	newLocal: (config?: GameConfig) => void;
+	select: (id: CellId | null) => void;
+	play: (move: Move) => void;
+	undo: () => void;
+	setCursor: (n: number) => void;
+	loadOnline: (msg: Extract<ServerMsg, { t: 'game_state' }>) => void;
+	applyRemoteMove: (msg: Extract<ServerMsg, { t: 'move' }>) => void;
+	setEnd: (status: Status) => void;
+	setDrawOffer: (by: Color | null) => void;
+	setSetting: (patch: Partial<Pick<IGameStore, 'animate' | 'walled' | 'debug' | 'lowPerf'>>) => void;
 }
 
 export const useGameStore = create(
 	subscribeWithSelector<IGameStore>((set, get) => ({
+		engine: null,
+		config: null,
 		cells: [],
-		cuboids: [],
 		turn: 'white',
-		state: 'play:pick-piece',
-		positions: {},
-		shadow: false,
+		status: { kind: 'playing' },
 		history: [],
 		cursor: 0,
-		animate: true,
-		inverted: false,
-		walled: false,
-		sandbox: true,
-		debug: false,
-		checkTarget: false,
-		lowPerf: false,
+		selected: null,
+		legal: [],
+		threats: [],
+		animating: false,
+		endStatus: null,
 		mode: 'local',
-		players: [],
-		getActiveCell: () => {
-			return get()
-				.cells.flat(3)
-				.find((cell) => cell.state === 'active');
-		},
-		clearCellStates: () => {
-			set((state) => {
-				return produce(state, (draft) => {
-					for (const cell of draft.cells.flat(3)) {
-						cell.state = 'normal';
-						delete cell.payload;
-					}
-				});
+		gameId: null,
+		myColor: null,
+		players: { white: null, black: null },
+		clock: null,
+		drawOffer: null,
+		animate: true,
+		walled: false,
+		debug: false,
+		lowPerf: false,
+
+		render: () => {
+			const { engine, cursor, selected } = get();
+			if (!engine) return;
+			const head = engine.state() as GameState;
+			const at = clamp(cursor, 0, head.history.length);
+			const live = at === head.history.length;
+
+			const replay = live ? null : WasmGame.replay(head.config, head.history.slice(0, at));
+			const source = replay ?? engine;
+			const view = live ? head : (replay!.state() as GameState);
+			const threats = source.threats() as Threat[];
+			const pick = live ? selected : null;
+			const legal = pick === null ? [] : (source.legalMoves(pick) as Move[]);
+			replay?.free();
+
+			set({
+				config: head.config,
+				cells: computeCells(view, pick, legal, threats, get().cells),
+				turn: view.turn,
+				status: live ? (get().endStatus ?? view.status) : view.status,
+				history: head.history,
+				cursor: at,
+				selected: pick,
+				legal,
+				threats,
 			});
 		},
-		updateIdleCellStates: () => {
-			set((state) => ({
-				cells: produce(state.cells, (cells) => {
-					const flatted = cells.flat(3);
-					const allCapturingMoves = (
-						flatted
-							.map((c) => c.piece?.moves)
-							.filter(Boolean)
-							.flat(2) as TMove[]
-					).filter((m) => m.type === 'capturing');
-					// base
-					for (const cell of flatted) {
-						cell.state = 'normal';
-						delete cell.payload;
-					}
-					// if king is targeted: highlight path and that king
-					for (const move of allCapturingMoves) {
-						const id = move.path.at(-1)!;
-						const [c, i, j] = invnkey(id);
-						const cell = cells[c][i][j];
-						if (cell.piece && TARGETED_PIECES.includes(cell.piece.type)) {
-							for (const id of move.path) {
-								const [pc, pi, pj] = invnkey(id);
-								const pcell = cells[pc][pi][pj];
-								pcell.state = 'targeted:path';
-							}
-							cell.state = 'targeted';
-						}
-					}
-				}),
-			}));
+
+		newLocal: (config) => {
+			get().engine?.free();
+			set({
+				engine: new WasmGame(config ?? localConfig(get().walled)),
+				mode: 'local',
+				gameId: null,
+				myColor: null,
+				players: { white: null, black: null },
+				clock: null,
+				drawOffer: null,
+				cursor: 0,
+				selected: null,
+				cells: [],
+				animating: false,
+				endStatus: null,
+			});
+			get().render();
 		},
-		initCube: (cubeLayout: EColor[]) => {
-			const cells: TCell[][][] = [];
-			const positions: Record<string, string> = {};
 
-			// init cells
-			for (const [c, [_side, color]] of zip(SIDES, cubeLayout).entries()) {
-				cells[c] = [];
-				for (let i = 0; i < B_D; ++i) {
-					cells[c][i] = [];
-					for (let j = 0; j < B_D; ++j) {
-						const adjust = vec(CU_S / 2 - C_S / 2, CU_S / 2 - C_S / 2, CU_S / 2 - C_S / 2);
-						const normal = (_side as Vector3).clone();
-						adjust.setComponent(normal.toArray().findIndex((i) => i !== 0)!, 0);
+		select: (id) => {
+			const { animating, cells, cursor, history, mode, myColor, turn, status } = get();
+			if (animating) return;
+			if (id !== null) {
+				if (cursor !== history.length || status.kind !== 'playing') return;
+				const piece = cells[id]?.piece;
+				if (!piece || piece.color !== turn) return;
+				if (mode === 'online' && myColor !== turn) return;
+			}
+			set({ selected: id });
+			get().render();
+		},
 
-						let basePos: Vector3 | null;
-						if (normal.x !== 0) {
-							basePos = vec(0, i * C_S, j * C_S);
-						} else if (normal.y !== 0) {
-							basePos = vec(i * C_S, 0, j * C_S);
-						} else if (normal.z !== 0) {
-							basePos = vec(i * C_S, j * C_S, 0);
-						} else {
-							throw new Error('bad side');
-						}
+		play: (move) => {
+			const { animating, mode, gameId, engine, status } = get();
+			if (animating || !engine || status.kind !== 'playing') return;
 
-						basePos.sub(adjust).add(normal.multiplyScalar(CU_S / 2));
-
-						const cellId = nkey(c, i, j);
-
-						cells[c][i][j] = {
-							pos: basePos,
-							id: nkey(c, i, j),
-							side: normal.clone().normalize(),
-							color: color as EColor,
-							state: 'normal',
-						};
-						positions[vkey(basePos)] = cellId;
-					}
-				}
+			if (mode === 'online') {
+				if (!gameId) return;
+				send({ t: 'move', game_id: gameId, move });
+				set({ selected: null });
+				get().render();
+				return;
 			}
 
-			const cuboids: TCuboid[][][] = [];
-			const offset = C_S / 2 - CU_S / 2;
-			// init inner cuboids
-			for (let i = 0; i < B_D; ++i) {
-				cuboids[i] = [];
-				for (let j = 0; j < B_D; ++j) {
-					cuboids[i][j] = [];
-					for (let k = 0; k < B_D; ++k) {
-						cuboids[i][j][k] = {
-							id: nkey(i, j, k),
-							pos: vec(i * C_S + offset, j * C_S + offset, k * C_S + offset),
-						};
-					}
+			runMove(move, () => {
+				try {
+					engine.play(move);
+				} catch (e) {
+					toast.error(String(e));
 				}
-			}
-
-			set({ cells, positions, cuboids });
+				set({ animating: false, selected: null, cursor: engine.historyLen() });
+				get().render();
+			});
 		},
-		initRandomPieces: (density = 0.2) => {
-			set((state) => {
-				return produce(state, (draft) => {
-					for (let c = 0; c < SIDES.length; ++c) {
-						for (let i = 0; i < B_D; ++i) {
-							for (let j = 0; j < B_D; ++j) {
-								const cell = draft.cells[c][i][j];
-								delete cell.piece;
-								if (Math.random() >= density) continue;
-								const piece: TPiece = {
-									id: nkey(c, i, j),
-									type: randChoice([
-										EPiece.QUEEN,
-										EPiece.ROOK,
-										EPiece.KNIGHT,
-										EPiece.PAWN,
-										EPiece.CANNON,
-										EPiece.TESSERACT,
-										EPiece.BISHOP,
-										EPiece.CAPTAIN,
-										EPiece.PRINCESS,
-										EPiece.PRINCE,
-										EPiece.KING,
-									]),
-									player: randChoice(['black', 'white']),
-								};
-								cell.piece = piece;
-							}
-						}
-					}
+
+		undo: () => {
+			const { engine, mode, animating } = get();
+			if (!engine || mode !== 'local' || animating) return;
+			engine.undo();
+			set({ selected: null, cursor: engine.historyLen() });
+			get().render();
+		},
+
+		setCursor: (n) => {
+			if (get().animating) return;
+			set({ cursor: n, selected: null });
+			get().render();
+		},
+
+		loadOnline: (msg) => {
+			const me = useNetStore.getState().me;
+			get().engine?.free();
+			const engine = WasmGame.fromState(msg.game);
+			set({
+				engine,
+				mode: 'online',
+				gameId: msg.game_id,
+				players: { white: msg.white, black: msg.black },
+				clock: msg.clock,
+				drawOffer: msg.draw_offer,
+				myColor:
+					me && msg.white.id === me.id ? 'white' : me && msg.black.id === me.id ? 'black' : null,
+				cursor: engine.historyLen(),
+				selected: null,
+				cells: [],
+				animating: false,
+				endStatus: msg.game.status.kind === 'playing' ? null : msg.game.status,
+			});
+			get().render();
+		},
+
+		applyRemoteMove: (msg) => {
+			const { engine, cursor, history } = get();
+			if (!engine) return;
+			// viewing history: apply silently, keep the cursor where it is
+			const live = cursor === history.length;
+			const commit = () => {
+				try {
+					engine.play(msg.move);
+				} catch (e) {
+					toast.error(`out of sync: ${String(e)}`);
+				}
+				set({
+					animating: false,
+					selected: null,
+					clock: msg.clock,
+					drawOffer: null,
+					cursor: live ? engine.historyLen() : cursor,
+					endStatus: msg.status.kind === 'playing' ? null : msg.status,
 				});
-			});
-			get().updatePieceMoves();
-			get().updateIdleCellStates();
-			get().resetHistory();
+				get().render();
+			};
+			if (live) runMove(msg.move, commit);
+			else commit();
 		},
-		initConfigPieces: (config) => {
-			// place pieces based on config
-			// config is a raw string
-			// - is empty cell
-			// letters for pieces
-			// only setup for two sides: white and black.
-			const whiteC = 0;
-			const blackC = 3;
 
-			const lines = config
-				.split(/\r?\n|\r| |\n/g)
-				.map((s) => s.trim())
-				.filter(Boolean)
-				.map((s) => s.split(''));
-
-			const whiteSide = lines.slice(0, B_D);
-			const blackSide = lines.slice(B_D);
-
-			set((state) => {
-				return produce(state, (draft) => {
-					for (let c = 0; c < SIDES.length; ++c) {
-						for (let i = 0; i < B_D; ++i) {
-							for (let j = 0; j < B_D; ++j) {
-								const cell = draft.cells[c][i][j];
-								delete cell.piece;
-								if (c === whiteC || c === blackC) {
-									const side = c === whiteC ? whiteSide : blackSide;
-									const type = side[i][j];
-									if (type === '-') continue;
-									const piece: TPiece = {
-										id: nkey(c, i, j),
-										type: type.toLowerCase() as EPiece,
-										player: type === type.toLowerCase() ? 'black' : 'white',
-									};
-									cell.piece = piece;
-								}
-							}
-						}
-					}
-				});
+		setEnd: (status) => {
+			const clock = get().clock;
+			set({
+				endStatus: status,
+				selected: null,
+				drawOffer: null,
+				clock: clock && { ...clock, running: null },
 			});
-			get().updatePieceMoves();
-			get().updateIdleCellStates();
-			get().resetHistory();
+			get().render();
 		},
-		resetHistory: () => {
-			set({ history: [], cursor: 0 });
-		},
-		updatePieceMoves: (pieceId) => {
-			set((state) => {
-				return produce(state, (draft) => {
-					const positions = draft.positions;
-					const walled = draft.walled;
 
-					for (const cell of draft.cells.flat(3)) {
-						const piece = cell.piece;
-						// HAVE A PIECE IN THIS CELL
-						if (!piece) continue;
-						if (pieceId && piece.id !== piece.id) continue;
+		setDrawOffer: (by) => set({ drawOffer: by }),
 
-						const dirs = implyDirs(cell.side);
-						const center = implyCenter(cell);
-
-						// WE WILL CALCULATE THIS
-						const moves: TMove[] = [];
-
-						const updateCellState = (cell: TCell, other: TCell): TMoveType | false => {
-							const otherPiece = other.piece;
-							const thisPiece = cell.piece;
-							assert(thisPiece);
-							if (otherPiece) {
-								if (otherPiece.player !== thisPiece.player) {
-									return 'capturing';
-								} else {
-									return false;
-								}
-							} else {
-								return 'normal';
-							}
-						};
-
-						const getWalkCallback = (curMoves: TMove[], curPath: TCell[]) => {
-							return (c: TCell) => {
-								curPath.push(c);
-								const type = updateCellState(cell, c);
-								if (!type) return false;
-								curMoves.push({
-									path: curPath.map((c) => c.id),
-									type: type,
-								});
-								return !c.piece;
-							};
-						};
-
-						// different piece type
-						switch (piece.type) {
-							case EPiece.ROOK: {
-								for (const initDir of dirs.slice(0, 4)) {
-									const curMoves: TMove[] = [];
-									const curPath: TCell[] = [];
-
-									walk({
-										initDir,
-										initSide: cell.side,
-										start: cell.pos,
-										end: cell.pos,
-										mode: 'rook',
-										walled,
-										positions,
-										cells: draft.cells,
-										callback: getWalkCallback(curMoves, curPath),
-									});
-									moves.push(...curMoves);
-								}
-								break;
-							}
-							case EPiece.BISHOP: {
-								for (const initDir of dirs.slice(4)) {
-									const curMoves: TMove[] = [];
-									const curPath: TCell[] = [];
-									walk({
-										initDir,
-										initSide: cell.side,
-										start: cell.pos,
-										end: cell.pos,
-										mode: 'bishop',
-										walled,
-										positions,
-										cells: draft.cells,
-										callback: getWalkCallback(curMoves, curPath),
-									});
-									moves.push(...curMoves);
-								}
-								break;
-							}
-							case EPiece.QUEEN:
-								for (const initDir of dirs.slice(0, 4)) {
-									const curMoves: TMove[] = [];
-									const curPath: TCell[] = [];
-
-									walk({
-										initDir,
-										initSide: cell.side,
-										start: cell.pos,
-										end: cell.pos,
-										mode: 'rook',
-										walled,
-										positions,
-										cells: draft.cells,
-										callback: getWalkCallback(curMoves, curPath),
-									});
-									moves.push(...curMoves);
-								}
-
-								for (const initDir of dirs.slice(4)) {
-									const curMoves: TMove[] = [];
-									const curPath: TCell[] = [];
-
-									walk({
-										initDir,
-										initSide: cell.side,
-										start: cell.pos,
-										end: cell.pos,
-										walled,
-										mode: 'bishop',
-										positions,
-										cells: draft.cells,
-										callback: getWalkCallback(curMoves, curPath),
-									});
-									moves.push(...curMoves);
-								}
-								break;
-							case EPiece.PRINCESS:
-								const princessUpdateCellState = (cell: TCell, other: TCell): TMoveType | false => {
-									const otherPiece = other.piece;
-									const thisPiece = cell.piece;
-									assert(thisPiece);
-									if (other.color !== cell.color) {
-										return false;
-									}
-									if (otherPiece) {
-										if (otherPiece.player !== thisPiece.player) {
-											return 'capturing';
-										} else {
-											return false;
-										}
-									} else {
-										return 'normal';
-									}
-								};
-
-								const getPrincessWalkCallBack = (curMoves: TMove[], curPath: TCell[]) => {
-									return (c: TCell) => {
-										curPath.push(c);
-										const type = princessUpdateCellState(cell, c);
-										if (!type) return false;
-										curMoves.push({
-											path: curPath.map((c) => c.id),
-											type: type,
-										});
-										return !c.piece;
-									};
-								};
-
-								for (const initDir of dirs.slice(0, 4)) {
-									const curMoves: TMove[] = [];
-									const curPath: TCell[] = [];
-
-									walk({
-										initDir,
-										initSide: cell.side,
-										start: cell.pos,
-										end: cell.pos,
-										mode: 'rook',
-										walled,
-										positions,
-										cells: draft.cells,
-										callback: getPrincessWalkCallBack(curMoves, curPath),
-									});
-									moves.push(...curMoves);
-								}
-
-								for (const initDir of dirs.slice(4)) {
-									const curMoves: TMove[] = [];
-									const curPath: TCell[] = [];
-
-									walk({
-										initDir,
-										initSide: cell.side,
-										start: cell.pos,
-										end: cell.pos,
-										walled,
-										mode: 'bishop',
-										positions,
-										cells: draft.cells,
-										callback: getPrincessWalkCallBack(curMoves, curPath),
-									});
-									moves.push(...curMoves);
-								}
-								break;
-							case EPiece.KNIGHT:
-								for (const c of draft.cells.flat(3)) {
-									const distSq = c.pos.distanceToSquared(cell.pos);
-									let reachable = false;
-									if (distSq === 5 * C_S * C_S || distSq === 3.5 * C_S * C_S) {
-										reachable = true;
-									} else if (distSq === 4.5 * C_S * C_S && (isEdgeCell(c) || isCornerCell(c))) {
-										if (c.pos.distanceToSquared(center) !== 3.25 * C_S * C_S) {
-											reachable = true;
-										}
-									} else if (
-										distSq === 2.5 * C_S * C_S &&
-										(isCornerCell(c) || isCornerCell(cell))
-									) {
-										reachable = true;
-									}
-									if (reachable) {
-										if (!walled || c.side.dot(cell.side) !== 0) {
-											// TODO: More concrete path
-											const type = updateCellState(cell, c);
-											if (type) {
-												moves.push({
-													type,
-													path: [c.id],
-												});
-											}
-										}
-									}
-								}
-								break;
-							case EPiece.CAPTAIN: {
-								const currCellIds: string[] = [];
-								const walkCallback = (c: TCell) => {
-									if (c.color !== cell.color || !!c.piece) {
-										return false;
-									} else {
-										currCellIds.push(c.id);
-										return true;
-									}
-								};
-
-								const tree = bfs({
-									initCell: cell,
-									positions,
-									cells: draft.cells,
-									walled,
-									callback: walkCallback,
-								});
-
-								// FIND MOVES FROM TREE
-								const currMoves: TMove[] = currCellIds.map((id) => {
-									const shortestPath: string[] = [];
-									let cursor = id;
-									while (cursor !== cell.id) {
-										shortestPath.push(cursor);
-										cursor = tree[cursor];
-									}
-									return { path: shortestPath.reverse(), type: 'normal' };
-								});
-
-								moves.push(...currMoves);
-
-								// KING-mode
-								for (const c of draft.cells.flat(3)) {
-									const distSq = c.pos.distanceToSquared(cell.pos);
-									if (
-										(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
-										distSq === C_S * C_S ||
-										distSq === 2 * C_S * C_S
-									) {
-										const type = updateCellState(cell, c);
-										if (type) {
-											moves.push({
-												type,
-												path: [c.id],
-											});
-										}
-									}
-								}
-								break;
-							}
-
-							case EPiece.TESSERACT: {
-								// KING-mode
-								for (const c of draft.cells.flat(3)) {
-									const distSq = c.pos.distanceToSquared(cell.pos);
-									if (
-										(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
-										distSq === C_S * C_S ||
-										distSq === 2 * C_S * C_S
-									) {
-										const type = updateCellState(cell, c);
-										if (type) {
-											moves.push({
-												type,
-												path: [c.id],
-											});
-										}
-									}
-								}
-
-								break;
-							}
-
-							case EPiece.CANNON: {
-								// CANNON-mode
-								for (const angle of [
-									Math.PI / 2,
-									-Math.PI / 2,
-									// Math.PI // NERF 180 degree range shot;
-								]) {
-									for (const axis of [XPOS, YPOS, ZPOS]) {
-										if (axis.dot(cell.side) !== 0) continue;
-										const rotated = cell.pos.clone().applyAxisAngle(axis, angle).round();
-										const id = positions[vkey(rotated)];
-										assert(id);
-										const [cc, ci, cj] = invnkey(id);
-										const c = draft.cells[cc][ci][cj];
-										const type = updateCellState(cell, c);
-										if (type) {
-											moves.push({
-												type,
-												path: [c.id],
-											});
-										}
-									}
-								}
-
-								// KING-mode, but cuffed (only move, cannot capture)
-								const cannonUpdateCellState = (cell: TCell, other: TCell): TMoveType | false => {
-									const otherPiece = other.piece;
-									const thisPiece = cell.piece;
-									assert(thisPiece);
-									if (otherPiece) {
-										return false;
-									} else {
-										return 'normal';
-									}
-								};
-
-								for (const c of draft.cells.flat(3)) {
-									const distSq = c.pos.distanceToSquared(cell.pos);
-									if (
-										(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
-										distSq === C_S * C_S ||
-										distSq === 2 * C_S * C_S
-									) {
-										const type = cannonUpdateCellState(cell, c);
-										if (type) {
-											moves.push({
-												type,
-												path: [c.id],
-											});
-										}
-									}
-								}
-
-								break;
-							}
-
-							case EPiece.KING: {
-								for (const c of draft.cells.flat(3)) {
-									const distSq = c.pos.distanceToSquared(cell.pos);
-									if (
-										(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
-										distSq === C_S * C_S ||
-										distSq === 2 * C_S * C_S
-									) {
-										const type = updateCellState(cell, c);
-										if (type) {
-											moves.push({
-												type,
-												path: [c.id],
-											});
-										}
-									}
-								}
-								break;
-							}
-							case EPiece.PRINCE: {
-								for (const c of draft.cells.flat(3)) {
-									if (c.color !== cell.color) continue;
-									const distSq = c.pos.distanceToSquared(cell.pos);
-									if (
-										(!walled && (distSq === 0.5 * C_S * C_S || distSq === 1.5 * C_S * C_S)) ||
-										distSq === C_S * C_S ||
-										distSq === 2 * C_S * C_S
-									) {
-										const type = updateCellState(cell, c);
-										if (type) {
-											moves.push({
-												type,
-												path: [c.id],
-											});
-										}
-									}
-								}
-
-								break;
-							}
-
-							case EPiece.PAWN: {
-								for (const c of draft.cells.flat(3)) {
-									const distSq = c.pos.distanceToSquared(cell.pos);
-									if ((!walled && distSq === 0.5 * C_S * C_S) || distSq === C_S * C_S) {
-										if (!c.piece) {
-											moves.push({
-												type: 'normal',
-												path: [c.id],
-											});
-										}
-									}
-									if ((!walled && distSq === 1.5 * C_S * C_S) || distSq === 2 * C_S * C_S) {
-										assert(cell.piece);
-										if (c.piece && c.piece.player !== cell.piece.player) {
-											moves.push({
-												type: 'capturing',
-												path: [c.id],
-											});
-										}
-									}
-								}
-								break;
-							}
-							default:
-								break;
-						}
-
-						// UPDATE
-						piece.moves = moves;
-					}
-				});
-			});
-		},
-		initPlayroom: async () => {
-			// Start the game
-			await insertCoin({
-				maxPlayersPerRoom: 2,
-			});
-
-			onPlayerJoin((newPlayer) => {
-				const players = game().players;
-				newPlayer.setState('player', players.length === 0 ? 'white' : 'black');
-				game().set({ players: [...players, newPlayer] });
-				newPlayer.onQuit(() => {
-					game().set((state) => ({ players: state.players.filter((p) => p.id !== newPlayer.id) }));
-				});
-			});
-
-			console.log('INIT PLAYROOM COMPLETE');
-		},
+		setSetting: (patch) => set(patch),
 	})),
 );
 
-const NETWORK_STATES = ['turn'] as const;
-
 export function game() {
-	const state = useGameStore.getState();
-	const cloned = { ...state };
-	for (const key of NETWORK_STATES) {
-		cloned[key] = state.mode === 'local' ? state[key] : getNetworkState(key) ?? state[key];
-	}
-
-	return Object.assign(cloned, {
-		set: useGameStore.setState,
-		setState: <T extends IGameStoreMutableKey>(key: T, setter: (value: IGameStore[T]) => void) => {
-			const baseState = useGameStore.getState();
-			if (baseState.mode === 'local') {
-				useGameStore.setState((state) => ({ [key]: setter(state[key]) }));
-			} else {
-				setNetworkState(key, setter(getNetworkState(key) ?? baseState[key]), true);
-			}
-		},
-		subscribe: useGameStore.subscribe,
-	});
+	return useGameStore.getState();
 }
 
-type IGameStoreMutableKey = keyof {
-	[K in keyof IGameStore as IGameStore[K] extends Function ? never : K]: IGameStore[K];
-};
+/** Run the move animation (or skip it) then `done()` commits it to the engine. */
+function runMove(move: Move, done: () => void) {
+	const { animate, cells, engine } = game();
+	if (!animate || !engine) return done();
 
-export function useGameState<T extends IGameStoreMutableKey>(key: T) {
-	const localState = useGameStore((store) => store[key]);
-	const setLocalState = useCallback((value: IGameStore[typeof key]) => {
-		useGameStore.setState({ [key]: value });
-	}, []);
-	const returnVal = [localState, setLocalState] as const;
-
-	if (NETWORK_STATES.includes(key as any)) {
-		const mode = useGameStore((store) => store.mode);
-		const network = useMultiplayerState(key, localState);
-		if (mode === 'local') {
-			return returnVal;
-		} else {
-			return network as typeof returnVal;
-		}
+	if (move.kind === 'step') {
+		const from = cells[move.from];
+		const piece = from?.piece;
+		const pathCells = move.path.map((id) => cells[id]);
+		if (!piece || pathCells.some((c) => !c)) return done();
+		useGameStore.setState({ animating: true, selected: null });
+		game().render();
+		const { path, zPath } = stepCurves(from, pathCells);
+		startAnimation({
+			pieces: [piece.id],
+			config: { type: 'path', ease: 'quart', path, zPath },
+			onEnd: done,
+		});
+		return;
 	}
-	return returnVal;
+
+	const axis = AXES[move.axis];
+	const angle = (move.sign * Math.PI) / 2;
+	const ids = engine.rotatingCells(move.from, move.axis) as CellId[];
+	const pivot = cells[move.from].pos.dot(axis);
+	const cuboids = CUBOIDS.filter((c) => {
+		const d = c.pos.dot(axis);
+		return d === pivot || Math.abs(d - pivot) === C_S / 2;
+	}).map((c) => c.id);
+
+	useGameStore.setState({ animating: true, selected: null });
+	game().render();
+	startAnimation({ cells: ids, cuboids, config: { type: 'rotate', axis, angle }, onEnd: done });
 }

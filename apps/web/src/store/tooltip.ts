@@ -5,7 +5,7 @@ interface TooltipStore {
 	setContent: (content: string | null) => void;
 }
 
-export const useTooltipStore = create<TooltipStore>((set, get) => ({
+export const useTooltipStore = create<TooltipStore>((set) => ({
 	content: null,
 	setContent: (content) => set({ content }),
 }));

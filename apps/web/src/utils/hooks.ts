@@ -1,6 +1,6 @@
 import { useTooltipStore } from '@/store/tooltip';
 import { MeshProps } from '@react-three/fiber';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 export const useInteractiveMesh = (
 	{
@@ -27,7 +27,7 @@ export const useInteractiveMesh = (
 		} else {
 			setContent(null);
 		}
-	}, [tooltip, hovered]);
+	}, [tooltip, hovered, setContent]);
 
 	useEffect(() => {
 		setColor(isActive ? active : hovered ? hover : normal);
@@ -50,24 +50,16 @@ export const useInteractiveMesh = (
 	] as const;
 };
 
-export const usePrevious = <T>(value: T, defaultValue: T) => {
-	const ref = useRef<T>(defaultValue);
-	useEffect(() => {
-		ref.current = value;
-	});
-	return ref.current;
-};
-
 export const usePreventPropagation = () => {
 	const props = useMemo(() => {
 		return {
-			onPointerDown: (e) => e.stopPropagation(),
-			onPointerEnter: (e) => e.stopPropagation(),
-			onPointerLeave: (e) => e.stopPropagation(),
-			onPointerOver: (e) => e.stopPropagation(),
-			onPointerUp: (e) => e.stopPropagation(),
-			onClick: (e) => e.stopPropagation(),
-		} as MeshProps as any;
+			onPointerDown: stop,
+			onPointerEnter: stop,
+			onPointerLeave: stop,
+			onPointerOver: stop,
+			onPointerUp: stop,
+			onClick: stop,
+		} satisfies MeshProps;
 	}, []);
 	return props;
 };
