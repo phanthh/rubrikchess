@@ -4,12 +4,14 @@ import { Suspense } from 'react';
 import { INITAL_CAM_CORD } from '../settings';
 import { game, useGameStore } from '../store/game';
 import { Board } from './board';
+import { CameraRig } from './camera-rig';
 import { Controls } from './controls';
 import { CubeFrame } from './cube-frame';
 import { Lights } from './lights';
 
 export function GameCanvas() {
 	const debug = useGameStore((store) => store.debug);
+	const myColor = useGameStore((store) => store.myColor);
 
 	return (
 		<Canvas
@@ -32,7 +34,9 @@ export function GameCanvas() {
 					</>
 				)}
 			</Suspense>
-			<Controls />
+			<CameraRig />
+			{/* remount so arcball picks up the re-oriented camera */}
+			<Controls key={myColor ?? 'none'} />
 		</Canvas>
 	);
 }
