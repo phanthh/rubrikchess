@@ -1,4 +1,5 @@
 import { GameCanvas } from '@/components/game-canvas';
+import { RulesButton } from '@/components/rules-panel';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -63,6 +64,7 @@ export function LocalPage() {
 					checked={debug}
 					onCheckedChange={(checked) => game().setSetting({ debug: checked })}
 				/>
+				<RulesButton />
 			</nav>
 
 			<GameCanvas />

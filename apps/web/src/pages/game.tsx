@@ -1,10 +1,11 @@
 import { GameCanvas } from '@/components/game-canvas';
 import { RatingDiff } from '@/components/rating-diff';
+import { RulesButton } from '@/components/rules-panel';
 import { Tooltip } from '@/components/tooltip';
 import { Button } from '@/components/ui/button';
 import { connect, onServerMsg, send, useNetStore } from '@/net/ws';
 import { game, notation, useGameStore } from '@/store/game';
-import { Color } from '@/types';
+import { Color, ServerMsg } from '@/types';
 import { formatClock, statusLabel } from '@/utils/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -13,6 +14,10 @@ import { useShallow } from 'zustand/react/shallow';
 export function GamePage() {
 	const { id } = useParams();
 	const me = useNetStore((store) => store.me);
+	const [chat, setChat] = useState<Extract<ServerMsg, { t: 'chat' }>[]>([]);
+	const [draft, setDraft] = useState('');
+	const [rematchBy, setRematchBy] = useState<Color | null>(null);
+	const chatList = useRef<HTMLDivElement>(null);
 	const { history, turn, status, players, diffs, clock, myColor, drawOffer, cursor } = useGameStore(
 		useShallow((store) => ({
 			history: store.history,
@@ -46,13 +51,34 @@ export function GamePage() {
 				case 'draw_offer':
 					game().setDrawOffer(msg.by);
 					break;
+				case 'chat':
+					setChat((prev) => [...prev, msg]);
+					break;
+				case 'rematch_offer':
+					setRematchBy(msg.by);
+					break;
 			}
 		});
 		return () => {
 			unsub();
 			send({ t: 'unwatch', game_id: id });
+			setChat([]);
+			setDraft('');
+			setRematchBy(null);
 		};
 	}, [id]);
+
+	useEffect(() => {
+		const el = chatList.current;
+		if (el) el.scrollTop = el.scrollHeight;
+	}, [chat]);
+
+	const sendChat = () => {
+		const text = draft.trim();
+		if (!id || !text) return;
+		send({ t: 'chat', game_id: id, text });
+		setDraft('');
+	};
 
 	// Clock extrapolation: measure elapsed locally, server/browser clocks may differ.
 	const received = useRef(Date.now());
@@ -110,6 +136,7 @@ export function GamePage() {
 				<span className="text-foreground ml-auto">
 					{label ?? `${turn === 'white' ? 'White' : 'Black'} to move`}
 				</span>
+				<RulesButton />
 			</nav>
 
 			<div className="flex flex-grow overflow-hidden">
@@ -147,6 +174,21 @@ export function GamePage() {
 							{drawOffer === 'white' ? 'White' : 'Black'} offers a draw
 						</span>
 					)}
+					{myColor && over && (
+						<div className="flex flex-col gap-1">
+							<Button
+								variant="outline"
+								onClick={() =>
+									id && send({ t: 'rematch', game_id: id, offer: rematchBy !== myColor })
+								}
+							>
+								{rematchBy === myColor ? 'Withdraw rematch' : 'Rematch'}
+							</Button>
+							{rematchBy && rematchBy !== myColor && (
+								<span className="text-sm text-muted-foreground">opponent wants a rematch</span>
+							)}
+						</div>
+					)}
 					{!me && <span className="text-sm text-muted-foreground">connecting…</span>}
 
 					<ol className="flex-grow overflow-auto text-sm font-mono">
@@ -165,6 +207,24 @@ export function GamePage() {
 							Back to live
 						</Button>
 					)}
+
+					<div className="flex flex-col gap-2 border-t pt-2">
+						<div ref={chatList} className="h-40 overflow-auto text-sm flex flex-col gap-1">
+							{chat.map((m, i) => (
+								<div key={i}>
+									<span className="text-muted-foreground">{m.user.name}:</span> {m.text}
+								</div>
+							))}
+						</div>
+						<input
+							className="rounded border bg-background px-2 py-1 text-sm"
+							value={draft}
+							maxLength={300}
+							placeholder="say something"
+							onChange={(e) => setDraft(e.target.value)}
+							onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+						/>
+					</div>
 				</aside>
 			</div>
 			<Tooltip />

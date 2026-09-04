@@ -1,16 +1,16 @@
 import { RatingDiff } from '@/components/rating-diff';
+import { RulesButton } from '@/components/rules-panel';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { leaderboard, listGames, login, logout, register, setName } from '@/net/api';
-import { connect, onServerMsg, reconnect, send, useNetStore } from '@/net/ws';
+import { connect, reconnect, send, useNetStore } from '@/net/ws';
 import { GameRow, User } from '@/types';
 import { statusLabel } from '@/utils/ui';
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 export function LobbyPage() {
-	const navigate = useNavigate();
 	const { me, seeks, connected } = useNetStore();
 	const [name, setNameInput] = useState('');
 	const [minutes, setMinutes] = useState(5);
@@ -30,10 +30,7 @@ export function LobbyPage() {
 		leaderboard()
 			.then(setTop)
 			.catch(() => undefined);
-		return onServerMsg((msg) => {
-			if (msg.t === 'game_start') navigate(`/g/${msg.game_id}`);
-		});
-	}, [navigate]);
+	}, []);
 
 	useEffect(() => {
 		if (me) setNameInput(me.name);
@@ -113,6 +110,7 @@ export function LobbyPage() {
 				<Link to="/local" className="underline">
 					Play locally
 				</Link>
+				<RulesButton />
 				<span className="text-muted-foreground">{connected ? 'online' : 'offline'}</span>
 			</header>
 

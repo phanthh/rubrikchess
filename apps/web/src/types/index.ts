@@ -151,6 +151,8 @@ export type ClientMsg =
 	| { t: 'move'; game_id: string; move: Move }
 	| { t: 'resign'; game_id: string }
 	| { t: 'draw'; game_id: string; offer: boolean }
+	| { t: 'chat'; game_id: string; text: string }
+	| { t: 'rematch'; game_id: string; offer: boolean }
 	| { t: 'ping' };
 
 export type ServerMsg =
@@ -183,5 +185,7 @@ export type ServerMsg =
 			black_diff: number | null;
 		}
 	| { t: 'draw_offer'; game_id: string; by: Color | null }
+	| { t: 'chat'; game_id: string; user: User; text: string; at: number }
+	| { t: 'rematch_offer'; game_id: string; by: Color | null }
 	| { t: 'error'; msg: string }
 	| { t: 'pong' };
