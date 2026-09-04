@@ -142,3 +142,15 @@ GET  /api/games, /api/games/:id       → GameRow = {id, white: User, black: Use
 ```
 WS: `game_state.white/black` and lobby `seeks[].user` are `User` (with rating). `game_end` gains `white_diff, black_diff` (ints, null if unrated).
 Web: lobby header shows name+rating, Register/Login/Logout; leaderboard on lobby; `/u/:name` profile; game page shows ratings + diff at end.
+
+## Chat + rematch (phase 4)
+WS additions:
+```
+client→server
+  {t:"chat", game_id, text}            text trimmed, 1..300 chars; players + spectators may chat
+  {t:"rematch", game_id, offer: bool}  only players, only when game ended; both offer → new game (colours swapped, same clock/rules) → game_start to both
+server→client
+  {t:"chat", game_id, user: User, text, at: unix_ms}   broadcast to room; not persisted
+  {t:"rematch_offer", game_id, by: Color|null}         broadcast; null = withdrawn
+```
+Rate limit: chat max 5 msgs / 5s per user per room (drop silently beyond).
