@@ -1,4 +1,3 @@
-import { zvec } from '@/utils/consts';
 import { vec } from '@/utils/funcs';
 import { Vector3 } from 'three';
 
@@ -7,7 +6,7 @@ type AxisHelperProps = {
 	length?: number;
 };
 
-export function AxisHelper({ position = zvec(), length = 8 }: AxisHelperProps) {
+export function AxisHelper({ position = vec(0, 0, 0), length = 8 }: AxisHelperProps) {
 	return (
 		<>
 			<arrowHelper args={[vec(0, 0, 1), position, length, 'blue']} />

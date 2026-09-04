@@ -23,8 +23,6 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T>(path: string, body: unknown) =>
 	req<T>(path, { method: 'POST', body: JSON.stringify(body) });
 
-export const getMe = () => req<User>('/me');
-
 export const setName = (name: string) => post<User>('/me', { name });
 
 export const register = (name: string, password: string) =>

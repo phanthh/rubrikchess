@@ -1,4 +1,3 @@
-import { A_D } from '@/settings';
 import { CellId, TAnimationConfig } from '@/types';
 import { RefObject } from 'react';
 import { Group, Mesh } from 'three';
@@ -14,7 +13,6 @@ interface IAnimationStore {
 	pieces: number[] | null;
 	onEnd: (() => void) | null;
 	config: TAnimationConfig | null;
-	duration: number;
 	progress: number;
 	registerCellRef: (id: CellId, ref: RefObject<Mesh>) => void;
 	registerPieceRef: (id: number, ref: RefObject<Group>) => void;
@@ -35,7 +33,6 @@ export const useAnimationStore = create(
 		pieces: null,
 		onEnd: null,
 		config: null,
-		duration: A_D,
 		progress: 0,
 		registerCellRef: (id, ref) => {
 			get().cellRefs[id] = ref;
@@ -60,12 +57,6 @@ export const useAnimationStore = create(
 		},
 	})),
 );
-
-export function animation() {
-	return Object.assign({ ...useAnimationStore.getState() }, {
-		set: useAnimationStore.setState,
-	});
-}
 
 /** Kick off an animation; `onEnd` commits the move to the engine. */
 export function startAnimation(

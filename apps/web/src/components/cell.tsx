@@ -1,4 +1,4 @@
-import { animation } from '@/store/animation';
+import { useAnimationStore } from '@/store/animation';
 import { useGameStore } from '@/store/game';
 import { BLACK, MAX_INT, PALETTE, WHITE } from '@/utils/consts';
 import { usePreventPropagation } from '@/utils/hooks';
@@ -36,9 +36,9 @@ export const Cell = memo(({ cell, onPick }: CellProps) => {
 	}, [cell.side, cell.pos, flipped]);
 
 	useLayoutEffect(() => {
-		animation().registerCellRef(cell.id, ref);
+		useAnimationStore.getState().registerCellRef(cell.id, ref);
 		return () => {
-			animation().unregisterCellRef(cell.id);
+			useAnimationStore.getState().unregisterCellRef(cell.id);
 		};
 	}, [cell.id]);
 

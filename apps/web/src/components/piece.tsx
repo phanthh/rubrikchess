@@ -1,4 +1,4 @@
-import { animation } from '@/store/animation';
+import { useAnimationStore } from '@/store/animation';
 import { useGameStore } from '@/store/game';
 import { Piece as TPiece, PieceKind, TCell } from '@/types';
 import { PIECE_BLACK, PIECE_NAMES, PIECE_WHITE } from '@/utils/consts';
@@ -51,9 +51,9 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 	}, [geometry]);
 
 	useLayoutEffect(() => {
-		animation().registerPieceRef(piece.id, ref);
+		useAnimationStore.getState().registerPieceRef(piece.id, ref);
 		return () => {
-			animation().unregisterPieceRef(piece.id);
+			useAnimationStore.getState().unregisterPieceRef(piece.id);
 		};
 	}, [piece.id]);
 

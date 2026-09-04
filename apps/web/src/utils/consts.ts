@@ -25,12 +25,10 @@ export const PIECE_NAMES: Record<PieceKind, string> = {
 	cannon: 'Cannon',
 };
 
-export const XPOS = vec(1, 0, 0);
-export const YPOS = vec(0, 1, 0);
-export const ZPOS = vec(0, 0, 1);
-
-export const AXES: Record<'x' | 'y' | 'z', Vector3> = { x: XPOS, y: YPOS, z: ZPOS };
+export const AXES: Record<'x' | 'y' | 'z', Vector3> = {
+	x: vec(1, 0, 0),
+	y: vec(0, 1, 0),
+	z: vec(0, 0, 1),
+};
 
 export const MAX_INT = 99999;
-
-export const zvec = () => new Vector3(0, 0, 0);

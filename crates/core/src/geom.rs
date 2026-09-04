@@ -39,9 +39,6 @@ impl Axis {
             Axis::Z => v(0, 0, 1),
         }
     }
-    pub fn index(self) -> usize {
-        self as usize
-    }
 }
 
 /// Face order matches original client: +Y, +X, +Z, -Y, -X, -Z.

@@ -52,21 +52,6 @@ impl PieceKind {
             _ => return None,
         })
     }
-    pub fn to_char(self) -> char {
-        match self {
-            PieceKind::Pawn => 'p',
-            PieceKind::Knight => 'n',
-            PieceKind::Bishop => 'b',
-            PieceKind::Rook => 'r',
-            PieceKind::Queen => 'q',
-            PieceKind::King => 'k',
-            PieceKind::Captain => 'c',
-            PieceKind::Tesseract => 't',
-            PieceKind::Princess => 's',
-            PieceKind::Prince => 'x',
-            PieceKind::Cannon => 'o',
-        }
-    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -88,7 +73,6 @@ pub struct Cell {
 
 /// Face colour layouts, palette indices: 0 white, 1 black, 2 red, 3 blue, 4 yellow, 5 green.
 pub const LAYOUT_STANDARD: [u8; 6] = [0, 0, 1, 1, 0, 1];
-pub const LAYOUT_RUBRIK: [u8; 6] = [0, 2, 3, 1, 4, 5];
 
 pub const SETUP_STANDARD: &str = "
 --------

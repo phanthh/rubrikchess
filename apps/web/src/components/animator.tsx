@@ -1,6 +1,6 @@
-import { animation, useAnimationStore } from '@/store/animation';
+import { useAnimationStore } from '@/store/animation';
 import { useGameStore } from '@/store/game';
-import { EASE_FUNCS } from '@/utils/animation';
+import { easeInOutQuart } from '@/utils/animation';
 import { CUBOID_BY_ID } from '@/utils/cuboids';
 import { clamp } from '@/utils/funcs';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -8,12 +8,9 @@ import { useEffect, useMemo } from 'react';
 import { Clock, Quaternion } from 'three';
 
 const q = new Quaternion();
+const SPEED = 1.5;
 
-type AnimatorProps = {
-	speedFactor?: number;
-};
-
-export function Animator({ speedFactor = 1.5 }: AnimatorProps) {
+export function Animator() {
 	const animating = useGameStore((store) => store.animating);
 	const { invalidate } = useThree();
 
@@ -32,12 +29,13 @@ export function Animator({ speedFactor = 1.5 }: AnimatorProps) {
 		const clockDelta = clock.getDelta();
 		if (!animating) return;
 
-		const { pieces, cellRefs, cells, cuboids, cuboidRefs, config, pieceRefs } = animation();
+		const { pieces, cellRefs, cells, cuboids, cuboidRefs, config, pieceRefs } =
+			useAnimationStore.getState();
 		if (!config) return;
 
 		let progressDelta = 0;
 		// time-based so low fps does not slow the animation; cap guards against tab-switch jumps
-		const animationDelta = clamp(clockDelta, 0, 0.1) * speedFactor;
+		const animationDelta = clamp(clockDelta, 0, 0.1) * SPEED;
 
 		switch (config.type) {
 			case 'rotate': {
@@ -62,11 +60,11 @@ export function Animator({ speedFactor = 1.5 }: AnimatorProps) {
 				break;
 			}
 			case 'path': {
-				const { path, ease, zPath } = config;
+				const { path, zPath } = config;
 				if (!pieces) return;
 				progressDelta = animationDelta;
 
-				const t = EASE_FUNCS[ease](animation().progress);
+				const t = easeInOutQuart(useAnimationStore.getState().progress);
 				for (const id of pieces) {
 					const mesh = pieceRefs[id]?.current;
 					if (!mesh) continue;
@@ -80,9 +78,9 @@ export function Animator({ speedFactor = 1.5 }: AnimatorProps) {
 			}
 		}
 
-		animation().set((state) => ({ progress: state.progress + progressDelta }));
+		useAnimationStore.setState((state) => ({ progress: state.progress + progressDelta }));
 
-		if (animation().progress >= 1) {
+		if (useAnimationStore.getState().progress >= 1) {
 			// Cuboids are decorative and identical: snap them back to their fixed spots.
 			for (const id of cuboids ?? []) {
 				const mesh = cuboidRefs[id]?.current;
@@ -90,8 +88,8 @@ export function Animator({ speedFactor = 1.5 }: AnimatorProps) {
 				mesh.position.copy(CUBOID_BY_ID[id].pos);
 				mesh.rotation.set(0, 0, 0);
 			}
-			const onEnd = animation().onEnd;
-			animation().reset();
+			const onEnd = useAnimationStore.getState().onEnd;
+			useAnimationStore.getState().reset();
 			onEnd?.();
 		}
 	});

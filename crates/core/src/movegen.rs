@@ -28,31 +28,6 @@ impl Move {
             Move::Rotate { .. } => None,
         }
     }
-    /// Compact notation: `from>to` or `from>to:x` (capture) or `from@x+`.
-    pub fn notation(&self) -> String {
-        match self {
-            Move::Step {
-                from,
-                path,
-                capture,
-            } => format!(
-                "{}>{}{}",
-                from,
-                path.last().unwrap(),
-                if *capture { "x" } else { "" }
-            ),
-            Move::Rotate { from, axis, sign } => format!(
-                "{}@{}{}",
-                from,
-                match axis {
-                    Axis::X => 'x',
-                    Axis::Y => 'y',
-                    Axis::Z => 'z',
-                },
-                if *sign > 0 { '+' } else { '-' }
-            ),
-        }
-    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]

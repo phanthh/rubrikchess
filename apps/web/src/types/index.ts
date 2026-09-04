@@ -105,7 +105,6 @@ export type TAnimationPathConfig = {
 	type: 'path';
 	path: Curve<Vector3>; // 0->1 <=> start -> end
 	zPath: Curve<Vector3>; // offset path, orients the piece
-	ease: 'quad' | 'quart' | 'exponential';
 };
 
 // ---------------------------------------------------------------------------
@@ -152,8 +151,7 @@ export type ClientMsg =
 	| { t: 'resign'; game_id: string }
 	| { t: 'draw'; game_id: string; offer: boolean }
 	| { t: 'chat'; game_id: string; text: string }
-	| { t: 'rematch'; game_id: string; offer: boolean }
-	| { t: 'ping' };
+	| { t: 'rematch'; game_id: string; offer: boolean };
 
 export type ServerMsg =
 	| { t: 'hello'; me: User }
@@ -187,5 +185,4 @@ export type ServerMsg =
 	| { t: 'draw_offer'; game_id: string; by: Color | null }
 	| { t: 'chat'; game_id: string; user: User; text: string; at: number }
 	| { t: 'rematch_offer'; game_id: string; by: Color | null }
-	| { t: 'error'; msg: string }
-	| { t: 'pong' };
+	| { t: 'error'; msg: string };

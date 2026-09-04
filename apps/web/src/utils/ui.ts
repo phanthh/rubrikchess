@@ -25,12 +25,6 @@ export function statusLabel(status: Status) {
 	}
 }
 
-/** Rating change, e.g. "+12" / "−12". Null when the game was not rated. */
-export function formatDiff(diff: number | null | undefined) {
-	if (diff === null || diff === undefined) return null;
-	return diff >= 0 ? `+${diff}` : `−${-diff}`;
-}
-
 export function formatClock(ms: number) {
 	const total = Math.max(0, Math.round(ms / 1000));
 	const m = Math.floor(total / 60);

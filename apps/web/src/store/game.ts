@@ -377,7 +377,7 @@ function runMove(move: Move, done: () => void) {
 		const { path, zPath } = stepCurves(from, pathCells);
 		startAnimation({
 			pieces: [piece.id],
-			config: { type: 'path', ease: 'quart', path, zPath },
+			config: { type: 'path', path, zPath },
 			onEnd: done,
 		});
 		return;

@@ -1,5 +1,5 @@
 import { C_S } from '@/settings';
-import { animation } from '@/store/animation';
+import { useAnimationStore } from '@/store/animation';
 import { TCuboid } from '@/types';
 import { usePreventPropagation } from '@/utils/hooks';
 import { memo, useLayoutEffect, useRef } from 'react';
@@ -15,9 +15,9 @@ export const Cuboid = memo(({ cuboid }: CuboidProps) => {
 	const preventPropagationProps = usePreventPropagation();
 
 	useLayoutEffect(() => {
-		animation().registerCuboidRef(cuboid.id, ref);
+		useAnimationStore.getState().registerCuboidRef(cuboid.id, ref);
 		return () => {
-			animation().unregisterCuboidRef(cuboid.id);
+			useAnimationStore.getState().unregisterCuboidRef(cuboid.id);
 		};
 	}, [cuboid.id]);
 

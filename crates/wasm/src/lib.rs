@@ -44,23 +44,9 @@ impl WasmGame {
         js(&self.0)
     }
 
-    pub fn turn(&self) -> Result<JsValue, JsValue> {
-        js(&self.0.turn)
-    }
-
-    pub fn status(&self) -> Result<JsValue, JsValue> {
-        js(&self.0.status)
-    }
-
     #[wasm_bindgen(js_name = legalMoves)]
     pub fn legal_moves(&self, from: u16) -> Result<JsValue, JsValue> {
         js(&self.0.legal_moves(from))
-    }
-
-    /// Pseudo-legal moves for all pieces (both colours) → [[cellId, Move[]], ...]
-    #[wasm_bindgen(js_name = allMoves)]
-    pub fn all_moves(&self) -> Result<JsValue, JsValue> {
-        js(&self.0.all_moves())
     }
 
     /// Attacked king/prince cells with attack paths → [[cellId, path[]], ...]
