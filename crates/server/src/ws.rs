@@ -16,7 +16,7 @@ use tokio::task::JoinHandle;
 use crate::db;
 use crate::db::User;
 use crate::lobby::{ClockSpec, Seek};
-use crate::room::{arm_timeout, persist, Clock, Room};
+use crate::room::{arm_timeout, evict_when_idle, persist, Clock, Room};
 use crate::{now_ms, rand_id, AppState};
 
 #[derive(Deserialize)]
@@ -57,7 +57,6 @@ enum ClientMsg {
         game_id: String,
         offer: bool,
     },
-    Ping,
 }
 
 pub async fn handler(
@@ -157,7 +156,6 @@ fn handle(
     msg: ClientMsg,
 ) {
     match msg {
-        ClientMsg::Ping => send(out, json!({"t": "pong"})),
         ClientMsg::Seek { clock, walled } => {
             state.lobby.lock().add(Seek {
                 id: rand_id(8),
@@ -349,19 +347,19 @@ fn room_of(state: &Arc<AppState>, game_id: &str) -> Option<Arc<Mutex<Room>>> {
         return Some(room);
     }
     let row = db::load_game(&state.db.lock(), game_id)?;
-    let game = db::game_from_row(&row)?;
-    let mut room = Room::new(
-        row.id.clone(),
-        game,
-        row.white,
-        row.black,
-        row.clock,
-        row.created_at,
-    );
-    room.white_diff = row.white_diff;
-    room.black_diff = row.black_diff;
-    let room = Arc::new(Mutex::new(room));
-    Some(state.rooms.lock().entry(row.id).or_insert(room).clone())
+    let finished = row.status != Status::Playing;
+    let room = Arc::new(Mutex::new(Room::from_row(row)?));
+    let mut rooms = state.rooms.lock();
+    if let Some(live) = rooms.get(game_id) {
+        return Some(live.clone());
+    }
+    rooms.insert(game_id.to_string(), room.clone());
+    drop(rooms);
+    if finished {
+        // Nothing will finish this room again, so arm its eviction here.
+        evict_when_idle(state.clone(), game_id.to_string(), room.lock().tx.clone());
+    }
+    Some(room)
 }
 
 fn start_game(state: &Arc<AppState>, seek: Seek, acceptor: &User) {

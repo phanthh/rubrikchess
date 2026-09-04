@@ -115,15 +115,31 @@ fn add_column(conn: &Connection, table: &str, column: &str, decl: &str) {
     }
 }
 
-/// Rooms live in memory: anything still `playing` after a restart is lost.
-pub fn abandon_playing(conn: &Connection) {
+/// Ids of games still `playing`, oldest first (rehydrated into rooms on boot).
+pub fn playing_games(conn: &Connection) -> Vec<String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id FROM games WHERE json_extract(status, '$.kind') = 'playing'
+             ORDER BY created_at",
+        )
+        .expect("prepare playing");
+    let rows = stmt
+        .query_map([], |r| r.get::<_, String>(0))
+        .expect("playing games");
+    rows.filter_map(|r| r.ok()).collect()
+}
+
+pub fn abandon_game(conn: &Connection, id: &str) {
     conn.execute(
-        "UPDATE games SET status = ?1 WHERE json_extract(status, '$.kind') = 'playing'",
-        params![json(&Status::Draw {
-            reason: EndReason::Abandoned
-        })],
+        "UPDATE games SET status = ?1 WHERE id = ?2",
+        params![
+            json(&Status::Draw {
+                reason: EndReason::Abandoned
+            }),
+            id
+        ],
     )
-    .expect("abandon playing");
+    .expect("abandon game");
 }
 
 const USER_COLS: &str =
@@ -353,53 +369,21 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
 }
 
 /// Recent games, newest first. `user_id` restricts to that player's games.
-pub fn list_games(conn: &Connection, limit: i64, user_id: Option<&str>) -> Vec<serde_json::Value> {
+/// ponytail: N+1 queries; fine for sqlite at limit ≤ 100.
+pub fn list_games(conn: &Connection, limit: i64, user_id: Option<&str>) -> Vec<GameRow> {
     let mut stmt = conn
         .prepare(
-            "SELECT g.id, g.white, g.black, g.status, g.clock, g.moves, g.created_at,
-                    g.white_diff, g.black_diff
-             FROM games g
-             WHERE ?2 IS NULL OR g.white = ?2 OR g.black = ?2
-             ORDER BY g.created_at DESC LIMIT ?1",
+            "SELECT id FROM games
+             WHERE ?2 IS NULL OR white = ?2 OR black = ?2
+             ORDER BY created_at DESC LIMIT ?1",
         )
         .expect("prepare list");
-    let rows = stmt
-        .query_map(params![limit, user_id], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, String>(4)?,
-                r.get::<_, String>(5)?,
-                r.get::<_, i64>(6)?,
-                r.get::<_, Option<i64>>(7)?,
-                r.get::<_, Option<i64>>(8)?,
-            ))
-        })
+    let ids: Vec<String> = stmt
+        .query_map(params![limit, user_id], |r| r.get(0))
         .expect("list games")
         .filter_map(|r| r.ok())
-        .collect::<Vec<_>>();
-    rows.into_iter()
-        .filter_map(
-            |(id, white, black, status, clock, moves, created_at, white_diff, black_diff)| {
-                let plies = serde_json::from_str::<Vec<Move>>(&moves)
-                    .map(|m| m.len())
-                    .unwrap_or(0);
-                Some(serde_json::json!({
-                    "id": id,
-                    "white": user(conn, &white)?,
-                    "black": user(conn, &black)?,
-                    "status": serde_json::from_str::<serde_json::Value>(&status).unwrap_or(serde_json::Value::Null),
-                    "clock": serde_json::from_str::<serde_json::Value>(&clock).unwrap_or(serde_json::Value::Null),
-                    "created_at": created_at,
-                    "plies": plies,
-                    "white_diff": white_diff,
-                    "black_diff": black_diff,
-                }))
-            },
-        )
-        .collect()
+        .collect();
+    ids.iter().filter_map(|id| load_game(conn, id)).collect()
 }
 
 /// Rebuild a playable game from a stored row (validating every move).

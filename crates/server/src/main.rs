@@ -330,7 +330,7 @@ async fn main() {
         .and_then(|p| p.parse().ok())
         .unwrap_or(3000);
     let state = Arc::new(AppState::new(&db_path));
-    db::abandon_playing(&state.db.lock());
+    room::rehydrate(&state);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
         .await
         .expect("bind");

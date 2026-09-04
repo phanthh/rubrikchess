@@ -6,6 +6,7 @@ use std::time::Duration;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use tokio::net::TcpStream;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
@@ -22,6 +23,34 @@ impl Drop for Server {
     }
 }
 
+impl Server {
+    /// Simulate a crash + restart: same port, same DB file.
+    async fn restart(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        self.child = spawn_server(self.port, &self._dir);
+        wait_ready(self.port).await;
+    }
+}
+
+fn spawn_server(port: u16, dir: &std::path::Path) -> Child {
+    Command::new(env!("CARGO_BIN_EXE_rubrik-server"))
+        .env("PORT", port.to_string())
+        .env("DATABASE_PATH", dir.join("test.db"))
+        .env("WEB_DIST", dir.join("dist"))
+        .spawn()
+        .expect("spawn server")
+}
+
+async fn wait_ready(port: u16) {
+    for _ in 0..100 {
+        if TcpStream::connect(("127.0.0.1", port)).await.is_ok() {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
 async fn start_server() -> Server {
     let port = {
         let l = std::net::TcpListener::bind("127.0.0.1:0").expect("free port");
@@ -29,18 +58,8 @@ async fn start_server() -> Server {
     };
     let dir = std::env::temp_dir().join(format!("rubrik-test-{port}"));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let child = Command::new(env!("CARGO_BIN_EXE_rubrik-server"))
-        .env("PORT", port.to_string())
-        .env("DATABASE_PATH", dir.join("test.db"))
-        .env("WEB_DIST", dir.join("dist"))
-        .spawn()
-        .expect("spawn server");
-    for _ in 0..100 {
-        if TcpStream::connect(("127.0.0.1", port)).await.is_ok() {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    }
+    let child = spawn_server(port, &dir);
+    wait_ready(port).await;
     Server {
         child,
         port,
@@ -51,7 +70,32 @@ async fn start_server() -> Server {
 type Ws = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
 async fn connect(port: u16) -> Ws {
-    let (ws, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws"))
+    connect_sid(port).await.0
+}
+
+/// Connect anonymously, also returning the `sid=...` cookie of the new user.
+async fn connect_sid(port: u16) -> (Ws, String) {
+    let (ws, res) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws"))
+        .await
+        .expect("ws connect");
+    let sid = res
+        .headers()
+        .get("set-cookie")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|c| c.split(';').next())
+        .expect("sid cookie")
+        .to_string();
+    (ws, sid)
+}
+
+/// Reconnect as an existing user by replaying its session cookie.
+async fn connect_as(port: u16, sid: &str) -> Ws {
+    let mut req = format!("ws://127.0.0.1:{port}/ws")
+        .into_client_request()
+        .expect("request");
+    req.headers_mut()
+        .insert("cookie", sid.parse().expect("cookie value"));
+    let (ws, _) = tokio_tungstenite::connect_async(req)
         .await
         .expect("ws connect");
     ws
@@ -81,9 +125,10 @@ async fn wait_for(ws: &mut Ws, want: &str) -> Value {
 
 /// Two fresh clients that seek/accept into a game: (a, b, a's id, game id).
 async fn seek_accept(port: u16) -> (Ws, Ws, String, String) {
-    let mut a = connect(port).await;
-    let mut b = connect(port).await;
+    seek_accept_with(connect(port).await, connect(port).await).await
+}
 
+async fn seek_accept_with(mut a: Ws, mut b: Ws) -> (Ws, Ws, String, String) {
     let a_id = wait_for(&mut a, "hello").await["me"]["id"]
         .as_str()
         .expect("id")
@@ -315,4 +360,75 @@ async fn register_logout_login() {
         .await
         .expect("json");
     assert_eq!(me2["id"], id.as_str());
+}
+
+/// A crashed server rehydrates in-flight games from the DB: state, clock and
+/// move handling all survive the restart.
+#[tokio::test]
+async fn restart_rehydrates_game() {
+    let mut server = start_server().await;
+    let (a, a_sid) = connect_sid(server.port).await;
+    let (b, b_sid) = connect_sid(server.port).await;
+    let (mut a, mut b, a_id, game_id) = seek_accept_with(a, b).await;
+
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    wait_for(&mut a, "game_state").await;
+    send(&mut b, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut b, "game_state").await;
+    let a_is_white = state["white"]["id"] == a_id.as_str();
+    let (white_sid, black_sid) = if a_is_white {
+        (a_sid, b_sid)
+    } else {
+        (b_sid, a_sid)
+    };
+
+    let mut game = rubrik_core::Game::new(rubrik_core::GameConfig::default());
+    let mv = game.legal_moves(9).first().expect("legal move").clone();
+    let white = if a_is_white { &mut a } else { &mut b };
+    send(white, json!({"t":"move","game_id":game_id,"move":mv})).await;
+    wait_for(white, "move").await;
+    game.play(mv).expect("replay white move");
+
+    let restart_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("epoch")
+        .as_millis() as i64;
+    server.restart().await;
+
+    // the rehydrated room keeps the position and hands the clock to black
+    let mut spectator = connect(server.port).await;
+    wait_for(&mut spectator, "hello").await;
+    send(&mut spectator, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut spectator, "game_state").await;
+    assert_eq!(state["game"]["status"]["kind"], "playing");
+    assert_eq!(
+        state["game"]["history"].as_array().expect("history").len(),
+        1
+    );
+    assert_eq!(state["game"]["turn"], "black");
+    assert_eq!(state["clock"]["running"], "black");
+    // downtime is not charged: black's budget is intact and its clock restarts now
+    assert_eq!(state["clock"]["black_ms"], 60000);
+    assert!(state["clock"]["at"].as_i64().expect("at") >= restart_at);
+    let white_ms = state["clock"]["white_ms"].as_i64().expect("white_ms");
+    assert!((60000..=61000).contains(&white_ms), "white_ms {white_ms}");
+
+    // ...and still accepts moves
+    let reply = (0..game.board.cells.len() as u16)
+        .find_map(|c| game.legal_moves(c).into_iter().next())
+        .expect("black move");
+    let mut black = connect_as(server.port, &black_sid).await;
+    send(
+        &mut black,
+        json!({"t":"move","game_id":game_id,"move":reply}),
+    )
+    .await;
+    let seen = wait_for(&mut spectator, "move").await;
+    assert_eq!(seen["ply"], 2);
+    assert_eq!(seen["turn"], "white");
+
+    // the white player can still resign from a reconnected session
+    let mut white = connect_as(server.port, &white_sid).await;
+    send(&mut white, json!({"t":"resign","game_id":game_id})).await;
+    wait_for(&mut spectator, "game_end").await;
 }

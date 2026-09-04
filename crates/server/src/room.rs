@@ -115,6 +115,18 @@ impl Room {
         }
     }
 
+    /// Rebuild a room from a stored game. Downtime is not charged: the running
+    /// clock restarts from now.
+    pub fn from_row(row: db::GameRow) -> Option<Room> {
+        let game = db::game_from_row(&row)?;
+        let mut clock = row.clock;
+        clock.at = now_ms();
+        let mut room = Room::new(row.id, game, row.white, row.black, clock, row.created_at);
+        room.white_diff = row.white_diff;
+        room.black_diff = row.black_diff;
+        Some(room)
+    }
+
     pub fn color_of(&self, user_id: &str) -> Option<Color> {
         if self.white.id == user_id {
             Some(Color::White)
@@ -141,7 +153,7 @@ impl Room {
         })
     }
 
-    pub fn play(&mut self, state: &AppState, user_id: &str, mv: Move) -> Result<(), String> {
+    pub fn play(&mut self, state: &Arc<AppState>, user_id: &str, mv: Move) -> Result<(), String> {
         if self.game.status != Status::Playing {
             return Err("game is over".into());
         }
@@ -169,7 +181,7 @@ impl Room {
         Ok(())
     }
 
-    pub fn end(&mut self, state: &AppState, status: Status) {
+    pub fn end(&mut self, state: &Arc<AppState>, status: Status) {
         if self.game.status != Status::Playing {
             return;
         }
@@ -177,7 +189,7 @@ impl Room {
         self.finish(state);
     }
 
-    fn finish(&mut self, state: &AppState) {
+    fn finish(&mut self, state: &Arc<AppState>) {
         self.clock.stop(now_ms());
         self.draw_offer = None;
         let (white_diff, black_diff) = self.rate(state);
@@ -188,6 +200,7 @@ impl Room {
             "white_diff": white_diff,
             "black_diff": black_diff,
         }));
+        evict_when_idle(state.clone(), self.id.clone(), self.tx.clone());
     }
 
     /// Glicko-2 update for a decided game; abandoned games stay unrated.
@@ -255,6 +268,39 @@ pub fn persist(state: &AppState, room: &Room) {
         &room.clock,
         now_ms(),
     );
+}
+
+/// Restore rooms for games a previous run left `playing`; games whose moves no
+/// longer replay are abandoned.
+pub fn rehydrate(state: &Arc<AppState>) {
+    let ids = db::playing_games(&state.db.lock());
+    for id in ids {
+        let row = db::load_game(&state.db.lock(), &id);
+        let Some(room) = row.and_then(Room::from_row) else {
+            tracing::warn!("game {id}: replay failed, abandoning");
+            db::abandon_game(&state.db.lock(), &id);
+            continue;
+        };
+        let room = Arc::new(Mutex::new(room));
+        state.rooms.lock().insert(id, room.clone());
+        arm_timeout(state.clone(), room);
+    }
+}
+
+const EVICT_EVERY: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// Drop a finished room from memory once nobody is subscribed to it; a later
+/// `watch` reloads it from the DB.
+pub fn evict_when_idle(state: Arc<AppState>, id: String, tx: broadcast::Sender<String>) {
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(EVICT_EVERY).await;
+            if tx.receiver_count() == 0 {
+                state.rooms.lock().remove(&id);
+                return;
+            }
+        }
+    });
 }
 
 /// Arm the flag-fall timer for whoever is on move. Fires once; if the ply is
