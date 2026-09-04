@@ -14,6 +14,7 @@ import { useShallow } from 'zustand/react/shallow';
 export function GamePage() {
 	const { id } = useParams();
 	const me = useNetStore((store) => store.me);
+	const connected = useNetStore((store) => store.connected);
 	const [chat, setChat] = useState<Extract<ServerMsg, { t: 'chat' }>[]>([]);
 	const [draft, setDraft] = useState('');
 	const [rematchBy, setRematchBy] = useState<Color | null>(null);
@@ -32,9 +33,11 @@ export function GamePage() {
 		})),
 	);
 
+	useEffect(connect, []);
+
+	// re-runs on reconnect so the room subscription (and full state) is restored
 	useEffect(() => {
-		if (!id) return;
-		connect();
+		if (!id || !connected) return;
 		send({ t: 'watch', game_id: id });
 		const unsub = onServerMsg((msg) => {
 			if (!('game_id' in msg) || msg.game_id !== id) return;
@@ -66,7 +69,7 @@ export function GamePage() {
 			setDraft('');
 			setRematchBy(null);
 		};
-	}, [id]);
+	}, [id, connected]);
 
 	useEffect(() => {
 		const el = chatList.current;

@@ -7,6 +7,9 @@ export const PALETTE = ['#aaaaaa', '#444444', '#aa0000', '#0000aa', '#aaaa00', '
 
 export const WHITE = PALETTE[0];
 export const BLACK = PALETTE[1];
+/** Piece colours, offset from the face colours so pieces stay visible on same-colour faces. */
+export const PIECE_WHITE = '#f2ead8';
+export const PIECE_BLACK = '#1a1a1a';
 
 export const PIECE_NAMES: Record<PieceKind, string> = {
 	pawn: 'Pawn',

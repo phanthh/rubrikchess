@@ -396,3 +396,6 @@ function runMove(move: Move, done: () => void) {
 	game().render();
 	startAnimation({ cells: ids, cuboids, config: { type: 'rotate', axis, angle }, onEnd: done });
 }
+
+// Debug handle: `__game.getState()` in devtools.
+(globalThis as unknown as { __game: typeof useGameStore }).__game = useGameStore;

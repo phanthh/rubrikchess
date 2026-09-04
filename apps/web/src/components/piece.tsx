@@ -1,7 +1,7 @@
 import { animation } from '@/store/animation';
 import { useGameStore } from '@/store/game';
 import { Piece as TPiece, PieceKind, TCell } from '@/types';
-import { BLACK, PIECE_NAMES, WHITE } from '@/utils/consts';
+import { PIECE_BLACK, PIECE_NAMES, PIECE_WHITE } from '@/utils/consts';
 import { useInteractiveMesh } from '@/utils/hooks';
 import { GroupProps, MeshProps, useLoader } from '@react-three/fiber';
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';
@@ -36,7 +36,7 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 
 	const [color, interactiveProps] = useInteractiveMesh(
 		{
-			normal: piece.color === 'white' ? WHITE : BLACK,
+			normal: piece.color === 'white' ? PIECE_WHITE : PIECE_BLACK,
 			hover: '#aaffaa',
 			active: '#aaffaa',
 			tooltip: PIECE_NAMES[piece.kind],
@@ -69,7 +69,7 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 				castShadow
 				receiveShadow
 			>
-				<meshStandardMaterial roughness={0.6} metalness={0.1} color={color} />
+				<meshStandardMaterial roughness={0.35} metalness={0.25} color={color} />
 			</mesh>
 			{debug && <AxisHelper />}
 		</group>

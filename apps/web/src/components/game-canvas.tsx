@@ -4,7 +4,6 @@ import { Suspense } from 'react';
 import { INITAL_CAM_CORD } from '../settings';
 import { game, useGameStore } from '../store/game';
 import { Board } from './board';
-import { CameraRig } from './camera-rig';
 import { Controls } from './controls';
 import { CubeFrame } from './cube-frame';
 import { Lights } from './lights';
@@ -26,7 +25,10 @@ export function GameCanvas() {
 			<PerformanceMonitor onDecline={() => game().setSetting({ lowPerf: true })} />
 			<Suspense fallback={<CubeFrame />}>
 				<Lights />
-				<Board />
+				{/* black sees its own (-Y) face on top: flip the scene, not the camera */}
+				<group rotation-z={myColor === 'black' ? Math.PI : 0}>
+					<Board />
+				</group>
 				{debug && (
 					<>
 						<Stats />
@@ -34,9 +36,7 @@ export function GameCanvas() {
 					</>
 				)}
 			</Suspense>
-			<CameraRig />
-			{/* remount so arcball picks up the re-oriented camera */}
-			<Controls key={myColor ?? 'none'} />
+			<Controls />
 		</Canvas>
 	);
 }

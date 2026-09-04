@@ -80,3 +80,4 @@ export function startAnimation(
 		...partial,
 	});
 }
+(globalThis as unknown as { __anim: typeof useAnimationStore }).__anim = useAnimationStore;

@@ -24,11 +24,16 @@ const INDICATED = ['reachable', 'capturable', 'targeted', 'targeted:path'];
 export const Cell = memo(({ cell, onPick }: CellProps) => {
 	const ref = useRef<Mesh>(null);
 	const debug = useGameStore((store) => store.debug);
+	const flipped = useGameStore((store) => store.myColor === 'black');
 	const preventProgagationProps = usePreventPropagation();
 
 	useLayoutEffect(() => {
-		ref.current?.lookAt(cell.pos.clone().add(cell.side.clone().multiplyScalar(MAX_INT)));
-	}, [cell.side, cell.pos]);
+		const mesh = ref.current;
+		if (!mesh?.parent) return;
+		// lookAt wants world coords; the board group may be flipped for black
+		mesh.parent.updateWorldMatrix(true, false);
+		mesh.lookAt(mesh.parent.localToWorld(cell.pos.clone().add(cell.side.clone().multiplyScalar(MAX_INT))));
+	}, [cell.side, cell.pos, flipped]);
 
 	useLayoutEffect(() => {
 		animation().registerCellRef(cell.id, ref);
