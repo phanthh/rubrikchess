@@ -79,11 +79,10 @@ async fn wait_for(ws: &mut Ws, want: &str) -> Value {
         .unwrap_or_else(|_| panic!("timeout waiting for {want}"))
 }
 
-#[tokio::test]
-async fn seek_accept_move() {
-    let server = start_server().await;
-    let mut a = connect(server.port).await;
-    let mut b = connect(server.port).await;
+/// Two fresh clients that seek/accept into a game: (a, b, a's id, game id).
+async fn seek_accept(port: u16) -> (Ws, Ws, String, String) {
+    let mut a = connect(port).await;
+    let mut b = connect(port).await;
 
     let a_id = wait_for(&mut a, "hello").await["me"]["id"]
         .as_str()
@@ -112,6 +111,13 @@ async fn seek_accept_move() {
         .expect("game id")
         .to_string();
     assert_eq!(wait_for(&mut b, "game_start").await["game_id"], game_id);
+    (a, b, a_id, game_id)
+}
+
+#[tokio::test]
+async fn seek_accept_move() {
+    let server = start_server().await;
+    let (mut a, mut b, a_id, game_id) = seek_accept(server.port).await;
 
     send(&mut a, json!({"t":"watch","game_id":game_id})).await;
     send(&mut b, json!({"t":"watch","game_id":game_id})).await;
@@ -169,6 +175,62 @@ async fn seek_accept_move() {
     assert_eq!(profile["user"]["games"], 1);
     assert!(profile["user"]["rating"].as_f64().expect("rating") < 1500.0);
     assert_eq!(profile["games"][0]["id"], game_id.as_str());
+}
+
+#[tokio::test]
+async fn chat_and_rematch() {
+    let server = start_server().await;
+    let (mut a, mut b, a_id, game_id) = seek_accept(server.port).await;
+
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    send(&mut b, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    wait_for(&mut b, "game_state").await;
+    let white_id = state["white"]["id"].as_str().expect("white").to_string();
+    let black_id = state["black"]["id"].as_str().expect("black").to_string();
+
+    // chat reaches the other player
+    send(
+        &mut a,
+        json!({"t":"chat","game_id":game_id,"text":"  gg  "}),
+    )
+    .await;
+    let chat = wait_for(&mut b, "chat").await;
+    assert_eq!(chat["game_id"], game_id.as_str());
+    assert_eq!(chat["text"], "gg");
+    assert_eq!(chat["user"]["id"], a_id.as_str());
+
+    // a resigns, then both offer a rematch
+    send(&mut a, json!({"t":"resign","game_id":game_id})).await;
+    wait_for(&mut b, "game_end").await;
+
+    send(
+        &mut a,
+        json!({"t":"rematch","game_id":game_id,"offer":true}),
+    )
+    .await;
+    let offer = wait_for(&mut b, "rematch_offer").await;
+    assert!(offer["by"].is_string());
+    send(
+        &mut b,
+        json!({"t":"rematch","game_id":game_id,"offer":true}),
+    )
+    .await;
+
+    let new_id = wait_for(&mut a, "game_start").await["game_id"]
+        .as_str()
+        .expect("game id")
+        .to_string();
+    assert_ne!(new_id, game_id);
+    assert_eq!(wait_for(&mut b, "game_start").await["game_id"], new_id);
+
+    // colours swapped, same clock and rules
+    send(&mut a, json!({"t":"watch","game_id":new_id})).await;
+    let state2 = wait_for(&mut a, "game_state").await;
+    assert_eq!(state2["white"]["id"], black_id.as_str());
+    assert_eq!(state2["black"]["id"], white_id.as_str());
+    assert_eq!(state2["clock"]["initial_ms"], 60000);
+    assert_eq!(state2["game"]["config"]["rules"]["walled"], false);
 }
 
 #[tokio::test]

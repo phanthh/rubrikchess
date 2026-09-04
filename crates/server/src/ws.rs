@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -46,6 +46,14 @@ enum ClientMsg {
         game_id: String,
     },
     Draw {
+        game_id: String,
+        offer: bool,
+    },
+    Chat {
+        game_id: String,
+        text: String,
+    },
+    Rematch {
         game_id: String,
         offer: bool,
     },
@@ -102,10 +110,12 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
     send(&out_tx, lobby);
 
     let mut subs: HashMap<String, JoinHandle<()>> = HashMap::new();
+    // Chat rate limit: recent message timestamps per room.
+    let mut chats: HashMap<String, VecDeque<i64>> = HashMap::new();
     while let Some(Ok(msg)) = stream.next().await {
         match msg {
             Message::Text(text) => match serde_json::from_str::<ClientMsg>(&text) {
-                Ok(m) => handle(&state, &user, &out_tx, &mut subs, m),
+                Ok(m) => handle(&state, &user, &out_tx, &mut subs, &mut chats, m),
                 Err(e) => send(&out_tx, json!({"t": "error", "msg": e.to_string()})),
             },
             Message::Close(_) => break,
@@ -143,6 +153,7 @@ fn handle(
     user: &User,
     out: &mpsc::UnboundedSender<String>,
     subs: &mut HashMap<String, JoinHandle<()>>,
+    chats: &mut HashMap<String, VecDeque<i64>>,
     msg: ClientMsg,
 ) {
     match msg {
@@ -263,6 +274,72 @@ fn handle(
             }
             persist(state, &r);
         }
+        ClientMsg::Chat { game_id, text } => {
+            let text = text.trim();
+            if text.is_empty() || text.chars().count() > 300 {
+                err(out, "invalid chat");
+                return;
+            }
+            let Some(room) = room_of(state, &game_id) else {
+                err(out, "no such game");
+                return;
+            };
+            let now = now_ms();
+            let recent = chats.entry(game_id.clone()).or_default();
+            while recent.front().is_some_and(|t| now - t >= 5000) {
+                recent.pop_front();
+            }
+            if recent.len() >= 5 {
+                return; // rate limited: drop silently
+            }
+            recent.push_back(now);
+            room.lock().broadcast(json!({
+                "t": "chat",
+                "game_id": game_id,
+                "user": user,
+                "text": text,
+                "at": now,
+            }));
+        }
+        ClientMsg::Rematch { game_id, offer } => {
+            let Some(room) = room_of(state, &game_id) else {
+                err(out, "no such game");
+                return;
+            };
+            let accepted = {
+                let mut r = room.lock();
+                let Some(color) = r.color_of(&user.id) else {
+                    err(out, "not a player");
+                    return;
+                };
+                if r.game.status == Status::Playing {
+                    err(out, "game in progress");
+                    return;
+                }
+                if offer && r.rematch_offer == Some(color.other()) {
+                    r.rematch_offer = None;
+                    // Colours swapped, same clock and rules.
+                    Some((
+                        r.black.clone(),
+                        r.white.clone(),
+                        ClockSpec {
+                            initial_ms: r.clock.initial_ms,
+                            increment_ms: r.clock.increment_ms,
+                        },
+                        r.game.config.rules.walled,
+                    ))
+                } else {
+                    r.rematch_offer = if offer { Some(color) } else { None };
+                    r.broadcast(
+                        json!({"t": "rematch_offer", "game_id": r.id, "by": r.rematch_offer}),
+                    );
+                    None
+                }
+            };
+            if let Some((white, black, clock, walled)) = accepted {
+                create_game(state, white, black, clock, walled);
+            }
+        }
     }
 }
 
@@ -293,14 +370,19 @@ fn start_game(state: &Arc<AppState>, seek: Seek, acceptor: &User) {
     } else {
         (acceptor.clone(), seek.user.clone())
     };
+    create_game(state, white, black, seek.clock, seek.walled);
+    state.lobby.lock().remove_user(&acceptor.id);
+    state.broadcast_lobby();
+}
+
+/// Create + persist a game, put it live and tell both players.
+fn create_game(state: &Arc<AppState>, white: User, black: User, clock: ClockSpec, walled: bool) {
     let config = GameConfig {
-        rules: Rules {
-            walled: seek.walled,
-        },
+        rules: Rules { walled },
         ..Default::default()
     };
     let now = now_ms();
-    let clock = Clock::new(seek.clock, now);
+    let clock = Clock::new(clock, now);
     let id = rand_id(8);
     db::insert_game(&state.db.lock(), &id, &white, &black, &config, &clock, now);
     let room = Arc::new(Mutex::new(Room::new(
@@ -312,8 +394,6 @@ fn start_game(state: &Arc<AppState>, seek: Seek, acceptor: &User) {
         now,
     )));
     state.rooms.lock().insert(id.clone(), room.clone());
-    state.lobby.lock().remove_user(&acceptor.id);
-    state.broadcast_lobby();
 
     let msg = json!({"t": "game_start", "game_id": id});
     state.send_to_user(&white.id, &msg);
