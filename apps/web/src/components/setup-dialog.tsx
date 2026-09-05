@@ -19,12 +19,12 @@ const COLORS: [SeekColor, string][] = [
 	['black', 'Black'],
 ];
 
-export function SetupDialog({ mode, onClose }: { mode: SetupMode | null; onClose: () => void }) {
+export function SetupDialog({ mode, onClose, opponent }: { mode: SetupMode | null; onClose: () => void; opponent?: string }) {
 	const [mi, setMi] = useState(9); // 5 min
 	const [ii, setIi] = useState(3); // 3 s
 	const [walled, setWalled] = useState(false);
 	const [layout, setLayout] = useState<Layout>('standard');
-	const [to, setTo] = useState('');
+	const [to, setTo] = useState(opponent ?? '');
 	const [color, setColor] = useState<SeekColor>('random');
 	const clock = { initial_ms: MINUTES[mi] * 60_000, increment_ms: INCREMENTS[ii] * 1000 };
 

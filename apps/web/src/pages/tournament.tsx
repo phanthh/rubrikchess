@@ -103,7 +103,9 @@ export function TournamentPage() {
 								<tbody>
 									{data.standings.map((s, i) => (
 										<tr key={s.user.id} className={cn('border-t border-border/40 [&>td]:px-3 [&>td]:py-1.5', s.user.id === me?.id && 'bg-primary/10')}>
-											<td className="w-8 text-muted-foreground">{i + 1}</td>
+											<td className="w-8 text-muted-foreground">
+												{t.status === 'finished' && i === 0 ? <Trophy className="h-4 w-4 text-brag" /> : i + 1}
+											</td>
 											<td>
 												<Link to={`/u/${s.user.name}`} className="text-foreground font-medium">
 													{s.user.name}

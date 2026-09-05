@@ -4,12 +4,18 @@ import { Shell } from '@/components/shell';
 import { getUser } from '@/net/api';
 import { GameRow, RatingPoint, User } from '@/types';
 import { useEffect, useState } from 'react';
+import { SetupDialog } from '@/components/setup-dialog';
+import { Button } from '@/components/ui/button';
+import { useNetStore } from '@/net/ws';
+import { Swords } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 
 export function UserPage() {
 	const { name } = useParams();
 	const [data, setData] = useState<{ user: User; games: GameRow[]; history?: RatingPoint[] } | null>(null);
 	const [missing, setMissing] = useState(false);
+	const [challenge, setChallenge] = useState(false);
+	const me = useNetStore((s) => s.me);
 
 	useEffect(() => {
 		if (!name) return;
@@ -37,6 +43,11 @@ export function UserPage() {
 									{u.registered ? 'Registered player' : 'Anonymous player'}
 								</div>
 							</div>
+							{me && me.id !== u.id && (
+								<Button variant="secondary" size="sm" onClick={() => setChallenge(true)}>
+									<Swords className="h-4 w-4 mr-1.5" /> Challenge
+								</Button>
+							)}
 							<div className="ml-auto text-right">
 								<div className="text-3xl font-bold text-brag leading-none">
 									{Math.round(u.rating)}
@@ -78,6 +89,7 @@ export function UserPage() {
 					</aside>
 				</div>
 			)}
+			{u && <SetupDialog key={u.name} mode={challenge ? 'friend' : null} onClose={() => setChallenge(false)} opponent={u.name} />}
 		</Shell>
 	);
 }
