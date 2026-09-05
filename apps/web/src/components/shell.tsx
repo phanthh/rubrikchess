@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 const NAV = [
 	['/', 'Play'],
 	['/tv', 'Watch'],
+	['/tournaments', 'Arena'],
 	['/players', 'Players'],
 	['/local', 'Sandbox'],
 ] as const;

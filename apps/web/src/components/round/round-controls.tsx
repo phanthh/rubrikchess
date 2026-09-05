@@ -91,7 +91,7 @@ export function RoundControls({
 	gone: Color | null;
 	rematchBy: Color | null;
 }) {
-	const { status, myColor, drawOffer, takebackOffer, history, diffs, flipped, clock } = useGameStore(
+	const { status, myColor, drawOffer, takebackOffer, history, diffs, flipped, clock, tournamentId } = useGameStore(
 		useShallow((s) => ({
 			status: s.status,
 			myColor: s.myColor,
@@ -101,6 +101,7 @@ export function RoundControls({
 			diffs: s.diffs,
 			flipped: s.flipped,
 			clock: s.clock,
+			tournamentId: s.tournamentId,
 		})),
 	);
 	const [confirm, setConfirm] = useState<Confirm>(null);
@@ -147,7 +148,14 @@ export function RoundControls({
 						</div>
 					)}
 				</div>
-				{myColor && rematchBy && rematchBy !== myColor && (
+				{tournamentId && (
+					<Button variant="secondary" className="m-2 mb-0" asChild>
+						<Link to={`/tournament/${tournamentId}`} className="hover:no-underline">
+							Back to tournament
+						</Link>
+					</Button>
+				)}
+				{myColor && !tournamentId && rematchBy && rematchBy !== myColor && (
 					<Question
 						text="Opponent wants a rematch"
 						onYes={() => send({ t: 'rematch', game_id: gameId, offer: true })}
@@ -155,7 +163,7 @@ export function RoundControls({
 					/>
 				)}
 				<div className="flex flex-col gap-2 p-2">
-					{myColor && !(rematchBy && rematchBy !== myColor) && (
+					{myColor && !tournamentId && !(rematchBy && rematchBy !== myColor) && (
 						<Button
 							variant={rematchBy === myColor ? 'outline' : 'secondary'}
 							onClick={() => send({ t: 'rematch', game_id: gameId, offer: rematchBy !== myColor })}

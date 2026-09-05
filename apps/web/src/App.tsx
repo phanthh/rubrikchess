@@ -9,6 +9,8 @@ import { GamesPage } from './pages/games';
 import { LobbyPage } from './pages/lobby';
 import { LocalPage } from './pages/local';
 import { PlayersPage } from './pages/players';
+import { TournamentPage } from './pages/tournament';
+import { TournamentsPage } from './pages/tournaments';
 import { TvPage } from './pages/tv';
 import { UserPage } from './pages/user';
 import { notify } from './utils/notify';
@@ -42,6 +44,8 @@ export default function App() {
 				<Route path="/local" element={<LocalPage />} />
 				<Route path="/tv" element={<TvPage />} />
 				<Route path="/games" element={<GamesPage />} />
+				<Route path="/tournaments" element={<TournamentsPage />} />
+				<Route path="/tournament/:id" element={<TournamentPage />} />
 				<Route path="/players" element={<PlayersPage />} />
 				<Route path="/c/:id" element={<ChallengePage />} />
 				<Route path="/g/:id" element={<GamePage />} />

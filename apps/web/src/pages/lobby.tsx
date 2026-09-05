@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button';
 import { leaderboard, listGames, liveGames } from '@/net/api';
 import { send, useNetStore } from '@/net/ws';
 import { variantLabel } from '@/store/game';
-import { GameRow, LiveGame, Seek, User } from '@/types';
+import { GameRow, LiveGame, Seek, Tournament, User } from '@/types';
+import { TourList } from './tournaments';
+import { listTournaments } from '@/net/api';
+import { onServerMsg } from '@/net/ws';
 import { clockLabel, speedOf } from '@/utils/clock';
 import { requestNotifyPermission } from '@/utils/notify';
 import { cn } from '@/utils/ui';
@@ -50,6 +53,7 @@ export function LobbyPage() {
 	const [live, setLive] = useState<LiveGame[]>([]);
 	const [top, setTop] = useState<User[]>([]);
 	const [setup, setSetup] = useState<SetupMode | null>(null);
+	const [tours, setTours] = useState<Tournament[]>([]);
 
 	useEffect(() => {
 		const refresh = () => {
@@ -58,8 +62,17 @@ export function LobbyPage() {
 		};
 		refresh();
 		leaderboard(10).then(setTop).catch(() => undefined);
+		const loadTours = () =>
+			listTournaments()
+				.then((d) => setTours([...d.running, ...d.upcoming]))
+				.catch(() => undefined);
+		loadTours();
+		const unsub = onServerMsg((m) => m.t === 'tour' && loadTours());
 		const t = setInterval(refresh, 10_000);
-		return () => clearInterval(t);
+		return () => {
+			clearInterval(t);
+			unsub();
+		};
 	}, [me?.id]);
 
 	const mySeek = seeks.find((s) => s.user.id === me?.id);
@@ -242,6 +255,17 @@ export function LobbyPage() {
 								</Link>
 							))
 						)}
+					</Box>
+
+					<Box
+						title="Tournaments"
+						action={
+							<Link to="/tournaments" className="text-xs normal-case tracking-normal font-normal">
+								All
+							</Link>
+						}
+					>
+						<TourList items={tours.slice(0, 5)} empty="No arena scheduled." />
 					</Box>
 
 					<Box

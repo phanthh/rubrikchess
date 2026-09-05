@@ -197,6 +197,7 @@ interface IGameStore {
 	flipped: boolean;
 	/** Local game against the engine: which colour it plays and how deep it looks. */
 	ai: { color: Color; level: number } | null;
+	tournamentId: string | null;
 	/** Hide everything but the board (key `z`). */
 	zen: boolean;
 	// settings
@@ -253,6 +254,7 @@ export const useGameStore = create(
 		watchers: 0,
 		flipped: false,
 		ai: null,
+		tournamentId: null,
 		zen: false,
 		walled: false,
 		layout: 'standard',
@@ -404,6 +406,7 @@ export const useGameStore = create(
 				takebackOffer: msg.takeback_offer ?? null,
 				presence: msg.presence ?? { white: true, black: true },
 				watchers: msg.watchers ?? 0,
+				tournamentId: msg.tournament_id ?? null,
 				myColor,
 				flipped: sameGame ? get().flipped : myColor === 'black',
 				cursor: engine.historyLen(),
@@ -496,6 +499,7 @@ function loadLocal(engine: WasmGame, patch: Partial<IGameStore>) {
 		takebackOffer: null,
 		watchers: 0,
 		presence: { white: true, black: true },
+		tournamentId: null,
 		flipped: false,
 		cursor: engine.historyLen(),
 		sans: [],

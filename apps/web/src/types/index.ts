@@ -145,6 +145,19 @@ export type LiveGame = {
 	created_at: number;
 };
 export type RatingPoint = { at: number; rating: number };
+export type Tournament = {
+	id: string;
+	name: string;
+	clock: ClockSpec;
+	walled: boolean;
+	layout: Layout;
+	starts_at: number;
+	duration_ms: number;
+	status: 'created' | 'running' | 'finished';
+	players: number;
+	created_by: User;
+};
+export type Standing = { user: User; score: number; games: number; wins: number; playing: boolean };
 export type Crosstable = { a_score: number; b_score: number; games: number; recent: { id: string; winner: 'a' | 'b' | null }[] };
 
 export type GameRow = {
@@ -156,6 +169,7 @@ export type GameRow = {
 	created_at: number;
 	plies: number;
 	layout?: Layout;
+	tournament_id?: string | null;
 	white_diff: number | null;
 	black_diff: number | null;
 };
@@ -169,6 +183,8 @@ export type ClientMsg =
 	| { t: 'join'; challenge_id: string }
 	| { t: 'claim'; game_id: string }
 	| { t: 'abort'; game_id: string }
+	| { t: 'tour_join'; id: string }
+	| { t: 'tour_leave'; id: string }
 	| { t: 'moretime'; game_id: string }
 	| { t: 'accept'; seek_id: string }
 	| { t: 'watch'; game_id: string }
@@ -195,6 +211,7 @@ export type ServerMsg =
 			presence?: Presence;
 			watchers?: number;
 			chat?: { user: User; text: string; at: number }[];
+			tournament_id?: string | null;
 		}
 	| {
 			t: 'move';
@@ -221,4 +238,5 @@ export type ServerMsg =
 	| { t: 'presence'; game_id: string; white: boolean; black: boolean }
 	| { t: 'gone'; game_id: string; color: Color }
 	| { t: 'clock'; game_id: string; clock: ClockState }
+	| { t: 'tour'; tournament: Tournament; joined?: boolean }
 	| { t: 'error'; msg: string };
