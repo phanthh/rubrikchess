@@ -333,3 +333,7 @@ Message = {id, from: user_id, to: user_id, text, at}
 WS server→client {t:"pm", message: Message, from: User}   pushed to the recipient's sockets
 ```
 Blocks: `POST/DELETE /api/block/:name` (30 / 10 min; blocking also unfollows). While either side blocks the other: `POST /api/messages/:name` → 403, direct challenges → "no such player". `GET /api/users/:name` gains `blocked: bool`.
+
+## Phase 14: server bot
+The system user (`system` / "Rubrik") plays: a direct challenge `to: "Rubrik"` is auto-accepted immediately (any clock except unlimited; colour per the challenge). After every ply where the bot is to move (and at game start when it is white), the server computes `rubrik_core::best_move(level 3)` on a blocking thread and plays it after ~600 ms (never less than 300 ms; never times out on sane clocks). Bot behaviour: declines draw and takeback offers instantly (`draw_offer`/`takeback_offer` broadcast with `by: null`), accepts rematches immediately, cannot be messaged/followed-back meaningfully (no-op). Lobby seeks never auto-match the bot. Games vs the bot are rated like any other; the bot never joins arenas.
+`GET /api/bot` → `User` (so the client can show its rating). Client: lobby button "Play the bot".
