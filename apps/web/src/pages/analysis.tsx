@@ -4,7 +4,9 @@ import { EvalGraph } from '@/components/round/eval-graph';
 import { MoveList } from '@/components/round/move-list';
 import { Button } from '@/components/ui/button';
 import { getGame } from '@/net/api';
-import { game, useGameStore } from '@/store/game';
+import { game, useGameStore, viewSetup } from '@/store/game';
+import { encodeSetup } from '@/utils/setup';
+import { layoutOf } from '@/utils/variant';
 import { statusLabel } from '@/utils/ui';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -71,6 +73,12 @@ export function AnalysisPage() {
 								Latest
 							</Button>
 						</div>
+						<Link
+							to={`/editor?setup=${encodeURIComponent(encodeSetup(viewSetup()))}${game().config?.rules.walled ? '&walled=1' : ''}${layoutOf(game().config) === 'rubrik' ? '&layout=rubrik' : ''}`}
+							className="text-xs"
+						>
+							Edit this position →
+						</Link>
 					</div>
 					<EngineBox />
 					<EvalGraph />

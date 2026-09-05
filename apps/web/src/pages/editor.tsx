@@ -7,13 +7,13 @@ import { baseConfig } from '@/store/game';
 import { CellId, Color, GameState, PieceKind } from '@/types';
 import { PIECE_NAMES } from '@/utils/consts';
 import { PIECE_LETTER } from '@/utils/notation';
-import { encodeSetup, fromSetup, Placement, toSetup } from '@/utils/setup';
+import { decodeSetup, encodeSetup, fromSetup, Placement, toSetup } from '@/utils/setup';
 import { cn } from '@/utils/ui';
 import { LAYOUTS } from '@/utils/variant';
 import { vec } from '@/utils/funcs';
 import { WasmGame } from 'rubrik-wasm';
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 const KINDS: PieceKind[] = [
 	'king',
@@ -32,10 +32,14 @@ const KINDS: PieceKind[] = [
 /** Board editor: place pieces on the unfolded net, then play the position locally. */
 export function EditorPage() {
 	const navigate = useNavigate();
-	const [pieces, setPieces] = useState<Map<CellId, Placement>>(() => fromSetup(baseConfig().setup));
+	const [params] = useSearchParams();
+	// prefilled from the analysis board (?setup=…&walled=1&layout=rubrik)
+	const [pieces, setPieces] = useState<Map<CellId, Placement>>(() =>
+		fromSetup(params.get('setup') ? decodeSetup(params.get('setup')!) : baseConfig().setup),
+	);
 	const [brush, setBrush] = useState<Placement | null>({ kind: 'pawn', color: 'white' });
-	const [walled, setWalled] = useState(false);
-	const [rubrik, setRubrik] = useState(false);
+	const [walled, setWalled] = useState(params.get('walled') === '1');
+	const [rubrik, setRubrik] = useState(params.get('layout') === 'rubrik');
 	const [challenge, setChallenge] = useState(false);
 
 	// initial geometry: cell id ↔ position, before any rotation

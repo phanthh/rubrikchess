@@ -8,6 +8,7 @@ import {
 	Layout,
 	Move,
 	Piece,
+	PieceKind,
 	RawCell,
 	ServerMsg,
 	Status,
@@ -21,6 +22,7 @@ import { AXES } from '@/utils/funcs';
 import { CUBOIDS } from '@/utils/cuboids';
 import { clamp, vec, vkey } from '@/utils/funcs';
 import { notation } from '@/utils/notation';
+import { toSetup } from '@/utils/setup';
 import { stepCurves } from '@/utils/path';
 import { play as playSound } from '@/utils/sound';
 import { prefs, usePrefs } from './prefs';
@@ -515,6 +517,26 @@ export const useGameStore = create(
 
 export function game() {
 	return useGameStore.getState();
+}
+
+/**
+ * Board-editor setup string of the position on screen. Setups address cells by their
+ * *initial* location, so each piece is keyed by whichever cell started where it now sits.
+ * ponytail: scrambled face colours (after rotations) are not representable and reset.
+ */
+export function viewSetup(): string {
+	const g = new WasmGame(game().config ?? baseConfig());
+	const initial = new Map(
+		(g.state() as GameState).board.cells.map((c, id) => [`${c.pos.x},${c.pos.y},${c.pos.z}`, id]),
+	);
+	g.free();
+	const pieces = new Map<CellId, { kind: PieceKind; color: Color }>();
+	for (const c of game().cells) {
+		if (!c.piece) continue;
+		const id = initial.get(vkey(c.pos));
+		if (id !== undefined) pieces.set(id, { kind: c.piece.kind, color: c.piece.color });
+	}
+	return toSetup(pieces);
 }
 
 /** Swap in a local engine and reset every per-game field. */
