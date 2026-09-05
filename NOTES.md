@@ -220,3 +220,8 @@ HTTP:
 ```
 GET /api/crosstable?a=<user_id>&b=<user_id>  → {a_score: f64, b_score: f64, games: n, recent: [{id, winner: "a"|"b"|null}] (last 10, asc)}  — decided games only (rated or not), draws 0.5.
 ```
+
+## Phase 7: variants + chat history
+Variant = `{walled: bool, layout: "standard"|"rubrik"}`. `rubrik` = 6 distinct face colours `[0,1,2,3,4,5]` (core `LAYOUT_RUBRIK`); affects Prince/Princess/Captain (same-colour rules).
+- seek / challenge / rematch carry `layout` (default "standard"); quick pairing matches on walled+layout too. `Seek`, `Challenge`, GameRow/LiveGame expose `layout`.
+- Chat history: room keeps last 50 chat lines in memory; `game_state` gains `chat: [{user, text, at}]` (not persisted across restarts).
