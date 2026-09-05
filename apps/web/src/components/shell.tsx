@@ -3,11 +3,11 @@ import { applyAuth } from '@/net/auth';
 import { PrefsDialog } from '@/components/prefs-dialog';
 import { RulesButton } from '@/components/rules-panel';
 import { Tooltip } from '@/components/tooltip';
-import { logout, setName } from '@/net/api';
+import { liveGames, logout, setName } from '@/net/api';
 import { connect, useNetStore } from '@/net/ws';
 import { useUi } from '@/store/ui';
 import { cn } from '@/utils/ui';
-import { ChevronDown, Settings } from 'lucide-react';
+import { ChevronDown, Settings, Swords } from 'lucide-react';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -31,7 +31,26 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 	const menuRef = useRef<HTMLDivElement>(null);
 
 	const zen = useUi((s) => s.zen);
+	const [myTurn, setMyTurn] = useState<{ id: string; opponent: string }[]>([]);
 	useEffect(connect, []);
+
+	// Games waiting on me (correspondence inbox): plies parity tells whose move it is.
+	useEffect(() => {
+		if (!me) return;
+		const poll = () =>
+			liveGames()
+				.then((games) =>
+					setMyTurn(
+						games
+							.filter((g) => (g.plies % 2 === 0 ? g.white.id : g.black.id) === me.id)
+							.map((g) => ({ id: g.id, opponent: (g.white.id === me.id ? g.black : g.white).name })),
+					),
+				)
+				.catch(() => undefined);
+		poll();
+		const t = setInterval(poll, 20_000);
+		return () => clearInterval(t);
+	}, [me]);
 
 	useEffect(() => {
 		if (!menu) return;
@@ -85,6 +104,16 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 					))}
 				</nav>
 				<div className="ml-auto flex items-center gap-1">
+					{myTurn.length > 0 && !location.pathname.startsWith(`/g/${myTurn[0].id}`) && (
+						<Link
+							to={`/g/${myTurn[0].id}`}
+							title={`Your move against ${myTurn[0].opponent}`}
+							className="flex items-center gap-1 px-2 py-1 mr-1 rounded-full bg-secondary/20 text-secondary text-xs font-semibold hover:no-underline"
+						>
+							<Swords className="h-3.5 w-3.5" />
+							{myTurn.length}
+						</Link>
+					)}
 					{connected && online > 0 && (
 						<span className="hidden sm:inline text-xs text-muted-foreground mr-1">{online} online</span>
 					)}

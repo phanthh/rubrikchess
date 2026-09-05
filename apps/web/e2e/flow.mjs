@@ -142,6 +142,14 @@ await W.waitForTimeout(1200);
 const s2 = await state(W);
 assert(s2.myColor === 'black' && s2.plies === 0, `rematch started with swapped colours (${s2.myColor})`);
 
+// header badge: it's W's move in the rematch game (0 plies, W is... whoever is white now)
+const whiteNow = (await state(W)).myColor === 'white' ? W : Bl;
+await whiteNow.goto(BASE);
+await whiteNow.waitForTimeout(1200);
+assert((await whiteNow.getByTitle(/Your move against/).count()) === 1, 'header shows games waiting on me');
+await whiteNow.goBack();
+await whiteNow.waitForTimeout(800);
+
 // lobby shows the in-progress game to a player
 await W.goto(BASE);
 await W.waitForTimeout(1200);

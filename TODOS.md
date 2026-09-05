@@ -5,5 +5,4 @@ challenges/tv/presence+claim/abort/moretime/crosstable/rating history/restart-re
 lobby, round page, prefs, sounds, analysis board, vs computer, profiles, tv, challenge pages), CI, Dockerfile, e2e flow script.
 
 ## Next
-- [ ] correspondence: reminders / inbox for games waiting on you (lobby banner covers the basics)
 - [ ] react-hooks eslint 7 (react-compiler rules) — needs hooks.ts/user.tsx rewrites
