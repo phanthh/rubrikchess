@@ -194,3 +194,18 @@ GET /api/challenges/:id              → Challenge (404 if missing/expired)
 GET /api/games?limit=20&before=<created_at>   pagination cursor; index games(created_at), games(white), games(black)
 GET /api/users/:name                 → gains `history: [{at, rating}]` (last 100, asc) from table rating_history(user_id, game_id, at, rating) written in rate(); plus `user.wins` now serialized
 ```
+
+## Phase 6: abort, moretime, online count, crosstable
+WS:
+```
+client→server
+  {t:"abort", game_id}        players only, while history.len() < 2 → game ends Draw{Abandoned} (unrated), game_end broadcast. Error otherwise.
+  {t:"moretime", game_id}     players only, playing → opponent gets +15s: clock.{opp}_ms += 15000 (at unchanged), broadcast {t:"clock", game_id, clock}, re-arm timeout.
+server→client
+  {t:"clock", game_id, clock: Clock}
+  lobby msg gains `online: n`   (distinct users with ≥1 socket) — sent whenever the lobby is broadcast; also broadcast on connect/disconnect (already happens via remove_user/broadcast_lobby; add on connect too).
+```
+HTTP:
+```
+GET /api/crosstable?a=<user_id>&b=<user_id>  → {a_score: f64, b_score: f64, games: n, recent: [{id, winner: "a"|"b"|null}] (last 10, asc)}  — decided games only (rated or not), draws 0.5.
+```
