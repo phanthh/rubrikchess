@@ -338,3 +338,11 @@ Blocks: `POST/DELETE /api/block/:name` (30 / 10 min; blocking also unfollows). W
 The system user (`system` / "Rubrik") plays: a direct challenge `to: "Rubrik"` is auto-accepted immediately (any clock except unlimited; colour per the challenge). After every ply where the bot is to move (and at game start when it is white), the server computes `rubrik_core::best_move(level 3)` on a blocking thread and plays it after ~600 ms (never less than 300 ms; never times out on sane clocks). Bot behaviour: declines draw and takeback offers instantly (`draw_offer`/`takeback_offer` broadcast with `by: null`), accepts rematches immediately, cannot be messaged/followed-back meaningfully (no-op). Lobby seeks never auto-match the bot. Games vs the bot are rated like any other; the bot never joins arenas.
 `GET /api/bot` → `User` (so the client can show its rating). Client: lobby button "Play the bot".
 Incoming challenges: `GET /api/challenges` → Challenge[] addressed to the session (open, unexpired). `{t:"decline", challenge_id}` (target only) removes it and sends the creator `{t:"challenge_declined", id, by: User}`.
+
+## Phase 15: puzzle mining on the server
+Table `puzzles(id INTEGER PK, game_id, ply, solution JSON, gain, created_at, UNIQUE(game_id, ply))` + `games.mined INTEGER DEFAULT 0`.
+Background task (every 5 min, and once 30 s after boot): take up to 5 finished, unmined games with ≥ 8 plies; for each position from ply 4 on (≤ 120 plies): `base = analyse(1).score`, `greedy = analyse(2)`, `deep = analyse(3)`; a puzzle when `deep.score - base >= 300 && < 50_000 && deep.move != greedy.move` (same rule as the client). Store, mark the game mined. Runs on `spawn_blocking`; never holds locks across the search.
+```
+GET /api/puzzles/random?exclude=<id,id,...>   → {id, game_id, ply, solution: Move, gain, config, moves: Move[] (first `ply` plies), white: User, black: User}  or 404 when none
+GET /api/puzzles/count                        → {count}
+```
