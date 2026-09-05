@@ -19,6 +19,8 @@ interface IPrefs {
 	highlightLastMove: boolean;
 	/** Play on the unfolded 2D net instead of the 3D cube. */
 	view2d: boolean;
+	/** Lifetime tactics solved on this device. */
+	puzzlesSolved: number;
 	set: (patch: Partial<Omit<IPrefs, 'set'>>) => void;
 }
 
@@ -37,6 +39,7 @@ export const usePrefs = create<IPrefs>()(
 			boardTheme: 'grey',
 			highlightLastMove: true,
 			view2d: false,
+			puzzlesSolved: 0,
 			set: (patch) => set(patch),
 		}),
 		{ name: 'rubrik-prefs' },

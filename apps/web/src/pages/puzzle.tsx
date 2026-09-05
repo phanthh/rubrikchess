@@ -7,6 +7,7 @@ import { Move } from '@/types';
 import { notation } from '@/utils/notation';
 import { play } from '@/utils/sound';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { prefs, usePrefs } from '@/store/prefs';
 import { Link } from 'react-router-dom';
 
 type Task = { gameId: string; puzzle: Puzzle; players: string };
@@ -28,7 +29,7 @@ export function PuzzlePage() {
 	const [verdict, setVerdict] = useState<Verdict>(null);
 	const [status, setStatus] = useState('Looking for a tactic in recent games…');
 	const [loading, setLoading] = useState(true);
-	const [solved, setSolved] = useState(0);
+	const solved = usePrefs((s) => s.puzzlesSolved);
 	const seen = useRef(new Set<string>());
 	const run = useRef(0);
 	const turn = useGameStore((s) => s.turn);
@@ -75,7 +76,7 @@ export function PuzzlePage() {
 		const played = history[task.puzzle.ply];
 		if (sameMove(played, task.puzzle.solution)) {
 			setVerdict('solved');
-			setSolved((n) => n + 1);
+			prefs().set({ puzzlesSolved: prefs().puzzlesSolved + 1 });
 			play('end');
 		} else {
 			setVerdict('failed');
