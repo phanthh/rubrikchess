@@ -25,7 +25,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 
 use crate::db::User;
-use crate::lobby::{Challenge, Lobby, CHALLENGE_TTL_MS};
+use crate::lobby::{Challenge, Layout, Lobby, CHALLENGE_TTL_MS};
 use crate::room::Room;
 
 pub struct AppState {
@@ -359,6 +359,7 @@ async fn get_tv(State(state): State<Arc<AppState>>) -> Response {
                     "initial_ms": r.clock.initial_ms,
                     "increment_ms": r.clock.increment_ms,
                 },
+                "layout": Layout::of(r.game.config.layout),
                 "plies": r.game.history.len(),
                 "watchers": r.watchers,
                 "created_at": r.created_at,
@@ -429,6 +430,7 @@ async fn get_game(State(state): State<Arc<AppState>>, Path(id): Path<String>) ->
             "white": r.white,
             "black": r.black,
             "config": r.game.config,
+            "layout": Layout::of(r.game.config.layout),
             "moves": r.game.history,
             "status": r.game.status,
             "clock": r.clock,

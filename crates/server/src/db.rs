@@ -2,6 +2,7 @@ use rubrik_core::{EndReason, Game, GameConfig, Move, Status};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::Serialize;
 
+use crate::lobby::Layout;
 use crate::rating::{Rating, DEFAULT_RATING, DEFAULT_RD, DEFAULT_VOL};
 use crate::room::Clock;
 
@@ -47,6 +48,7 @@ pub struct GameRow {
     pub white: User,
     pub black: User,
     pub config: GameConfig,
+    pub layout: Layout,
     pub moves: Vec<Move>,
     pub status: Status,
     pub clock: Clock,
@@ -389,11 +391,13 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
         .optional()
         .expect("query game")?;
     let moves: Vec<Move> = serde_json::from_str(&moves).ok()?;
+    let config: GameConfig = serde_json::from_str(&config).ok()?;
     Some(GameRow {
         id: id.to_string(),
         white: user(conn, &white_id)?,
         black: user(conn, &black_id)?,
-        config: serde_json::from_str(&config).ok()?,
+        layout: Layout::of(config.layout),
+        config,
         plies: moves.len(),
         moves,
         status: serde_json::from_str(&status).ok()?,

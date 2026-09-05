@@ -731,3 +731,67 @@ async fn challenge_join() {
         .expect("challenge");
     assert_eq!(gone.status(), reqwest::StatusCode::NOT_FOUND);
 }
+
+/// A rubrik-layout seek pairs only with another rubrik seek, and a spectator
+/// joining later gets the room's chat history.
+#[tokio::test]
+async fn rubrik_layout_and_chat_history() {
+    let server = start_server().await;
+    let mut a = connect(server.port).await;
+    let mut b = connect(server.port).await;
+    let a_id = hello_id(&mut a).await;
+    wait_for(&mut b, "hello").await;
+
+    let clock = json!({"initial_ms":60000,"increment_ms":0});
+    send(&mut a, json!({"t":"seek","clock":clock,"layout":"rubrik"})).await;
+    // wait until b sees the seek, so its own seek can match it
+    loop {
+        let lobby = wait_for(&mut b, "lobby").await;
+        if let Some(s) = lobby["seeks"].as_array().and_then(|v| v.first()) {
+            assert_eq!(s["layout"], "rubrik");
+            break;
+        }
+    }
+    send(&mut b, json!({"t":"seek","clock":clock,"layout":"rubrik"})).await;
+
+    let game_id = wait_for(&mut a, "game_start").await["game_id"]
+        .as_str()
+        .expect("game id")
+        .to_string();
+    assert_eq!(wait_for(&mut b, "game_start").await["game_id"], game_id);
+
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    assert_eq!(state["game"]["config"]["layout"], json!([0, 1, 2, 3, 4, 5]));
+    assert_eq!(state["chat"], json!([]));
+
+    send(&mut a, json!({"t":"chat","game_id":game_id,"text":"hi"})).await;
+    wait_for(&mut a, "chat").await;
+
+    // a late spectator replays the conversation from `game_state`
+    let mut c = connect(server.port).await;
+    wait_for(&mut c, "hello").await;
+    send(&mut c, json!({"t":"watch","game_id":game_id})).await;
+    let seen = wait_for(&mut c, "game_state").await;
+    assert_eq!(seen["chat"].as_array().expect("chat").len(), 1);
+    assert_eq!(seen["chat"][0]["text"], "hi");
+    assert_eq!(seen["chat"][0]["user"]["id"], a_id.as_str());
+
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let tv: Value = reqwest::get(format!("{base}/api/tv"))
+        .await
+        .expect("tv")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(tv[0]["layout"], "rubrik");
+
+    // the stored row exposes the layout too
+    let row: Value = reqwest::get(format!("{base}/api/games/{game_id}"))
+        .await
+        .expect("game")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(row["layout"], "rubrik");
+}

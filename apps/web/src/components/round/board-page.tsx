@@ -4,7 +4,8 @@ import { Shell } from '@/components/shell';
 import { game, useGameStore } from '@/store/game';
 import { usePrefs } from '@/store/prefs';
 import { cn } from '@/utils/ui';
-import { Box, LayoutGrid } from 'lucide-react';
+import { Box, Focus, LayoutGrid } from 'lucide-react';
+import { RESET_CAMERA_EVENT } from '@/components/controls';
 import { ReactNode, useEffect, useState } from 'react';
 import { Dialog } from '@/components/ui/dialog';
 
@@ -49,6 +50,15 @@ export function BoardPage({ banner, left, right, below }: { banner: ReactNode; l
 						{banner}
 						{cursor !== plies && ` · viewing move ${cursor}/${plies}`}
 					</div>
+					{!view2d && (
+						<button
+							title="Reset camera"
+							onClick={() => window.dispatchEvent(new Event(RESET_CAMERA_EVENT))}
+							className="absolute top-2 right-11 p-1.5 rounded-full bg-black/50 text-white/80 hover:text-white backdrop-blur"
+						>
+							<Focus className="h-4 w-4" />
+						</button>
+					)}
 					<button
 						title={view2d ? 'Switch to 3D cube' : 'Switch to 2D net'}
 						onClick={() => usePrefs.getState().set({ view2d: !view2d })}
