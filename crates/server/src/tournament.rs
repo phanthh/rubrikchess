@@ -100,7 +100,7 @@ impl Arena {
         rows.into_iter()
             .filter_map(|(id, p)| {
                 Some(json!({
-                    "user": db::user(conn, id)?,
+                    "user": db::user_bare(conn, id)?,
                     "score": p.score,
                     "games": p.games,
                     "wins": p.wins,

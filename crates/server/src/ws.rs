@@ -785,9 +785,6 @@ fn handle(
                 err(out, "invalid chat");
                 return;
             }
-            if !state.allow(&user.id, &format!("chat:{id}"), 5, 5000) {
-                return; // rate limited: drop silently
-            }
             let line =
                 json!({"t": "tour_chat", "id": id, "user": user, "text": text, "at": now_ms()});
             let mut tours = state.tournaments.lock();
@@ -795,6 +792,14 @@ fn handle(
                 err(out, "unknown tournament");
                 return;
             };
+            // participants only (joined or already scored): keeps the shared fan-out honest
+            if !arena.players.contains_key(&user.id) {
+                err(out, "join the tournament to chat");
+                return;
+            }
+            if !state.allow(&user.id, &format!("chat:{id}"), 5, 5000) {
+                return; // rate limited: drop silently
+            }
             arena.push_chat(line.clone());
             drop(tours);
             // ponytail: fan-out on the lobby channel (every socket gets it, clients filter by id);

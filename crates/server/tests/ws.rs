@@ -1321,6 +1321,14 @@ async fn per_speed_ratings() {
         assert!(profile["user"]["perfs"]["blitz"].is_null());
     }
 
+    // the overall board must answer too (regression: param-count panic)
+    let overall = http
+        .get(format!("{base}/api/leaderboard?limit=10"))
+        .send()
+        .await
+        .expect("overall leaderboard");
+    assert_eq!(overall.status(), 200);
+
     let board: Value = http
         .get(format!("{base}/api/leaderboard?perf=bullet"))
         .send()

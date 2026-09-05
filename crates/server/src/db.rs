@@ -288,6 +288,12 @@ fn with_perfs(conn: &Connection, mut user: User) -> User {
 }
 
 pub fn user(conn: &Connection, id: &str) -> Option<User> {
+    user_bare(conn, id).map(|u| with_perfs(conn, u))
+}
+
+/// User without per-speed ratings: for list payloads (standings, conversations) that
+/// never render them, saving one query per row.
+pub fn user_bare(conn: &Connection, id: &str) -> Option<User> {
     conn.query_row(
         &format!("SELECT {USER_COLS} WHERE id = ?1"),
         params![id],
@@ -295,7 +301,6 @@ pub fn user(conn: &Connection, id: &str) -> Option<User> {
     )
     .optional()
     .expect("query user")
-    .map(|u| with_perfs(conn, u))
 }
 
 pub fn user_by_name(conn: &Connection, name: &str) -> Option<User> {
@@ -324,11 +329,12 @@ pub fn leaderboard(conn: &Connection, limit: i64, perf: Option<&str>) -> Vec<Use
         ),
     };
     let mut stmt = conn.prepare(&sql).expect("prepare leaderboard");
-    let users: Vec<User> = stmt
-        .query_map(params![limit, perf], user_from_row)
-        .expect("leaderboard")
-        .filter_map(|r| r.ok())
-        .collect();
+    // rusqlite rejects extra bound params, so bind exactly what each query names
+    let rows = match perf {
+        Some(perf) => stmt.query_map(params![limit, perf], user_from_row),
+        None => stmt.query_map(params![limit], user_from_row),
+    };
+    let users: Vec<User> = rows.expect("leaderboard").filter_map(|r| r.ok()).collect();
     users.into_iter().map(|u| with_perfs(conn, u)).collect()
 }
 
@@ -526,12 +532,10 @@ pub fn following(conn: &Connection, user_id: &str) -> Vec<User> {
              WHERE f.user_id = ?1 ORDER BY f.created_at DESC LIMIT 200"
         ))
         .expect("prepare following");
-    let users: Vec<User> = stmt
-        .query_map(params![user_id], user_from_row)
+    stmt.query_map(params![user_id], user_from_row)
         .expect("following")
         .filter_map(|r| r.ok())
-        .collect();
-    users.into_iter().map(|u| with_perfs(conn, u)).collect()
+        .collect()
 }
 
 /// One private message; `from`/`to` are user ids.
@@ -593,7 +597,7 @@ pub fn conversations(conn: &Connection, user_id: &str) -> Vec<serde_json::Value>
         .collect();
     rows.into_iter()
         .filter_map(|(last, other, unread)| {
-            let user = user(conn, &other)?;
+            let user = user_bare(conn, &other)?;
             Some(serde_json::json!({"user": user, "last": last, "unread": unread}))
         })
         .collect()

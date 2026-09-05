@@ -70,9 +70,10 @@ export function LobbyPage() {
 			listGames(12)
 				.then(setGames)
 				.catch(() => undefined);
-			friends()
-				.then(setPals)
-				.catch(() => undefined);
+			if (me)
+				friends()
+					.then(setPals)
+					.catch(() => undefined);
 			liveGames()
 				.then(setLive)
 				.catch(() => undefined);
@@ -98,7 +99,7 @@ export function LobbyPage() {
 			clearTimeout(debounce);
 			unsub();
 		};
-	}, [me?.id]);
+	}, [me]);
 
 	const mySeek = seeks.find((s) => s.user.id === me?.id);
 	const isPool = (s: Seek | undefined, m: number, i: number) =>
