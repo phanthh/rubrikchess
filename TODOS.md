@@ -5,4 +5,5 @@ challenges/tv/presence+claim/abort/moretime/crosstable/rating history/restart-re
 lobby, round page, prefs, sounds, analysis board, vs computer, profiles, tv, challenge pages), CI, Dockerfile, e2e flow script.
 
 ## Next
+- [ ] toolchain: vite 8 (latest), typescript@latest, replace eslint/prettier with oxlint + oxfmt (latest)
 - [ ] react-hooks eslint 7 (react-compiler rules) — needs hooks.ts/user.tsx rewrites
