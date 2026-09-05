@@ -386,6 +386,19 @@ await K.waitForTimeout(800);
 assert((await K.locator('div[title]', { hasText: 'hello there' }).count()) === 1, 'thread shows the message');
 await shot(K, 'inbox');
 
+// block: K blocks U → U's next message is refused
+await K.goto(BASE + '/u/' + encodeURIComponent(await U.evaluate(() => document.querySelector('header button span')?.textContent)));
+await K.waitForTimeout(600);
+await K.getByRole('button', { name: 'Block' }).click();
+await K.waitForTimeout(400);
+assert((await K.getByRole('button', { name: 'Unblock' }).count()) === 1, 'block toggles');
+const blockedStatus = await U.evaluate(
+	(n) => fetch(`/api/messages/${n}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'hi' }) }).then((r) => r.status),
+	kName,
+);
+assert(blockedStatus === 403, `message to a blocker is refused (${blockedStatus})`);
+await K.getByRole('button', { name: 'Unblock' }).click();
+
 // api sanity: endpoints the UI swallows errors for must answer 200
 for (const path of ['/api/leaderboard?limit=10', '/api/leaderboard?perf=blitz', '/api/tv', '/api/games?limit=5', '/api/tournaments']) {
 	const status = await U.evaluate((p) => fetch(p).then((r) => r.status), path);

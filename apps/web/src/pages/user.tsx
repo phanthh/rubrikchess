@@ -1,8 +1,8 @@
 import { GameRowItem } from '@/components/game-row';
 import { RatingChart } from '@/components/rating-chart';
 import { Shell } from '@/components/shell';
-import { follow, getUser, TourResult, unfollow } from '@/net/api';
-import { Mail, Trophy, UserMinus, UserPlus } from 'lucide-react';
+import { block, follow, getUser, TourResult, unblock, unfollow } from '@/net/api';
+import { Ban, Mail, Trophy, UserMinus, UserPlus } from 'lucide-react';
 import { GameRow, RatingPoint, User } from '@/types';
 import { useEffect, useState } from 'react';
 import { SetupDialog } from '@/components/setup-dialog';
@@ -21,6 +21,7 @@ export function UserPage() {
 		tournaments?: TourResult[];
 		following?: boolean;
 		followers?: number;
+		blocked?: boolean;
 	} | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [challenge, setChallenge] = useState(false);
@@ -88,6 +89,29 @@ export function UserPage() {
 											<UserPlus className="h-4 w-4 mr-1.5" />
 										)}
 										{data.following ? 'Unfollow' : 'Follow'}
+									</Button>
+									<Button
+										variant="ghost"
+										size="sm"
+										title={
+											data.blocked
+												? 'Unblock: allow messages and challenges again'
+												: 'Block: no messages or challenges from this player'
+										}
+										onClick={() =>
+											(data.blocked ? unblock(u.name) : block(u.name))
+												.then((r) =>
+													setData({
+														...data,
+														blocked: r.blocked,
+														following: r.blocked ? false : data.following,
+													}),
+												)
+												.catch(() => undefined)
+										}
+									>
+										<Ban className="h-4 w-4 mr-1.5" />
+										{data.blocked ? 'Unblock' : 'Block'}
 									</Button>
 								</>
 							)}

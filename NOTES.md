@@ -332,3 +332,4 @@ GET  /api/messages/:name               → Message[] (last 100, asc); marks them
 Message = {id, from: user_id, to: user_id, text, at}
 WS server→client {t:"pm", message: Message, from: User}   pushed to the recipient's sockets
 ```
+Blocks: `POST/DELETE /api/block/:name` (30 / 10 min; blocking also unfollows). While either side blocks the other: `POST /api/messages/:name` → 403, direct challenges → "no such player". `GET /api/users/:name` gains `blocked: bool`.

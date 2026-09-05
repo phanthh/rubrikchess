@@ -175,6 +175,12 @@ pub fn open(path: &str) -> Connection {
            created_at INTEGER NOT NULL,
            PRIMARY KEY (user_id, target_id)
          );
+         CREATE TABLE IF NOT EXISTS blocks(
+           user_id TEXT NOT NULL,
+           target_id TEXT NOT NULL,
+           created_at INTEGER NOT NULL,
+           PRIMARY KEY (user_id, target_id)
+         );
          CREATE TABLE IF NOT EXISTS messages(
            id INTEGER PRIMARY KEY,
            from_id TEXT NOT NULL,
@@ -502,6 +508,39 @@ pub fn unfollow(conn: &Connection, user_id: &str, target_id: &str) {
         params![user_id, target_id],
     )
     .expect("delete follow");
+}
+
+pub fn set_block(conn: &Connection, user_id: &str, target_id: &str, on: bool, now: i64) {
+    if on {
+        conn.execute(
+            "INSERT OR REPLACE INTO blocks(user_id, target_id, created_at) VALUES (?1, ?2, ?3)",
+            params![user_id, target_id, now],
+        )
+        .expect("insert block");
+    } else {
+        conn.execute(
+            "DELETE FROM blocks WHERE user_id = ?1 AND target_id = ?2",
+            params![user_id, target_id],
+        )
+        .expect("delete block");
+    }
+}
+
+/// True when `a` blocked `b` (direction matters for the UI; use both ways to gate contact).
+pub fn is_blocked(conn: &Connection, a: &str, b: &str) -> bool {
+    conn.query_row(
+        "SELECT 1 FROM blocks WHERE user_id = ?1 AND target_id = ?2",
+        params![a, b],
+        |_| Ok(()),
+    )
+    .optional()
+    .expect("query block")
+    .is_some()
+}
+
+/// Either side blocked the other: no messages, no direct challenges.
+pub fn contact_blocked(conn: &Connection, a: &str, b: &str) -> bool {
+    is_blocked(conn, a, b) || is_blocked(conn, b, a)
 }
 
 pub fn is_following(conn: &Connection, user_id: &str, target_id: &str) -> bool {

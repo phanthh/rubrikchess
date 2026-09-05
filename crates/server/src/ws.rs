@@ -595,17 +595,30 @@ fn handle(
             }
             let to = match to.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
                 None => None,
-                Some(name) => match db::user_by_name(&state.db.lock(), name) {
-                    Some(u) if u.id != user.id => Some(u),
-                    Some(_) => {
-                        err(out, "you cannot challenge yourself");
-                        return;
+                Some(name) => {
+                    // single lock scope: a guard in a match scrutinee lives through the arms
+                    let found = {
+                        let conn = state.db.lock();
+                        db::user_by_name(&conn, name)
+                            .map(|u| (db::contact_blocked(&conn, &user.id, &u.id), u))
+                    };
+                    match found {
+                        // blocked either way: indistinguishable from an unknown player
+                        Some((true, u)) if u.id != user.id => {
+                            err(out, "no such player");
+                            return;
+                        }
+                        Some((_, u)) if u.id != user.id => Some(u),
+                        Some(_) => {
+                            err(out, "you cannot challenge yourself");
+                            return;
+                        }
+                        None => {
+                            err(out, "no such player");
+                            return;
+                        }
                     }
-                    None => {
-                        err(out, "no such player");
-                        return;
-                    }
-                },
+                }
             };
             let challenge = Challenge {
                 id: rand_id(8),

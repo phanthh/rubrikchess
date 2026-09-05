@@ -61,6 +61,7 @@ export const getUser = (name: string) =>
 		tournaments?: TourResult[];
 		following?: boolean;
 		followers?: number;
+		blocked?: boolean;
 	}>(`/users/${encodeURIComponent(name)}`);
 
 export const leaderboard = (limit = 20, perf?: string) =>
@@ -141,3 +142,8 @@ export const conversations = () => req<Conversation[]>('/messages');
 export const thread = (name: string) => req<Message[]>(`/messages/${encodeURIComponent(name)}`);
 export const sendMessage = (name: string, text: string) =>
 	post<Message>(`/messages/${encodeURIComponent(name)}`, { text });
+
+export const block = (name: string) =>
+	post<{ blocked: boolean }>(`/block/${encodeURIComponent(name)}`, {});
+export const unblock = (name: string) =>
+	req<{ blocked: boolean }>(`/block/${encodeURIComponent(name)}`, { method: 'DELETE' });

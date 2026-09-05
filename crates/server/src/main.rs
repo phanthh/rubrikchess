@@ -23,7 +23,6 @@ use serde_json::json;
 use tokio::sync::{broadcast, mpsc};
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
-use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::db::User;
@@ -407,8 +406,13 @@ async fn get_user(
         .collect();
     let followers = db::follower_count(&conn, &user.id);
     drop(conn);
-    let following = current_user(&state, &headers)
+    let me = current_user(&state, &headers);
+    let following = me
+        .as_ref()
         .is_some_and(|me| db::is_following(&state.db.lock(), &me.id, &user.id));
+    let blocked = me
+        .as_ref()
+        .is_some_and(|me| db::is_blocked(&state.db.lock(), &me.id, &user.id));
     let online = state.conns.lock().contains_key(&user.id);
     Json(json!({
         "user": user,
@@ -418,8 +422,46 @@ async fn get_user(
         "tournaments": tournaments,
         "following": following,
         "followers": followers,
+        "blocked": blocked,
     }))
     .into_response()
+}
+
+fn set_block(state: &AppState, headers: &HeaderMap, name: &str, on: bool) -> Response {
+    let Some(me) = current_user(state, headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    if !state.allow(&me.id, "follow", 30, 600_000) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
+    }
+    let conn = state.db.lock();
+    let Some(target) = db::user_by_name(&conn, name) else {
+        return error(StatusCode::NOT_FOUND, "not found");
+    };
+    if target.id == me.id {
+        return error(StatusCode::BAD_REQUEST, "cannot block yourself");
+    }
+    db::set_block(&conn, &me.id, &target.id, on, now_ms());
+    if on {
+        db::unfollow(&conn, &me.id, &target.id);
+    }
+    Json(json!({ "blocked": on })).into_response()
+}
+
+async fn post_block(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Response {
+    set_block(&state, &headers, &name, true)
+}
+
+async fn delete_block(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Response {
+    set_block(&state, &headers, &name, false)
 }
 
 async fn post_follow(
@@ -517,6 +559,9 @@ async fn post_message(
     };
     if target.id == me.id {
         return error(StatusCode::BAD_REQUEST, "cannot message yourself");
+    }
+    if db::contact_blocked(&conn, &me.id, &target.id) {
+        return error(StatusCode::FORBIDDEN, "blocked");
     }
     let message = db::send_message(&conn, &me.id, &target.id, &text, now_ms());
     drop(conn);
@@ -873,6 +918,7 @@ pub fn router(state: Arc<AppState>) -> Router {
             post(post_follow).delete(delete_follow),
         )
         .route("/api/friends", get(get_friends))
+        .route("/api/block/{name}", post(post_block).delete(delete_block))
         .route("/api/messages", get(get_messages))
         .route(
             "/api/messages/{name}",
@@ -893,8 +939,6 @@ pub fn router(state: Arc<AppState>) -> Router {
         .fallback_service(static_files)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
-        // a bug in one handler should be a 500 in the log, not a dropped connection
-        .layer(CatchPanicLayer::new())
         .with_state(state)
 }
 

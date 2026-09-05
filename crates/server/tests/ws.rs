@@ -1440,3 +1440,73 @@ async fn private_messages() {
         .expect("anon message");
     assert_eq!(res.status(), reqwest::StatusCode::UNAUTHORIZED);
 }
+
+/// Blocking cuts messages and direct challenges both ways — and must not wedge the server
+/// (regression: a db guard held across a match once deadlocked the challenge path).
+#[tokio::test]
+async fn blocks_gate_contact() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let http = reqwest::Client::new();
+
+    let (mut a, a_sid) = connect_sid(server.port).await;
+    let (mut b, b_sid) = connect_sid(server.port).await;
+    let a_name = wait_for(&mut a, "hello").await["me"]["name"]
+        .as_str()
+        .expect("name")
+        .to_string();
+    let b_name = wait_for(&mut b, "hello").await["me"]["name"]
+        .as_str()
+        .expect("name")
+        .to_string();
+
+    let res = http
+        .post(format!("{base}/api/block/{b_name}"))
+        .header("cookie", &a_sid)
+        .send()
+        .await
+        .expect("block");
+    assert_eq!(res.status(), 200);
+
+    // b cannot message a
+    let res = http
+        .post(format!("{base}/api/messages/{a_name}"))
+        .header("cookie", &b_sid)
+        .json(&json!({"text": "hi"}))
+        .send()
+        .await
+        .expect("post message");
+    assert_eq!(res.status(), 403);
+
+    // b cannot challenge a directly; a still gets served afterwards
+    send(
+        &mut b,
+        json!({"t":"challenge","clock":{"initial_ms":60000,"increment_ms":0},"to": a_name}),
+    )
+    .await;
+    let e = wait_for(&mut b, "error").await;
+    assert_eq!(e["msg"], "no such player");
+    let res = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        http.get(format!("{base}/api/me")).header("cookie", &a_sid).send(),
+    )
+    .await
+    .expect("server responsive")
+    .expect("me");
+    assert_eq!(res.status(), 200);
+
+    // unblock restores messaging
+    http.delete(format!("{base}/api/block/{b_name}"))
+        .header("cookie", &a_sid)
+        .send()
+        .await
+        .expect("unblock");
+    let res = http
+        .post(format!("{base}/api/messages/{a_name}"))
+        .header("cookie", &b_sid)
+        .json(&json!({"text": "hi"}))
+        .send()
+        .await
+        .expect("post message");
+    assert_eq!(res.status(), 200);
+}
