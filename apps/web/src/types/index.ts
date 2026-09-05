@@ -126,6 +126,7 @@ export type User = {
 	games: number;
 	wins?: number;
 	registered: boolean;
+	perfs?: Record<string, { rating: number; rd: number; games: number }>;
 };
 export type ClockSpec = { initial_ms: number; increment_ms: number };
 /** Server clock: remaining times as of `at`, extrapolate for `running`. */

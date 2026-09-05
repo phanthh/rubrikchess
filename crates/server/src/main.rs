@@ -491,10 +491,17 @@ async fn get_friends(State(state): State<Arc<AppState>>, headers: HeaderMap) -> 
 
 async fn get_leaderboard(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<ListQuery>,
+    Query(q): Query<LeaderQuery>,
 ) -> Response {
     let limit = q.limit.unwrap_or(20).clamp(1, 200);
-    Json(db::leaderboard(&state.db.lock(), limit)).into_response()
+    Json(db::leaderboard(&state.db.lock(), limit, q.perf.as_deref())).into_response()
+}
+
+#[derive(Deserialize)]
+struct LeaderQuery {
+    limit: Option<i64>,
+    /// Rank by this speed bucket instead of the overall rating.
+    perf: Option<String>,
 }
 
 #[derive(Deserialize)]

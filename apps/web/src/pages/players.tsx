@@ -1,11 +1,14 @@
 import { Shell } from '@/components/shell';
 import { leaderboard } from '@/net/api';
 import { User } from '@/types';
+import { PERFS } from '@/utils/clock';
+import { cn } from '@/utils/ui';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export function PlayersPage() {
 	const [top, setTop] = useState<User[]>([]);
+	const [perf, setPerf] = useState<string>('');
 	const [q, setQ] = useState('');
 	const navigate = useNavigate();
 	useEffect(() => {
@@ -33,7 +36,21 @@ export function PlayersPage() {
 				</button>
 			</form>
 			<div className="box max-w-2xl mx-auto">
-				<div className="box-title">Leaderboard</div>
+				<div className="box-title flex items-center gap-1 flex-wrap">
+					<span className="mr-auto">Leaderboard</span>
+					{['', ...PERFS].map((p) => (
+						<button
+							key={p}
+							onClick={() => setPerf(p)}
+							className={cn(
+								'px-2 py-0.5 rounded normal-case tracking-normal font-normal capitalize hover:bg-accent',
+								perf === p && 'bg-accent text-foreground',
+							)}
+						>
+							{p || 'Overall'}
+						</button>
+					))}
+				</div>
 				{top.length === 0 ? (
 					<div className="p-4 text-sm text-muted-foreground">
 						Nobody has played a rated game as a registered player yet. A ? marks a provisional
@@ -55,8 +72,8 @@ export function PlayersPage() {
 									</td>
 									<td className="text-muted-foreground text-xs">{u.games} games</td>
 									<td className="text-right text-brag font-medium">
-										{Math.round(u.rating)}
-										{u.rd >= 200 && (
+										{Math.round(perf ? (u.perfs?.[perf]?.rating ?? u.rating) : u.rating)}
+										{(perf ? (u.perfs?.[perf]?.rd ?? u.rd) : u.rd) >= 200 && (
 											<span className="text-muted-foreground" title="provisional">
 												?
 											</span>

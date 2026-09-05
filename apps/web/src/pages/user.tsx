@@ -94,6 +94,23 @@ export function UserPage() {
 								<div className="text-xs text-muted-foreground">± {Math.round(u.rd)} deviation</div>
 							</div>
 						</section>
+						{u.perfs && Object.keys(u.perfs).length > 0 && (
+							<section className="box p-3 flex flex-wrap gap-2">
+								{Object.entries(u.perfs).map(([perf, p]) => (
+									<div
+										key={perf}
+										className="flex-1 min-w-24 rounded border border-border/60 px-3 py-2"
+									>
+										<div className="text-xs text-muted-foreground capitalize">{perf}</div>
+										<div className="font-semibold text-brag">
+											{Math.round(p.rating)}
+											{p.rd >= 200 && <span className="text-muted-foreground">?</span>}
+										</div>
+										<div className="text-[11px] text-muted-foreground">{p.games} games</div>
+									</div>
+								))}
+							</section>
+						)}
 						<section className="box">
 							<div className="box-title">Rating history</div>
 							<RatingChart points={data.history ?? []} />

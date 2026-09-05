@@ -9,7 +9,7 @@ import { GameRow, LiveGame, Seek, Tournament, User } from '@/types';
 import { TourList } from './tournaments';
 import { Friend, friends, listTournaments } from '@/net/api';
 import { onServerMsg } from '@/net/ws';
-import { clockLabel, speedOf } from '@/utils/clock';
+import { clockLabel, perfOf, speedOf } from '@/utils/clock';
 import { requestNotifyPermission } from '@/utils/notify';
 import { cn } from '@/utils/ui';
 import { Loader2, Users } from 'lucide-react';
@@ -232,7 +232,11 @@ export function LobbyPage() {
 												)}
 											>
 												<td className="font-medium">{seek.user.name}</td>
-												<td className="text-brag">{Math.round(seek.user.rating)}</td>
+												<td className="text-brag" title={`${speedOf(seek.clock)} rating`}>
+													{Math.round(
+														seek.user.perfs?.[perfOf(seek.clock)]?.rating ?? seek.user.rating,
+													)}
+												</td>
 												<td className="font-mono">
 													{clockLabel(seek.clock)}{' '}
 													<span className="text-xs text-muted-foreground font-sans">

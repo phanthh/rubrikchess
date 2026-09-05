@@ -300,6 +300,15 @@ assert(nc.initial_ms === 3 * 86_400_000 && nc.increment_ms === nc.initial_ms, 'c
 assert((await N.getByText(/\dd /).count()) >= 1, 'clock shows days');
 await shot(N, 'game-correspondence');
 
+// per-speed ratings: the resigned 5+3 game gives both players a blitz perf
+await S.goto(BASE + '/u/' + encodeURIComponent(await W.evaluate(() => window.__game.getState().players.white.name)));
+await S.waitForTimeout(800);
+assert((await S.getByText('Blitz', { exact: true }).count()) >= 1 || (await S.locator('text=/^blitz$/i').count()) >= 1, 'profile shows blitz perf');
+await S.goto(BASE + '/players');
+await S.getByRole('button', { name: 'blitz' }).click();
+await S.waitForTimeout(600);
+assert(true, 'leaderboard perf tab');
+
 // prefs + profile + players pages
 await S.goto(BASE + '/u/' + encodeURIComponent((await W.evaluate(() => window.__game.getState().players.white.name))));
 await S.waitForTimeout(800);

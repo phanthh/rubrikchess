@@ -366,10 +366,44 @@ impl Room {
         // First rated game: also record the starting rating so the chart has a line from move one.
         for (u, r) in [(&white, wr.r), (&black, br.r)] {
             if u.games == 0 {
-                db::add_rating_history(&conn, &u.id, "", self.created_at, u.rating);
+                db::add_rating_history(&conn, &u.id, "", self.created_at, u.rating, "");
             }
-            db::add_rating_history(&conn, &u.id, &self.id, at, r);
+            db::add_rating_history(&conn, &u.id, &self.id, at, r, "");
         }
+
+        // Per-speed rating: its own Glicko-2 state, same score.
+        let perf = crate::lobby::perf_of(&self.clock.spec());
+        let wp = db::perf(&conn, &white.id, perf);
+        let bp = db::perf(&conn, &black.id, perf);
+        let (wpr, bpr) = rating::update(&wp.glicko(), &bp.glicko(), score);
+        let rows = [
+            (
+                &mut white,
+                db::PerfRow {
+                    rating: wpr.r,
+                    rd: wpr.rd,
+                    vol: wpr.vol,
+                    games: wp.games + 1,
+                    wins: wp.wins + (score == 1.0) as i64,
+                },
+            ),
+            (
+                &mut black,
+                db::PerfRow {
+                    rating: bpr.r,
+                    rd: bpr.rd,
+                    vol: bpr.vol,
+                    games: bp.games + 1,
+                    wins: bp.wins + (score == 0.0) as i64,
+                },
+            ),
+        ];
+        for (user, row) in rows {
+            db::set_perf(&conn, &user.id, perf, &row);
+            db::add_rating_history(&conn, &user.id, &self.id, at, row.rating, perf);
+            user.perfs.insert(perf.to_string(), row);
+        }
+
         white.rating = wr.r;
         white.rd = wr.rd;
         white.vol = wr.vol;

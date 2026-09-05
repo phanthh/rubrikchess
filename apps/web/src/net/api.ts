@@ -62,7 +62,8 @@ export const getUser = (name: string) =>
 		followers?: number;
 	}>(`/users/${encodeURIComponent(name)}`);
 
-export const leaderboard = (limit = 20) => req<User[]>(`/leaderboard?limit=${limit}`);
+export const leaderboard = (limit = 20, perf?: string) =>
+	req<User[]>(`/leaderboard?limit=${limit}${perf ? `&perf=${perf}` : ''}`);
 
 export const listGames = (limit = 20) => req<GameRow[]>(`/games?limit=${limit}`);
 

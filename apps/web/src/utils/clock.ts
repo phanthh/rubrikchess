@@ -36,3 +36,7 @@ export function timeAgo(unixMs: number) {
 	if (h < 24) return `${h}h ago`;
 	return `${Math.floor(h / 24)}d ago`;
 }
+
+export const PERFS = ['bullet', 'blitz', 'rapid', 'classical', 'correspondence'] as const;
+/** Perf key for a clock (server's `perf_of`). */
+export const perfOf = (c: ClockSpec) => speedOf(c).toLowerCase();

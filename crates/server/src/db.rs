@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use rubrik_core::{EndReason, Game, GameConfig, Move, Status};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::Serialize;
@@ -18,6 +20,43 @@ pub struct User {
     pub games: i64,
     pub wins: i64,
     pub registered: bool,
+    /// Per-speed ratings, only the perfs with games played.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub perfs: BTreeMap<String, PerfRow>,
+}
+
+/// One speed bucket of a user's rating (own Glicko-2 state).
+#[derive(Clone, Debug, Serialize)]
+pub struct PerfRow {
+    pub rating: f64,
+    pub rd: f64,
+    #[serde(skip)]
+    pub vol: f64,
+    pub games: i64,
+    #[serde(skip)]
+    pub wins: i64,
+}
+
+impl Default for PerfRow {
+    fn default() -> PerfRow {
+        PerfRow {
+            rating: DEFAULT_RATING,
+            rd: DEFAULT_RD,
+            vol: DEFAULT_VOL,
+            games: 0,
+            wins: 0,
+        }
+    }
+}
+
+impl PerfRow {
+    pub fn glicko(&self) -> Rating {
+        Rating {
+            r: self.rating,
+            rd: self.rd,
+            vol: self.vol,
+        }
+    }
 }
 
 impl User {
@@ -31,6 +70,7 @@ impl User {
             games: 0,
             wins: 0,
             registered: false,
+            perfs: BTreeMap::new(),
         }
     }
 
@@ -119,6 +159,16 @@ pub fn open(path: &str) -> Connection {
            at INTEGER NOT NULL,
            rating REAL NOT NULL
          );
+         CREATE TABLE IF NOT EXISTS perfs(
+           user_id TEXT NOT NULL,
+           perf TEXT NOT NULL,
+           rating REAL NOT NULL,
+           rd REAL NOT NULL,
+           vol REAL NOT NULL,
+           games INTEGER NOT NULL,
+           wins INTEGER NOT NULL,
+           PRIMARY KEY (user_id, perf)
+         );
          CREATE TABLE IF NOT EXISTS follows(
            user_id TEXT NOT NULL,
            target_id TEXT NOT NULL,
@@ -150,6 +200,8 @@ pub fn open(path: &str) -> Connection {
     add_column(&conn, "games", "black_diff", "INTEGER");
     add_column(&conn, "games", "tournament_id", "TEXT");
     add_column(&conn, "games", "times", "TEXT NOT NULL DEFAULT '[]'");
+    // '' = the overall rating; a perf name = that speed's rating.
+    add_column(&conn, "rating_history", "perf", "TEXT NOT NULL DEFAULT ''");
     // Owner of the auto-scheduled arenas; cannot log in (no password), never plays.
     if user(&conn, SYSTEM_USER_ID).is_none() {
         create_user(&conn, &User::anon(SYSTEM_USER_ID.into(), "Rubrik".into()));
@@ -215,7 +267,14 @@ fn user_from_row(r: &Row) -> rusqlite::Result<User> {
         games: r.get(5)?,
         wins: r.get(6)?,
         registered: r.get(7)?,
+        perfs: BTreeMap::new(),
     })
+}
+
+/// ponytail: one extra query per user; fine at our row counts (lists are capped at 200).
+fn with_perfs(conn: &Connection, mut user: User) -> User {
+    user.perfs = perfs(conn, &user.id);
+    user
 }
 
 pub fn user(conn: &Connection, id: &str) -> Option<User> {
@@ -226,6 +285,7 @@ pub fn user(conn: &Connection, id: &str) -> Option<User> {
     )
     .optional()
     .expect("query user")
+    .map(|u| with_perfs(conn, u))
 }
 
 pub fn user_by_name(conn: &Connection, name: &str) -> Option<User> {
@@ -236,20 +296,84 @@ pub fn user_by_name(conn: &Connection, name: &str) -> Option<User> {
     )
     .optional()
     .expect("query user by name")
+    .map(|u| with_perfs(conn, u))
 }
 
-/// Registered users with a settled rating, best first.
-pub fn leaderboard(conn: &Connection, limit: i64) -> Vec<User> {
-    let mut stmt = conn
-        .prepare(&format!(
+/// Registered users with a settled rating, best first; `perf` ranks by that speed instead.
+pub fn leaderboard(conn: &Connection, limit: i64, perf: Option<&str>) -> Vec<User> {
+    let sql = match perf {
+        Some(_) => "SELECT users.id, users.name, users.rating, users.rd, users.vol, users.games,
+                    users.wins, users.password_hash IS NOT NULL
+             FROM users JOIN perfs p ON p.user_id = users.id
+             WHERE p.perf = ?2 AND users.password_hash IS NOT NULL AND p.games > 0
+             ORDER BY (p.rd < 200) DESC, p.rating DESC LIMIT ?1"
+            .to_string(),
+        None => format!(
             "SELECT {USER_COLS} WHERE password_hash IS NOT NULL AND games > 0
              ORDER BY (rd < 200) DESC, rating DESC LIMIT ?1"
+        ),
+    };
+    let mut stmt = conn.prepare(&sql).expect("prepare leaderboard");
+    let users: Vec<User> = stmt
+        .query_map(params![limit, perf], user_from_row)
+        .expect("leaderboard")
+        .filter_map(|r| r.ok())
+        .collect();
+    users.into_iter().map(|u| with_perfs(conn, u)).collect()
+}
+
+/// Perfs a user has actually played.
+fn perfs(conn: &Connection, user_id: &str) -> BTreeMap<String, PerfRow> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT perf, rating, rd, vol, games, wins FROM perfs
+             WHERE user_id = ?1 AND games > 0",
+        )
+        .expect("prepare perfs");
+    stmt.query_map(params![user_id], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            PerfRow {
+                rating: r.get(1)?,
+                rd: r.get(2)?,
+                vol: r.get(3)?,
+                games: r.get(4)?,
+                wins: r.get(5)?,
+            },
         ))
-        .expect("prepare leaderboard");
-    let rows = stmt
-        .query_map(params![limit], user_from_row)
-        .expect("leaderboard");
-    rows.filter_map(|r| r.ok()).collect()
+    })
+    .expect("perfs")
+    .filter_map(|r| r.ok())
+    .collect()
+}
+
+/// A user's rating in one speed; the 1500/350 default if they never played it.
+pub fn perf(conn: &Connection, user_id: &str, perf: &str) -> PerfRow {
+    conn.query_row(
+        "SELECT rating, rd, vol, games, wins FROM perfs WHERE user_id = ?1 AND perf = ?2",
+        params![user_id, perf],
+        |r| {
+            Ok(PerfRow {
+                rating: r.get(0)?,
+                rd: r.get(1)?,
+                vol: r.get(2)?,
+                games: r.get(3)?,
+                wins: r.get(4)?,
+            })
+        },
+    )
+    .optional()
+    .expect("query perf")
+    .unwrap_or_default()
+}
+
+pub fn set_perf(conn: &Connection, user_id: &str, perf: &str, row: &PerfRow) {
+    conn.execute(
+        "INSERT OR REPLACE INTO perfs(user_id, perf, rating, rd, vol, games, wins)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![user_id, perf, row.rating, row.rd, row.vol, row.games, row.wins],
+    )
+    .expect("set perf");
 }
 
 pub fn create_user(conn: &Connection, user: &User) {
@@ -313,19 +437,27 @@ pub fn set_rating(conn: &Connection, id: &str, rating: &Rating, games: i64, wins
     .expect("set rating");
 }
 
-pub fn add_rating_history(conn: &Connection, user_id: &str, game_id: &str, at: i64, rating: f64) {
+/// `perf` is "" for the overall rating, or the name of the speed bucket.
+pub fn add_rating_history(
+    conn: &Connection,
+    user_id: &str,
+    game_id: &str,
+    at: i64,
+    rating: f64,
+    perf: &str,
+) {
     conn.execute(
-        "INSERT INTO rating_history(user_id, game_id, at, rating) VALUES (?1, ?2, ?3, ?4)",
-        params![user_id, game_id, at, rating],
+        "INSERT INTO rating_history(user_id, game_id, at, rating, perf) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![user_id, game_id, at, rating, perf],
     )
     .expect("insert rating history");
 }
 
-/// Last 100 rating points for a user, oldest first.
+/// Last 100 overall rating points for a user, oldest first.
 pub fn rating_history(conn: &Connection, user_id: &str) -> Vec<serde_json::Value> {
     let mut stmt = conn
         .prepare(
-            "SELECT at, rating FROM rating_history WHERE user_id = ?1
+            "SELECT at, rating FROM rating_history WHERE user_id = ?1 AND perf = ''
              ORDER BY at DESC LIMIT 100",
         )
         .expect("prepare history");
@@ -384,10 +516,12 @@ pub fn following(conn: &Connection, user_id: &str) -> Vec<User> {
              WHERE f.user_id = ?1 ORDER BY f.created_at DESC LIMIT 200"
         ))
         .expect("prepare following");
-    stmt.query_map(params![user_id], user_from_row)
+    let users: Vec<User> = stmt
+        .query_map(params![user_id], user_from_row)
         .expect("following")
         .filter_map(|r| r.ok())
-        .collect()
+        .collect();
+    users.into_iter().map(|u| with_perfs(conn, u)).collect()
 }
 
 pub fn set_game_diffs(conn: &Connection, game_id: &str, white: i64, black: i64) {
@@ -414,6 +548,7 @@ pub fn session_user(conn: &Connection, sid: &str) -> Option<User> {
     )
     .optional()
     .expect("query session")
+    .map(|u| with_perfs(conn, u))
 }
 
 /// Log every other device out (after a password change).

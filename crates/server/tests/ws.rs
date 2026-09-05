@@ -1259,3 +1259,88 @@ async fn follow_and_friends() {
         .expect("json");
     assert!(friends.as_array().expect("array").is_empty());
 }
+
+/// A finished bullet game rates the bullet perf as well as the overall rating,
+/// and `/api/leaderboard?perf=bullet` ranks registered players by it.
+#[tokio::test]
+async fn per_speed_ratings() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let http = reqwest::Client::new();
+
+    let (mut a, a_sid) = connect_sid(server.port).await;
+    let mut b = connect(server.port).await;
+    let a_id = hello_id(&mut a).await;
+    wait_for(&mut b, "hello").await;
+    let registered: Value = http
+        .post(format!("{base}/api/register"))
+        .header("cookie", &a_sid)
+        .json(&json!({"name": "Anderssen", "password": "hunter22"}))
+        .send()
+        .await
+        .expect("register")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(registered["registered"], json!(true));
+
+    // 1+1 = 60 + 40 × 1 s estimated → bullet
+    let (mut a, mut b, a_id, game_id) = seek_accept_with(a, b, a_id).await;
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    send(&mut b, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    wait_for(&mut b, "game_state").await;
+    let a_is_white = state["white"]["id"] == a_id.as_str();
+    let (winner, loser) = match a_is_white {
+        true => (&mut b, &mut a),
+        false => (&mut a, &mut b),
+    };
+    send(loser, json!({"t":"resign","game_id":game_id})).await;
+    wait_for(winner, "game_end").await;
+
+    let opponent = match a_is_white {
+        true => state["black"]["name"].as_str().expect("name"),
+        false => state["white"]["name"].as_str().expect("name"),
+    };
+    for name in ["Anderssen", opponent] {
+        let profile: Value = http
+            .get(format!("{base}/api/users/{name}"))
+            .send()
+            .await
+            .expect("get user")
+            .json()
+            .await
+            .expect("json");
+        let bullet = &profile["user"]["perfs"]["bullet"];
+        assert_eq!(bullet["games"], 1, "{name}: {profile}");
+        let rating = bullet["rating"].as_f64().expect("perf rating");
+        assert!(
+            (rating - 1500.0).abs() > 1.0,
+            "{name} bullet rating {rating}"
+        );
+        assert!(profile["user"]["perfs"]["blitz"].is_null());
+    }
+
+    let board: Value = http
+        .get(format!("{base}/api/leaderboard?perf=bullet"))
+        .send()
+        .await
+        .expect("leaderboard")
+        .json()
+        .await
+        .expect("json");
+    let board = board.as_array().expect("array");
+    assert_eq!(board.len(), 1); // only the registered player
+    assert_eq!(board[0]["name"], "Anderssen");
+    assert!(board[0]["perfs"]["bullet"]["games"] == 1);
+    // an unplayed perf ranks nobody
+    let empty: Value = http
+        .get(format!("{base}/api/leaderboard?perf=blitz"))
+        .send()
+        .await
+        .expect("leaderboard")
+        .json()
+        .await
+        .expect("json");
+    assert!(empty.as_array().expect("array").is_empty());
+}

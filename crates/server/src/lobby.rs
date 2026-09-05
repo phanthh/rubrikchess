@@ -28,6 +28,22 @@ impl ClockSpec {
     }
 }
 
+/// Speed bucket of a clock, on the estimated game length (initial + 40 × increment).
+/// Mirrors the client's `speedOf`.
+pub fn perf_of(c: &ClockSpec) -> &'static str {
+    const DAY: i64 = 86_400_000;
+    if c.unlimited() || (c.initial_ms >= DAY && c.initial_ms == c.increment_ms) {
+        return "correspondence";
+    }
+    match (c.initial_ms + 40 * c.increment_ms) / 1000 {
+        s if s < 30 => "ultrabullet",
+        s if s < 180 => "bullet",
+        s if s < 480 => "blitz",
+        s if s < 1500 => "rapid",
+        _ => "classical",
+    }
+}
+
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SeekColor {
@@ -206,6 +222,24 @@ impl Lobby {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn perf_buckets() {
+        let spec = |initial_ms, increment_ms| ClockSpec {
+            initial_ms,
+            increment_ms,
+        };
+        assert_eq!(perf_of(&spec(0, 0)), "correspondence");
+        assert_eq!(
+            perf_of(&spec(3 * 86_400_000, 3 * 86_400_000)),
+            "correspondence"
+        );
+        assert_eq!(perf_of(&spec(15_000, 0)), "ultrabullet");
+        assert_eq!(perf_of(&spec(60_000, 0)), "bullet");
+        assert_eq!(perf_of(&spec(60_000, 3_000)), "blitz"); // 60 + 120 s
+        assert_eq!(perf_of(&spec(600_000, 0)), "rapid");
+        assert_eq!(perf_of(&spec(30 * 60_000, 0)), "classical");
+    }
 
     #[test]
     fn setup_validation() {
