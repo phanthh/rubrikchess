@@ -3,6 +3,7 @@ import { Chat, ChatLine } from '@/components/round/chat';
 import { Crosstable } from '@/components/round/crosstable';
 import { useClock } from '@/components/round/use-clock';
 import { MoveList } from '@/components/round/move-list';
+import { Net } from '@/components/round/net';
 import { PlayerBar } from '@/components/round/player-bar';
 import { RoundControls } from '@/components/round/round-controls';
 import { onServerMsg, send, useNetStore } from '@/net/ws';
@@ -132,6 +133,9 @@ export function GamePage() {
 						<div className="text-xs text-muted-foreground">
 							Game <span className="font-mono">{id}</span>
 						</div>
+					</div>
+					<div className="box p-2">
+						<Net />
 					</div>
 					{id && players.white && players.black && (
 						<Crosstable white={players.white} black={players.black} gameId={id} />

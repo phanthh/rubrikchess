@@ -495,7 +495,7 @@ function loadLocal(engine: WasmGame, patch: Partial<IGameStore>) {
 /** Run the move animation (or skip it) then `done()` commits it to the engine. */
 function runMove(move: Move, done: () => void) {
 	const { cells, engine } = game();
-	if (!prefs().animate || !engine) return done();
+	if (!prefs().animate || prefs().view2d || !engine) return done(); // 2D net has nothing to animate
 
 	if (move.kind === 'step') {
 		const from = cells[move.from];

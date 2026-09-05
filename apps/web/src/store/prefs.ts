@@ -15,6 +15,8 @@ interface IPrefs {
 	theme: 'dark' | 'light';
 	boardTheme: BoardTheme;
 	highlightLastMove: boolean;
+	/** Play on the unfolded 2D net instead of the 3D cube. */
+	view2d: boolean;
 	set: (patch: Partial<Omit<IPrefs, 'set'>>) => void;
 }
 
@@ -31,6 +33,7 @@ export const usePrefs = create<IPrefs>()(
 			theme: 'dark',
 			boardTheme: 'grey',
 			highlightLastMove: true,
+			view2d: false,
 			set: (patch) => set(patch),
 		}),
 		{ name: 'rubrik-prefs' },

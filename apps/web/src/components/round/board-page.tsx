@@ -1,7 +1,10 @@
 import { GameCanvas } from '@/components/game-canvas';
+import { Net } from '@/components/round/net';
 import { Shell } from '@/components/shell';
-import { useGameStore } from '@/store/game';
+import { game, useGameStore } from '@/store/game';
+import { usePrefs } from '@/store/prefs';
 import { cn } from '@/utils/ui';
+import { Box, LayoutGrid } from 'lucide-react';
 import { ReactNode } from 'react';
 
 /**
@@ -12,16 +15,30 @@ export function BoardPage({ banner, left, right, below }: { banner: ReactNode; l
 	const zen = useGameStore((s) => s.zen);
 	const cursor = useGameStore((s) => s.cursor);
 	const plies = useGameStore((s) => s.history.length);
+	const view2d = usePrefs((s) => s.view2d);
 	return (
 		<Shell fill>
 			<div className="h-full flex flex-col lg:flex-row lg:gap-3 lg:p-3 overflow-y-auto lg:overflow-hidden">
 				{left && !zen && <aside className="hidden lg:flex w-64 shrink-0 flex-col gap-3 min-h-0">{left}</aside>}
 				<div className="relative flex-1 min-h-[55vh] shrink-0 lg:shrink lg:min-h-0 lg:rounded-md overflow-hidden">
-					<GameCanvas />
+					{view2d ? (
+						<div className="h-full w-full flex items-center justify-center bg-[#101010] p-4" onClick={() => game().select(null)}>
+							<Net interactive className="max-h-full max-w-full" />
+						</div>
+					) : (
+						<GameCanvas />
+					)}
 					<div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/50 text-xs text-white/90 backdrop-blur whitespace-nowrap">
 						{banner}
 						{cursor !== plies && ` · viewing move ${cursor}/${plies}`}
 					</div>
+					<button
+						title={view2d ? 'Switch to 3D cube' : 'Switch to 2D net'}
+						onClick={() => usePrefs.getState().set({ view2d: !view2d })}
+						className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white/80 hover:text-white backdrop-blur"
+					>
+						{view2d ? <Box className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+					</button>
 				</div>
 				<aside className={cn('w-full lg:w-72 shrink-0 flex flex-col gap-2 p-2 lg:p-0 min-h-0', zen && 'hidden')}>
 					{right}

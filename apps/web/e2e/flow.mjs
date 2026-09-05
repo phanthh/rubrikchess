@@ -92,6 +92,13 @@ await shot(W, 'game-replay');
 await W.keyboard.press('ArrowDown');
 await W.waitForTimeout(300);
 
+// 2D net view
+await Bl.getByTitle('Switch to 2D net').click();
+await Bl.waitForTimeout(300);
+assert((await Bl.locator('svg[aria-label="Unfolded board"]').count()) >= 1, '2D net renders');
+await shot(Bl, 'game-2d');
+await Bl.getByTitle('Switch to 3D cube').click();
+
 // chat
 await W.locator('input[placeholder="Type a message…"]').first().fill('gg hf');
 await W.locator('input[placeholder="Type a message…"]').first().press('Enter');
