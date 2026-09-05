@@ -52,9 +52,13 @@ export const changePassword = (old: string, next: string) =>
 	post<User>('/password', { old, new: next });
 
 export const getUser = (name: string) =>
-	req<{ user: User; games: GameRow[]; history?: RatingPoint[]; online?: boolean }>(
-		`/users/${encodeURIComponent(name)}`,
-	);
+	req<{
+		user: User;
+		games: GameRow[];
+		history?: RatingPoint[];
+		online?: boolean;
+		tournaments?: TourResult[];
+	}>(`/users/${encodeURIComponent(name)}`);
 
 export const leaderboard = (limit = 20) => req<User[]>(`/leaderboard?limit=${limit}`);
 
@@ -106,3 +110,13 @@ export type MyGame = {
 	clock: ClockSpec;
 };
 export const myGames = () => req<MyGame[]>('/me/games');
+
+export type TourResult = {
+	id: string;
+	name: string;
+	status: 'created' | 'running' | 'finished';
+	players: number;
+	rank: number | null;
+	score: number;
+	games: number;
+};

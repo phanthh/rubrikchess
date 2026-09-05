@@ -78,5 +78,12 @@ await B.goto(`${BASE}/tournament/${tour.id}`);
 await B.waitForTimeout(1000);
 assert((await B.getByText('Waiting for an opponent').count()) === 1, 'B waits for an opponent');
 await A.screenshot({ path: `${SHOTS}/tournament-standings.png` });
+// profile lists the arena result
+const winner = (await A.locator('table tbody tr').first().innerText()).split(/\s+/)[1];
+await A.goto(`${BASE}/u/${winner}`);
+await A.waitForTimeout(1000);
+assert((await A.getByText('e2e arena').count()) >= 1, 'profile shows tournament result');
+await A.screenshot({ path: `${SHOTS}/profile-tournaments.png` });
+
 await b.close();
 console.log('done');

@@ -645,6 +645,20 @@ pub fn load_tournaments(conn: &Connection, finished: bool, limit: i64) -> Vec<Ar
     arenas
 }
 
+/// Ids of the last `limit` finished tournaments a user took part in, newest first.
+pub fn user_tournaments(conn: &Connection, user_id: &str, limit: i64) -> Vec<String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT t.id FROM tournaments t JOIN tournament_players p ON p.tid = t.id
+             WHERE p.user_id = ?1 AND p.games > 0 ORDER BY t.starts_at DESC LIMIT ?2",
+        )
+        .expect("prepare user tournaments");
+    stmt.query_map(params![user_id, limit], |r| r.get(0))
+        .expect("user tournaments")
+        .filter_map(|r| r.ok())
+        .collect()
+}
+
 fn tournament_players(conn: &Connection, tid: &str) -> std::collections::HashMap<String, Player> {
     let mut stmt = conn
         .prepare(

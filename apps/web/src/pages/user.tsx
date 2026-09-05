@@ -1,14 +1,15 @@
 import { GameRowItem } from '@/components/game-row';
 import { RatingChart } from '@/components/rating-chart';
 import { Shell } from '@/components/shell';
-import { getUser } from '@/net/api';
+import { getUser, TourResult } from '@/net/api';
+import { Trophy } from 'lucide-react';
 import { GameRow, RatingPoint, User } from '@/types';
 import { useEffect, useState } from 'react';
 import { SetupDialog } from '@/components/setup-dialog';
 import { Button } from '@/components/ui/button';
 import { useNetStore } from '@/net/ws';
 import { Swords } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
 export function UserPage() {
 	const { name } = useParams();
@@ -17,6 +18,7 @@ export function UserPage() {
 		games: GameRow[];
 		history?: RatingPoint[];
 		online?: boolean;
+		tournaments?: TourResult[];
 	} | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [challenge, setChallenge] = useState(false);
@@ -97,6 +99,32 @@ export function UserPage() {
 									className="h-full bg-secondary"
 									style={{ width: `${((u.wins ?? 0) / u.games) * 100}%` }}
 								/>
+							</div>
+						)}
+						{(data.tournaments?.length ?? 0) > 0 && (
+							<div className="border-t border-border/60 pt-2 mt-1 flex flex-col gap-1">
+								<div className="text-xs text-muted-foreground uppercase tracking-wider">
+									Tournaments
+								</div>
+								{data.tournaments!.map((t) => (
+									<Link
+										key={t.id}
+										to={`/tournament/${t.id}`}
+										className="flex items-center gap-2 text-foreground hover:no-underline hover:bg-accent/50 rounded px-1 -mx-1"
+									>
+										{t.rank === 1 && t.status === 'finished' ? (
+											<Trophy className="h-3.5 w-3.5 text-brag shrink-0" />
+										) : (
+											<span className="w-3.5 text-xs text-muted-foreground text-center">
+												{t.rank ?? '–'}
+											</span>
+										)}
+										<span className="truncate flex-1">{t.name}</span>
+										<span className="text-xs text-muted-foreground">
+											{t.rank ?? '–'}/{t.players} · {t.score}pt
+										</span>
+									</Link>
+								))}
 							</div>
 						)}
 					</aside>

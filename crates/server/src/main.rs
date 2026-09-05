@@ -384,10 +384,32 @@ async fn get_user(State(state): State<Arc<AppState>>, Path(name): Path<String>) 
     };
     let games = db::list_games(&conn, 20, Some(&user.id), None);
     let history = db::rating_history(&conn, &user.id);
+    let tournaments: Vec<serde_json::Value> = db::user_tournaments(&conn, &user.id, 10)
+        .into_iter()
+        .filter_map(|tid| {
+            let arena = db::load_tournament(&conn, &tid)?;
+            let me = arena.players.get(&user.id)?;
+            Some(json!({
+                "id": arena.id,
+                "name": arena.name,
+                "status": arena.status,
+                "players": arena.players.len(),
+                "rank": arena.rank_of(&user.id),
+                "score": me.score,
+                "games": me.games,
+            }))
+        })
+        .collect();
     drop(conn);
     let online = state.conns.lock().contains_key(&user.id);
-    Json(json!({"user": user, "games": games, "history": history, "online": online}))
-        .into_response()
+    Json(json!({
+        "user": user,
+        "games": games,
+        "history": history,
+        "online": online,
+        "tournaments": tournaments,
+    }))
+    .into_response()
 }
 
 async fn get_leaderboard(

@@ -99,6 +99,13 @@ impl Arena {
             .collect()
     }
 
+    /// 1-based rank of `user_id` by the standings order, if they took part.
+    pub fn rank_of(&self, user_id: &str) -> Option<usize> {
+        let me = self.players.get(user_id)?;
+        let key = |p: &Player| (-p.score, -p.wins, p.joined_at);
+        Some(1 + self.players.values().filter(|p| key(p) < key(me)).count())
+    }
+
     /// Pair the free players; returns (white, black) user ids. Repeats of the
     /// previous opponent are avoided while another partner is available.
     fn pair(&mut self, free: Vec<String>) -> Vec<(String, String)> {
