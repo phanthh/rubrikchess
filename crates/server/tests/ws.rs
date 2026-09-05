@@ -1097,6 +1097,121 @@ async fn login_is_rate_limited() {
     assert_eq!(res.status(), reqwest::StatusCode::TOO_MANY_REQUESTS);
 }
 
+/// One host may not walk a password list across many accounts either.
+#[tokio::test]
+async fn login_is_rate_limited_per_ip() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let http = reqwest::Client::new();
+    // Ten different (unknown) accounts: the per-account budget is never touched.
+    for i in 0..10 {
+        let res = http
+            .post(format!("{base}/api/login"))
+            .json(&json!({"name": format!("ghost{i}"), "password": "guessing"}))
+            .send()
+            .await
+            .expect("login");
+        assert_eq!(res.status(), reqwest::StatusCode::UNAUTHORIZED);
+    }
+    let res = http
+        .post(format!("{base}/api/login"))
+        .json(&json!({"name": "ghost10", "password": "guessing"}))
+        .send()
+        .await
+        .expect("login");
+    assert_eq!(res.status(), reqwest::StatusCode::TOO_MANY_REQUESTS);
+}
+
+/// Arena chat goes to the sockets that subscribed to that arena, nobody else.
+#[tokio::test]
+async fn tour_chat_reaches_subscribers_only() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let (mut a, a_sid) = connect_sid(server.port).await;
+    let mut b = connect(server.port).await;
+    wait_for(&mut a, "hello").await;
+    wait_for(&mut b, "hello").await;
+
+    let created: Value = reqwest::Client::new()
+        .post(format!("{base}/api/tournaments"))
+        .header("cookie", &a_sid)
+        .json(
+            &json!({"name":"Chat Arena","clock":{"initial_ms":60000,"increment_ms":0},
+                      "starts_in_ms":600000,"duration_ms":300000}),
+        )
+        .send()
+        .await
+        .expect("create tournament")
+        .json()
+        .await
+        .expect("json");
+    let tid = created["id"].as_str().expect("id").to_string();
+
+    send(&mut a, json!({"t":"tour_join","id":tid})).await;
+    wait_for(&mut a, "tour").await;
+    send(&mut a, json!({"t":"tour_sub","id":tid})).await;
+    send(
+        &mut a,
+        json!({"t":"tour_chat","id":tid,"text":"hello arena"}),
+    )
+    .await;
+    let line = wait_for(&mut a, "tour_chat").await;
+    assert_eq!(line["id"], tid.as_str());
+    assert_eq!(line["text"], "hello arena");
+
+    // b never subscribed: it only gets the lobby traffic its own unseek triggers.
+    send(&mut b, json!({"t":"unseek"})).await;
+    let fut = async {
+        while let Some(msg) = b.next().await {
+            if let Message::Text(t) = msg.expect("ws msg") {
+                let v: Value = serde_json::from_str(&t).expect("json");
+                assert_ne!(v["t"], "tour_chat", "unsubscribed socket got arena chat");
+                if v["t"] == "lobby" {
+                    return;
+                }
+            }
+        }
+        panic!("stream closed");
+    };
+    tokio::time::timeout(Duration::from_secs(5), fut)
+        .await
+        .expect("lobby echo");
+
+    // after unsubscribing, a stops getting the lines too
+    send(&mut a, json!({"t":"tour_unsub"})).await;
+    send(
+        &mut a,
+        json!({"t":"tour_chat","id":tid,"text":"anyone there"}),
+    )
+    .await;
+    // same socket, so the lobby echo cannot overtake the chat above
+    send(&mut a, json!({"t":"unseek"})).await;
+    let fut = async {
+        while let Some(msg) = a.next().await {
+            if let Message::Text(t) = msg.expect("ws msg") {
+                let v: Value = serde_json::from_str(&t).expect("json");
+                assert_ne!(v["t"], "tour_chat", "unsubscribed socket got arena chat");
+                if v["t"] == "lobby" {
+                    return;
+                }
+            }
+        }
+        panic!("stream closed");
+    };
+    tokio::time::timeout(Duration::from_secs(5), fut)
+        .await
+        .expect("lobby echo");
+
+    // both lines are still in the arena's history
+    let view: Value = reqwest::get(format!("{base}/api/tournaments/{tid}"))
+        .await
+        .expect("tournament")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(view["chat"].as_array().expect("chat").len(), 2);
+}
+
 /// `/api/me/games` lists only the session's own live games; oversized custom
 /// positions never become one.
 #[tokio::test]

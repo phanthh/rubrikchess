@@ -226,6 +226,8 @@ export type ClientMsg =
 	| { t: 'tour_join'; id: string }
 	| { t: 'tour_leave'; id: string }
 	| { t: 'tour_chat'; id: string; text: string }
+	| { t: 'tour_sub'; id: string }
+	| { t: 'tour_unsub' }
 	| { t: 'moretime'; game_id: string }
 	| { t: 'accept'; seek_id: string }
 	| { t: 'watch'; game_id: string }

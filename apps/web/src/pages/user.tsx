@@ -28,10 +28,16 @@ export function UserPage() {
 	const [more, setMore] = useState(true);
 	const me = useNetStore((s) => s.me);
 
-	useEffect(() => {
-		if (!name) return;
+	// clear the previous profile in the same render the route name changes
+	const [shownName, setShownName] = useState(name);
+	if (shownName !== name) {
+		setShownName(name);
 		setData(null);
 		setMissing(false);
+	}
+
+	useEffect(() => {
+		if (!name) return;
 		getUser(name)
 			.then(setData)
 			.catch(() => setMissing(true));

@@ -343,7 +343,13 @@ impl Room {
         ) else {
             return (None, None);
         };
-        let (wr, br) = rating::update(&white.glicko(), &black.glicko(), score);
+        let at = now_ms();
+        // Time off the board widens the deviation before the game is scored.
+        let stale = |u: &db::User| {
+            let since = db::last_rated_at(&conn, &u.id).map_or(0, |last| at - last);
+            rating::inflate(&u.glicko(), since)
+        };
+        let (wr, br) = rating::update(&stale(&white), &stale(&black), score);
         let white_diff = wr.r.round() as i64 - white.rating.round() as i64;
         let black_diff = br.r.round() as i64 - black.rating.round() as i64;
         db::set_rating(
@@ -352,6 +358,7 @@ impl Room {
             &wr,
             white.games + 1,
             white.wins + (score == 1.0) as i64,
+            at,
         );
         db::set_rating(
             &conn,
@@ -359,9 +366,9 @@ impl Room {
             &br,
             black.games + 1,
             black.wins + (score == 0.0) as i64,
+            at,
         );
         db::set_game_diffs(&conn, &self.id, white_diff, black_diff);
-        let at = now_ms();
         // First rated game: also record the starting rating so the chart has a line from move one.
         for (u, r) in [(&white, wr.r), (&black, br.r)] {
             if u.games == 0 {

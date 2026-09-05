@@ -50,6 +50,13 @@ pub struct Arena {
     pub players: HashMap<String, Player>,
     /// Last `CHAT_HISTORY` chat lines (memory only).
     pub chat: std::collections::VecDeque<Value>,
+    /// Chat fan-out to the sockets subscribed to this arena (`tour_sub`).
+    pub tx: tokio::sync::broadcast::Sender<String>,
+}
+
+/// Fresh chat channel for a new (or rehydrated) arena.
+pub fn chat_channel() -> tokio::sync::broadcast::Sender<String> {
+    tokio::sync::broadcast::channel(64).0
 }
 
 /// Points for a win / draw.
@@ -327,6 +334,7 @@ fn schedule(state: &Arc<AppState>, now: i64) -> Option<Value> {
         status: TourStatus::Created,
         players: HashMap::new(),
         chat: Default::default(),
+        tx: chat_channel(),
     };
     let conn = state.db.lock();
     db::insert_tournament(&conn, &arena);

@@ -217,6 +217,8 @@ pub fn open(path: &str) -> Connection {
     add_column(&conn, "users", "rating", "REAL NOT NULL DEFAULT 1500");
     add_column(&conn, "users", "rd", "REAL NOT NULL DEFAULT 350");
     add_column(&conn, "users", "vol", "REAL NOT NULL DEFAULT 0.06");
+    // ms of the user's last rated game; NULL = never rated (nothing to inflate yet).
+    add_column(&conn, "users", "last_rated_at", "INTEGER");
     add_column(&conn, "users", "games", "INTEGER NOT NULL DEFAULT 0");
     add_column(&conn, "users", "wins", "INTEGER NOT NULL DEFAULT 0");
     add_column(&conn, "games", "white_rating", "REAL NOT NULL DEFAULT 1500");
@@ -462,12 +464,25 @@ pub fn password_hash(conn: &Connection, id: &str) -> Option<String> {
     .flatten()
 }
 
-pub fn set_rating(conn: &Connection, id: &str, rating: &Rating, games: i64, wins: i64) {
+pub fn set_rating(conn: &Connection, id: &str, rating: &Rating, games: i64, wins: i64, at: i64) {
     conn.execute(
-        "UPDATE users SET rating = ?1, rd = ?2, vol = ?3, games = ?4, wins = ?5 WHERE id = ?6",
-        params![rating.r, rating.rd, rating.vol, games, wins, id],
+        "UPDATE users SET rating = ?1, rd = ?2, vol = ?3, games = ?4, wins = ?5,
+         last_rated_at = ?6 WHERE id = ?7",
+        params![rating.r, rating.rd, rating.vol, games, wins, at, id],
     )
     .expect("set rating");
+}
+
+/// When the user last played a rated game; `None` until they play one.
+pub fn last_rated_at(conn: &Connection, id: &str) -> Option<i64> {
+    conn.query_row(
+        "SELECT last_rated_at FROM users WHERE id = ?1",
+        params![id],
+        |r| r.get::<_, Option<i64>>(0),
+    )
+    .optional()
+    .expect("query last_rated_at")
+    .flatten()
 }
 
 /// `perf` is "" for the overall rating, or the name of the speed bucket.
@@ -958,6 +973,7 @@ fn arena_from_row(r: &Row) -> rusqlite::Result<Arena> {
         status: de(r.get(8)?)?,
         players: Default::default(),
         chat: Default::default(),
+        tx: crate::tournament::chat_channel(),
     })
 }
 

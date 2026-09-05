@@ -8,12 +8,13 @@ mod tournament;
 mod ws;
 
 use std::collections::{HashMap, VecDeque};
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use argon2::password_hash::rand_core::OsRng;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
-use axum::extract::{Path, Query, State};
+use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -187,16 +188,39 @@ pub fn current_user(state: &AppState, headers: &HeaderMap) -> Option<User> {
 /// As `current_user`, but minting an anonymous user when there is none. Only
 /// for `GET /ws` and `GET /api/me`: every other endpoint must not let an
 /// unauthenticated request write user + session rows.
-/// Returns the `Set-Cookie` value when a new session was minted.
-pub fn session(state: &AppState, headers: &HeaderMap) -> (User, Option<String>) {
+/// Returns the `Set-Cookie` value when a new session was minted, or `None` when the
+/// caller's IP has minted too many anonymous accounts (one row + session each).
+pub fn session(state: &AppState, headers: &HeaderMap, ip: &str) -> Option<(User, Option<String>)> {
     if let Some(u) = current_user(state, headers) {
-        return (u, None);
+        return Some((u, None));
+    }
+    if !state.allow(&format!("ip:{ip}"), "anon", 30, 60_000) {
+        return None;
     }
     let conn = state.db.lock();
     let user = User::anon(rand_id(16), format!("Anon-{}", rand_id(4)));
     db::create_user(&conn, &user);
     let cookie = new_session(&conn, &user.id);
-    (user, Some(cookie))
+    Some((user, Some(cookie)))
+}
+
+/// Client address for the per-IP limits: the first `X-Forwarded-For` hop when
+/// `TRUST_PROXY=1` (a proxy in front of us sets it), else the socket peer. Without
+/// that flag the header is attacker-controlled and would hand out a fresh budget
+/// per request.
+pub fn client_ip(headers: &HeaderMap, peer: SocketAddr) -> String {
+    if std::env::var("TRUST_PROXY").as_deref() == Ok("1") {
+        let hop = headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.split(',').next())
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        if let Some(hop) = hop {
+            return hop.to_string();
+        }
+    }
+    peer.ip().to_string()
 }
 
 /// 3..32 chars of `[A-Za-z0-9_-]`.
@@ -207,7 +231,7 @@ fn valid_name(name: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
-fn error(status: StatusCode, msg: &str) -> Response {
+pub fn error(status: StatusCode, msg: &str) -> Response {
     (status, Json(json!({ "error": msg }))).into_response()
 }
 
@@ -221,8 +245,14 @@ fn with_cookie(cookie: Option<String>, body: serde_json::Value) -> Response {
     res
 }
 
-async fn get_me(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
-    let (user, cookie) = session(&state, &headers);
+async fn get_me(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Response {
+    let Some((user, cookie)) = session(&state, &headers, &client_ip(&headers, peer)) else {
+        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
+    };
     with_cookie(cookie, json!(user))
 }
 
@@ -279,9 +309,14 @@ fn verify_password(password: &str, hash: &str) -> bool {
 /// Claim the current anonymous account with a name + password.
 async fn post_register(
     State(state): State<Arc<AppState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(body): Json<CredsBody>,
 ) -> Response {
+    let ip = client_ip(&headers, peer);
+    if !state.allow(&format!("ip:{ip}"), "register", 5, 600_000) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
+    }
     let Some(mut user) = current_user(&state, &headers) else {
         return error(StatusCode::UNAUTHORIZED, "no session");
     };
@@ -345,7 +380,18 @@ async fn post_password(
     Json(json!(user)).into_response()
 }
 
-async fn post_login(State(state): State<Arc<AppState>>, Json(body): Json<CredsBody>) -> Response {
+async fn post_login(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(body): Json<CredsBody>,
+) -> Response {
+    // Per IP as well as per account: one host must not walk a password list across
+    // many accounts.
+    let ip = client_ip(&headers, peer);
+    if !state.allow(&format!("ip:{ip}"), "login", 10, 60_000) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
+    }
     // No session yet, so the limit is keyed by the account being guessed at: 10 argon2
     // verifications per 10 minutes and account.
     let name = body.name.trim().to_lowercase();
@@ -859,6 +905,7 @@ async fn post_tournament(
         status: TourStatus::Created,
         players: HashMap::new(),
         chat: Default::default(),
+        tx: tournament::chat_channel(),
     };
     let value = {
         let mut tours = state.tournaments.lock();
@@ -1044,7 +1091,13 @@ async fn main() {
         .await
         .expect("bind");
     tracing::info!("listening on {}", listener.local_addr().expect("addr"));
-    axum::serve(listener, router(state)).await.expect("serve");
+    // with_connect_info: the per-IP rate limits need the socket peer.
+    axum::serve(
+        listener,
+        router(state).into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .expect("serve");
 }
 
 #[cfg(test)]

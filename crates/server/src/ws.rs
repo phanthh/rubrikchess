@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::State;
+use axum::extract::{ConnectInfo, State};
 use axum::http::{header, HeaderMap};
 use axum::response::Response;
 use futures_util::{SinkExt, StreamExt};
@@ -116,14 +116,23 @@ enum ClientMsg {
         id: String,
         text: String,
     },
+    /// Follow one arena's chat (replaces any previous subscription).
+    TourSub {
+        id: String,
+    },
+    TourUnsub,
 }
 
 pub async fn handler(
     State(state): State<Arc<AppState>>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Response {
-    let (user, cookie) = crate::session(&state, &headers);
+    let ip = crate::client_ip(&headers, peer);
+    let Some((user, cookie)) = crate::session(&state, &headers, &ip) else {
+        return crate::error(axum::http::StatusCode::TOO_MANY_REQUESTS, "slow down");
+    };
     // No client message is near this; without a cap an anon socket can make us buffer
     // (and parse) megabytes.
     let mut res = ws
@@ -188,10 +197,12 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
     send(&out_tx, lobby);
 
     let mut subs: HashMap<String, JoinHandle<()>> = HashMap::new();
+    // At most one arena chat per socket.
+    let mut tour_sub: Option<JoinHandle<()>> = None;
     while let Some(Ok(msg)) = stream.next().await {
         match msg {
             Message::Text(text) => match serde_json::from_str::<ClientMsg>(&text) {
-                Ok(m) => handle(&state, &user, &out_tx, &mut subs, m),
+                Ok(m) => handle(&state, &user, &out_tx, &mut subs, &mut tour_sub, m),
                 Err(e) => send(&out_tx, json!({"t": "error", "msg": e.to_string()})),
             },
             Message::Close(_) => break,
@@ -202,6 +213,9 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
     for (game_id, task) in subs {
         task.abort();
         unwatch(&state, &game_id);
+    }
+    if let Some(task) = tour_sub {
+        task.abort();
     }
     lobby_task.abort();
     writer.abort();
@@ -307,6 +321,7 @@ fn handle(
     user: &User,
     out: &mpsc::UnboundedSender<String>,
     subs: &mut HashMap<String, JoinHandle<()>>,
+    tour_sub: &mut Option<JoinHandle<()>>,
     msg: ClientMsg,
 ) {
     match msg {
@@ -873,10 +888,34 @@ fn handle(
                 return; // rate limited: drop silently
             }
             arena.push_chat(line.clone());
-            drop(tours);
-            // ponytail: fan-out on the lobby channel (every socket gets it, clients filter by id);
-            // upgrade path = a per-arena broadcast channel like rooms have.
-            let _ = state.lobby_tx.send(line.to_string());
+            // Only the sockets watching this arena, like a room's channel.
+            let _ = arena.tx.send(line.to_string());
+        }
+        ClientMsg::TourSub { id } => {
+            if !state.allow(&user.id, "tour", 20, 10_000) {
+                err(out, "slow down");
+                return;
+            }
+            let Some(mut rx) = state.tournaments.lock().get(&id).map(|a| a.tx.subscribe()) else {
+                err(out, "unknown tournament");
+                return;
+            };
+            if let Some(task) = tour_sub.take() {
+                task.abort();
+            }
+            let out2 = out.clone();
+            *tour_sub = Some(tokio::spawn(async move {
+                while let Ok(m) = rx.recv().await {
+                    if out2.send(m).is_err() {
+                        break;
+                    }
+                }
+            }));
+        }
+        ClientMsg::TourUnsub => {
+            if let Some(task) = tour_sub.take() {
+                task.abort();
+            }
         }
     }
 }

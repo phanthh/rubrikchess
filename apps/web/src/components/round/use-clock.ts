@@ -14,13 +14,13 @@ export const emergMs = (initial: number) => Math.min(60_000, Math.max(10_000, in
 export function useClock() {
 	const clock = useGameStore((s) => s.clock);
 	const myColor = useGameStore((s) => s.myColor);
-	const received = useRef(Date.now());
+	const [received, setReceived] = useState(Date.now);
 	const [, tick] = useState(0);
 	const warned = useRef(false);
 
 	useEffect(() => {
-		received.current = Date.now();
-		tick((n) => n + 1);
+		// oxlint-disable-next-line react/set-state-in-effect -- re-anchor local extrapolation to the incoming server clock
+		setReceived(Date.now());
 		if (!clock?.running || unlimited(clock)) return;
 		const t = setInterval(() => tick((n) => n + 1), 100);
 		return () => clearInterval(t);
@@ -29,7 +29,7 @@ export function useClock() {
 	const remaining = (color: Color) => {
 		if (!clock) return null;
 		const base = color === 'white' ? clock.white_ms : clock.black_ms;
-		return Math.max(0, clock.running === color ? base - (Date.now() - received.current) : base);
+		return Math.max(0, clock.running === color ? base - (Date.now() - received) : base);
 	};
 
 	// final ten seconds of our own clock: one tick per second

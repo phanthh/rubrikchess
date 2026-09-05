@@ -25,6 +25,22 @@ impl Default for Rating {
     }
 }
 
+/// One rating period: 30 days without a rated game.
+pub const PERIOD_MS: f64 = 30.0 * 86_400_000.0;
+
+/// Glicko-2 step 6 for the periods a player sat out: `phi' = sqrt(phi² + σ²·t)`, with
+/// `t` the elapsed rating periods, capped at the default deviation. A rating nobody has
+/// tested in months must not keep its old confidence.
+pub fn inflate(r: &Rating, elapsed_ms: i64) -> Rating {
+    let t = elapsed_ms.max(0) as f64 / PERIOD_MS;
+    let phi = r.rd / SCALE;
+    let rd = (phi * phi + r.vol * r.vol * t).sqrt() * SCALE;
+    Rating {
+        rd: rd.min(DEFAULT_RD),
+        ..*r
+    }
+}
+
 /// New ratings for both players after one game; `score_a` is 1 / 0.5 / 0.
 pub fn update(a: &Rating, b: &Rating, score_a: f64) -> (Rating, Rating) {
     (
@@ -173,5 +189,29 @@ mod tests {
         let (a3, b3) = update(&a, &b, 0.5);
         assert!((a3.r - a.r).abs() < 1e-9 && (b3.r - b.r).abs() < 1e-9);
         assert!(a3.rd < a.rd && b3.rd < b.rd);
+    }
+
+    #[test]
+    fn inactivity_inflates_rd() {
+        let settled = Rating {
+            r: 1700.0,
+            rd: 50.0,
+            vol: DEFAULT_VOL,
+        };
+        // Same day: nothing moves; the rating itself never changes.
+        let fresh = inflate(&settled, 0);
+        assert_eq!(fresh, settled);
+        // A year off: rd grows, but the rating stays.
+        let year = inflate(&settled, 365 * 86_400_000);
+        assert!(year.rd > settled.rd, "rd = {}", year.rd);
+        assert_eq!(year.r, settled.r);
+        // Never capped above the default deviation, however long the absence.
+        let decade = inflate(&settled, 3650 * 86_400_000);
+        assert!(decade.rd <= DEFAULT_RD);
+        // A wider rd means a bigger swing from the same game.
+        let opponent = Rating::default();
+        let (a, _) = update(&settled, &opponent, 1.0);
+        let (b, _) = update(&year, &opponent, 1.0);
+        assert!(b.r - year.r > a.r - settled.r);
     }
 }

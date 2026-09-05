@@ -20,12 +20,11 @@ function fmt(ms: number) {
 
 /** Countdown to start / to end, driven by the tournament's server timestamps. */
 export function TourClock({ t }: { t: Tournament }) {
-	const [, tick] = useState(0);
+	const [now, setNow] = useState(Date.now);
 	useEffect(() => {
-		const i = setInterval(() => tick((n) => n + 1), 1000);
+		const i = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(i);
 	}, []);
-	const now = Date.now();
 	if (t.status === 'finished') return <span className="text-muted-foreground">finished</span>;
 	if (now < t.starts_at) return <span>starts in {fmt(t.starts_at - now)}</span>;
 	return <span className="text-secondary">{fmt(t.starts_at + t.duration_ms - now)} left</span>;
@@ -34,6 +33,7 @@ export function TourClock({ t }: { t: Tournament }) {
 export function TournamentPage() {
 	const { id } = useParams();
 	const me = useNetStore((s) => s.me);
+	const connected = useNetStore((s) => s.connected);
 	const [data, setData] = useState<{
 		tournament: Tournament;
 		standings: Standing[];
@@ -67,6 +67,13 @@ export function TournamentPage() {
 			unsub();
 		};
 	}, [id]);
+
+	// chat arrives on a per-arena channel; re-subscribe on reconnect
+	useEffect(() => {
+		if (!id || !connected) return;
+		send({ t: 'tour_sub', id });
+		return () => send({ t: 'tour_unsub' });
+	}, [id, connected]);
 
 	const t = data?.tournament;
 	const mine = data?.standings.find((s) => s.user.id === me?.id);

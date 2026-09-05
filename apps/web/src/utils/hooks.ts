@@ -16,7 +16,6 @@ export const useInteractiveMesh = (
 	},
 	isActive = false,
 ) => {
-	const [color, setColor] = useState(normal);
 	const [hovered, setHovered] = useState(false);
 	const setContent = useTooltipStore((store) => store.setContent);
 
@@ -30,15 +29,14 @@ export const useInteractiveMesh = (
 	}, [tooltip, hovered, setContent]);
 
 	useEffect(() => {
-		setColor(isActive ? active : hovered ? hover : normal);
-		if (hovered) {
-			document.body.style.cursor = 'pointer';
-		}
+		if (!hovered) return;
+		document.body.style.cursor = 'pointer';
 		return () => {
 			document.body.style.cursor = 'auto';
-			setColor(normal);
 		};
-	}, [hovered, isActive, normal, hover, active]);
+	}, [hovered]);
+
+	const color = isActive ? active : hovered ? hover : normal;
 
 	return [
 		color,

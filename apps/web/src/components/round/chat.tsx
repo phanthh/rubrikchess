@@ -25,8 +25,9 @@ export function Chat({
 
 	useEffect(() => {
 		const el = list.current;
-		if (el) el.scrollTop = el.scrollHeight;
-	}, [lines]);
+		if (!el || lines.length === 0) return;
+		el.scrollTop = el.scrollHeight;
+	}, [lines.length]);
 
 	const submit = () => {
 		const text = draft.trim();

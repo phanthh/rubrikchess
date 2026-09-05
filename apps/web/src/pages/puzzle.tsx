@@ -85,6 +85,7 @@ export function PuzzlePage() {
 	}, []);
 
 	useEffect(() => {
+		// oxlint-disable-next-line react/set-state-in-effect -- load the first puzzle on mount; next() resets the same state a click would
 		void next();
 	}, [next]);
 
@@ -94,6 +95,7 @@ export function PuzzlePage() {
 		if (history.length !== task.puzzle.ply + 1) return;
 		const played = history[task.puzzle.ply];
 		if (sameMove(played, task.puzzle.solution)) {
+			// oxlint-disable-next-line react/set-state-in-effect -- grades the move played into the external game store
 			setVerdict('solved');
 			prefs().set({ puzzlesSolved: prefs().puzzlesSolved + 1 });
 			play('end');

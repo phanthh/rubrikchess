@@ -38,6 +38,7 @@ export const Cell = memo(({ cell, onPick }: CellProps) => {
 		mesh.lookAt(
 			mesh.parent.localToWorld(cell.pos.clone().add(cell.side.clone().multiplyScalar(MAX_INT))),
 		);
+		// oxlint-disable-next-line react/exhaustive-effect-dependencies -- flipped changes the parent's world matrix, so lookAt must be recomputed
 	}, [cell.side, cell.pos, flipped]);
 
 	useLayoutEffect(() => {

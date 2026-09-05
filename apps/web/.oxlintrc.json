@@ -10,9 +10,9 @@
 		"react-hooks/exhaustive-deps": "warn",
 		"no-unused-vars": "error",
 		"react/react-in-jsx-scope": "off",
-		"react/set-state-in-effect": "off",
-		"react/purity": "off",
-		"react/exhaustive-effect-dependencies": "off",
+		"react/set-state-in-effect": "warn",
+		"react/purity": "warn",
+		"react/exhaustive-effect-dependencies": "warn",
 		"no-shadow": "off",
 		"no-underscore-dangle": "off",
 		"import/no-unassigned-import": "off"

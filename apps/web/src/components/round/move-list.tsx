@@ -1,7 +1,7 @@
 import { game, useGameStore } from '@/store/game';
 import { cn, statusLabel } from '@/utils/ui';
 import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useReplayKeys } from './use-replay-keys';
 
 export function MoveList({ className }: { className?: string }) {
@@ -12,24 +12,20 @@ export function MoveList({ className }: { className?: string }) {
 	const cursor = useGameStore((s) => s.cursor);
 	const status = useGameStore((s) => s.status);
 	const animating = useGameStore((s) => s.animating);
-	const active = useRef<HTMLButtonElement>(null);
+	// keeps the active ply in view: the ref moves to another button when the cursor changes
+	const active = useCallback((el: HTMLButtonElement | null) => {
+		el?.scrollIntoView({ block: 'nearest' });
+	}, []);
 	const [auto, setAuto] = useState(false);
+	const playing = auto && cursor < sans.length;
 	useReplayKeys();
 
 	// autoplay: one ply per second until the end
 	useEffect(() => {
-		if (!auto) return;
-		if (cursor >= sans.length) {
-			setAuto(false);
-			return;
-		}
+		if (!playing) return;
 		const t = setTimeout(() => game().setCursor(game().cursor + 1), 1000);
 		return () => clearTimeout(t);
-	}, [auto, cursor, sans.length]);
-
-	useEffect(() => {
-		active.current?.scrollIntoView({ block: 'nearest' });
-	}, [cursor, sans.length]);
+	}, [playing]);
 
 	// seconds spent on each ply from the server clock trail (undefined when unknown)
 	const inc = clock?.increment_ms ?? 0;
@@ -66,15 +62,15 @@ export function MoveList({ className }: { className?: string }) {
 				{nav(0, ChevronFirst, 'First (↑)', cursor === 0)}
 				{nav(cursor - 1, ChevronLeft, 'Previous (←)', cursor === 0)}
 				<button
-					title={auto ? 'Pause' : 'Autoplay'}
+					title={playing ? 'Pause' : 'Autoplay'}
 					disabled={sans.length === 0}
 					onClick={() => {
-						if (!auto && cursor >= sans.length) game().setCursor(0);
-						setAuto(!auto);
+						if (!playing && cursor >= sans.length) game().setCursor(0);
+						setAuto(!playing);
 					}}
 					className="flex-1 flex justify-center py-1 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30"
 				>
-					{auto ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+					{playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
 				</button>
 				{nav(cursor + 1, ChevronRight, 'Next (→)', cursor >= sans.length)}
 				{nav(sans.length, ChevronLast, 'Last (↓)', cursor >= sans.length)}
@@ -134,7 +130,7 @@ function Ply({
 	n: number;
 	san: string;
 	cursor: number;
-	active: React.RefObject<HTMLButtonElement>;
+	active: (el: HTMLButtonElement | null) => void;
 	spent?: number;
 	max: number;
 }) {
