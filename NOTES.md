@@ -322,3 +322,13 @@ Table `perfs(user_id, perf, rating, rd, vol, games, wins, PRIMARY KEY(user_id, p
 `User` gains `perfs: {perf: {rating, rd, games}}` (only perfs with games > 0). `GET /api/leaderboard?perf=blitz` → ranks by that perf (registered, games > 0, established first). `rating_history` rows gain a `perf` column; `GET /api/users/:name` history stays overall.
 
 Tournament chat: `{t:"tour_chat", id, text}` (1..300 chars, 5 / 5s per arena) → `{t:"tour_chat", id, user, text, at}` fanned out on the lobby channel (clients filter by id); last 50 lines returned as `chat` by `GET /api/tournaments/:id`.
+
+## Phase 13: private messages
+Table `messages(id INTEGER PK, from_id, to_id, text, at, read INTEGER)`; index (to_id, at), (from_id, at).
+```
+POST /api/messages/:name {text}        → Message   (1..500 chars; 401 no session; 404 unknown; 400 self; 20 / 10 min)
+GET  /api/messages                     → [{user: User, last: Message, unread: n}]   conversations of the current session, newest first (≤ 50)
+GET  /api/messages/:name               → Message[] (last 100, asc); marks them read
+Message = {id, from: user_id, to: user_id, text, at}
+WS server→client {t:"pm", message: Message, from: User}   pushed to the recipient's sockets
+```
