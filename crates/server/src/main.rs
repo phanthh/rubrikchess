@@ -23,6 +23,7 @@ use serde_json::json;
 use tokio::sync::{broadcast, mpsc};
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::db::User;
@@ -892,6 +893,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .fallback_service(static_files)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
+        // a bug in one handler should be a 500 in the log, not a dropped connection
+        .layer(CatchPanicLayer::new())
         .with_state(state)
 }
 
