@@ -32,6 +32,19 @@ export function useClock() {
 		return Math.max(0, clock.running === color ? base - (Date.now() - received.current) : base);
 	};
 
+	// final ten seconds of our own clock: one tick per second
+	const lastTick = useRef(-1);
+	useEffect(() => {
+		if (!clock || !myColor || clock.running !== myColor || unlimited(clock)) return;
+		const left = remaining(myColor);
+		if (left === null || left >= 10_000) return;
+		const sec = Math.ceil(left / 1000);
+		if (sec !== lastTick.current) {
+			lastTick.current = sec;
+			play('tick');
+		}
+	});
+
 	useEffect(() => {
 		if (!clock || !myColor) return;
 		if (clock.running !== myColor || unlimited(clock)) return;

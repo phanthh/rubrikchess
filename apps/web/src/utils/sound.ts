@@ -1,6 +1,14 @@
 import { prefs } from '@/store/prefs';
 
-export type SoundName = 'move' | 'capture' | 'rotate' | 'lowtime' | 'end' | 'notify' | 'error';
+export type SoundName =
+	| 'move'
+	| 'capture'
+	| 'rotate'
+	| 'lowtime'
+	| 'tick'
+	| 'end'
+	| 'notify'
+	| 'error';
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -87,6 +95,9 @@ export function play(name: SoundName) {
 		case 'rotate':
 			noise(ctx, out, t, 0.45, 0.35, 300, 2400);
 			tone(ctx, out, 110, t + 0.3, 0.12, 'sine', 0.3, 70);
+			break;
+		case 'tick':
+			tone(ctx, out, 1200, t, 0.03, 'square', 0.08);
 			break;
 		case 'lowtime':
 			tone(ctx, out, 880, t, 0.08, 'square', 0.12);
