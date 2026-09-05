@@ -2,7 +2,7 @@ import { game, useGameStore } from '@/store/game';
 import { usePrefs } from '@/store/prefs';
 import { TCell } from '@/types';
 import { palette } from '@/utils/consts';
-import { PIECE_LETTER } from '@/utils/notation';
+import { PieceDefs, PieceUse } from '@/components/piece-glyph';
 import { cn } from '@/utils/ui';
 import { memo } from 'react';
 
@@ -91,6 +91,7 @@ export const Net = memo(function Net({
 			className={cn('w-full h-auto select-none', className)}
 			aria-label="Unfolded board"
 		>
+			<PieceDefs />
 			{FACES.map((f) => (
 				<text
 					key={f.label}
@@ -145,20 +146,13 @@ export const Net = memo(function Net({
 							/>
 						)}
 						{cell.piece && (
-							<text
-								x={S / 2}
-								y={S / 2 + 2.6}
-								textAnchor="middle"
-								fontSize={7.5}
-								fontWeight={700}
-								fontFamily="ui-monospace, monospace"
-								fill={cell.piece.color === 'white' ? '#fff' : '#111'}
-								stroke={cell.piece.color === 'white' ? '#111' : '#fff'}
-								strokeWidth={0.5}
-								paintOrder="stroke"
-							>
-								{PIECE_LETTER[cell.piece.kind] || 'P'}
-							</text>
+							<PieceUse
+								kind={cell.piece.kind}
+								color={cell.piece.color}
+								x={S * 0.08}
+								y={S * 0.08}
+								size={S * 0.84}
+							/>
 						)}
 					</g>
 				);

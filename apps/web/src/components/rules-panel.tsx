@@ -1,6 +1,6 @@
 import { Dialog } from '@/components/ui/dialog';
 import { PIECE_NAMES, PIECE_RULES } from '@/utils/consts';
-import { PIECE_LETTER } from '@/utils/notation';
+import { PieceIcon } from '@/components/piece-glyph';
 import { PieceKind } from '@/types';
 import { CircleHelp } from 'lucide-react';
 import { useState } from 'react';
@@ -34,9 +34,7 @@ export function RulesButton() {
 				<ul className="flex flex-col gap-2 text-sm">
 					{(Object.keys(PIECE_RULES) as PieceKind[]).map((kind) => (
 						<li key={kind} className="flex gap-2">
-							<span className="font-mono font-bold w-4 shrink-0 text-brag">
-								{PIECE_LETTER[kind] || 'P'}
-							</span>
+							<PieceIcon kind={kind} color="white" className="h-5 w-5 shrink-0" />
 							<span>
 								<span className="font-semibold">{PIECE_NAMES[kind]}</span> — {PIECE_RULES[kind]}
 							</span>

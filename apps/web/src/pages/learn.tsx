@@ -2,7 +2,7 @@ import { BoardPage } from '@/components/round/board-page';
 import { game, localConfig, useGameStore } from '@/store/game';
 import { PieceKind } from '@/types';
 import { PIECE_NAMES, PIECE_RULES } from '@/utils/consts';
-import { PIECE_LETTER } from '@/utils/notation';
+import { PieceIcon } from '@/components/piece-glyph';
 import { toSetup } from '@/utils/setup';
 import { cn } from '@/utils/ui';
 import { useEffect, useState } from 'react';
@@ -77,7 +77,7 @@ export function LearnPage() {
 										k === kind && 'bg-accent ring-1 ring-primary',
 									)}
 								>
-									<span className="font-mono font-bold text-base">{PIECE_LETTER[k] || 'P'}</span>
+									<PieceIcon kind={k} color="white" className="h-6 w-6" />
 									<span className="text-[10px] text-muted-foreground">{PIECE_NAMES[k]}</span>
 								</button>
 							))}

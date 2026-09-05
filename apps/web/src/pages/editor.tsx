@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { baseConfig } from '@/store/game';
 import { CellId, Color, GameState, PieceKind } from '@/types';
 import { PIECE_NAMES } from '@/utils/consts';
-import { PIECE_LETTER } from '@/utils/notation';
+import { PieceIcon } from '@/components/piece-glyph';
 import { decodeSetup, encodeSetup, fromSetup, Placement, toSetup } from '@/utils/setup';
 import { cn } from '@/utils/ui';
 import { LAYOUTS } from '@/utils/variant';
@@ -98,14 +98,14 @@ export function EditorPage() {
 											title={PIECE_NAMES[kind]}
 											onClick={() => setBrush({ kind, color })}
 											className={cn(
-												'h-9 rounded border font-mono font-bold text-base',
+												'h-9 rounded border flex items-center justify-center',
 												color === 'white'
 													? 'bg-neutral-100 text-neutral-900 border-neutral-400'
 													: 'bg-neutral-900 text-neutral-100 border-neutral-600',
 												on && 'ring-2 ring-primary',
 											)}
 										>
-											{PIECE_LETTER[kind] || 'P'}
+											<PieceIcon kind={kind} color={color} className="h-7 w-7" />
 										</button>
 									);
 								})}
