@@ -3,7 +3,7 @@ import { applyAuth } from '@/net/auth';
 import { PrefsDialog } from '@/components/prefs-dialog';
 import { RulesButton } from '@/components/rules-panel';
 import { Tooltip } from '@/components/tooltip';
-import { liveGames, logout, setName } from '@/net/api';
+import { logout, myGames, setName } from '@/net/api';
 import { connect, useNetStore } from '@/net/ws';
 import { useUi } from '@/store/ui';
 import { cn } from '@/utils/ui';
@@ -36,22 +36,19 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 	const [myTurn, setMyTurn] = useState<{ id: string; opponent: string }[]>([]);
 	useEffect(connect, []);
 
-	// Games waiting on me (correspondence inbox): plies parity tells whose move it is.
+	// Games waiting on me (correspondence inbox).
 	useEffect(() => {
 		if (!me) return;
-		const poll = () =>
-			liveGames()
+		const poll = () => {
+			if (document.hidden) return;
+			myGames()
 				.then((games) =>
 					setMyTurn(
-						games
-							.filter((g) => (g.plies % 2 === 0 ? g.white.id : g.black.id) === me.id)
-							.map((g) => ({
-								id: g.id,
-								opponent: (g.white.id === me.id ? g.black : g.white).name,
-							})),
+						games.filter((g) => g.my_turn).map((g) => ({ id: g.id, opponent: g.opponent.name })),
 					),
 				)
 				.catch(() => undefined);
+		};
 		poll();
 		const t = setInterval(poll, 20_000);
 		return () => clearInterval(t);

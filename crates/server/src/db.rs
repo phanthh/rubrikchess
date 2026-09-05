@@ -56,6 +56,8 @@ pub struct GameRow {
     pub status: Status,
     pub clock: Clock,
     pub created_at: i64,
+    /// Last write (last move, or game end); the idle sweep reads it across restarts.
+    pub updated_at: i64,
     pub plies: usize,
     pub white_diff: Option<i64>,
     pub black_diff: Option<i64>,
@@ -354,6 +356,15 @@ pub fn session_user(conn: &Connection, sid: &str) -> Option<User> {
     .expect("query session")
 }
 
+/// Log every other device out (after a password change).
+pub fn delete_other_sessions(conn: &Connection, user_id: &str, keep_sid: &str) {
+    conn.execute(
+        "DELETE FROM sessions WHERE user_id = ?1 AND sid <> ?2",
+        params![user_id, keep_sid],
+    )
+    .expect("delete other sessions");
+}
+
 pub fn delete_session(conn: &Connection, sid: &str) {
     conn.execute("DELETE FROM sessions WHERE sid = ?1", params![sid])
         .expect("delete session");
@@ -415,6 +426,7 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
         status,
         clock,
         created_at,
+        updated_at,
         white_diff,
         black_diff,
         tournament_id,
@@ -426,13 +438,14 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
         String,
         String,
         i64,
+        i64,
         Option<i64>,
         Option<i64>,
         Option<String>,
     ) = conn
         .query_row(
-            "SELECT white, black, config, moves, status, clock, created_at, white_diff, black_diff,
-                    tournament_id
+            "SELECT white, black, config, moves, status, clock, created_at, updated_at,
+                    white_diff, black_diff, tournament_id
              FROM games WHERE id = ?1",
             params![id],
             |r| {
@@ -447,6 +460,7 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
                     r.get(7)?,
                     r.get(8)?,
                     r.get(9)?,
+                    r.get(10)?,
                 ))
             },
         )
@@ -466,6 +480,7 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
         status: serde_json::from_str(&status).ok()?,
         clock: serde_json::from_str(&clock).ok()?,
         created_at,
+        updated_at,
         white_diff,
         black_diff,
         tournament_id,

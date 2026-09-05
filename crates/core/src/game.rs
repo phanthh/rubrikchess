@@ -234,6 +234,34 @@ mod tests {
         assert_eq!(g, before);
     }
 
+    /// `/local?setup=` is unvalidated on the client: a kingless, empty or unparsable
+    /// position must still work (or simply have no moves), never panic.
+    #[test]
+    fn kingless_and_empty_setups_do_not_panic() {
+        let with = |setup: &str| {
+            Game::new(GameConfig {
+                setup: setup.into(),
+                ..Default::default()
+            })
+        };
+        let empty = with(&vec!["--------"; 48].join("\n"));
+        assert!(empty.threats().is_empty());
+        assert!(empty.all_moves().iter().all(|(_, m)| m.is_empty()));
+        assert_eq!(crate::ai::best_move(&empty, 4, 1), None);
+
+        let mut rows = vec!["--------"; 48];
+        rows[0] = "Q-------"; // no kings at all
+        rows[40] = "-------r";
+        let mut kingless = with(&rows.join("\n"));
+        kingless.threats();
+        let mv = crate::ai::best_move(&kingless, 4, 1).expect("moves exist");
+        kingless.play(mv).expect("legal");
+        assert_eq!(kingless.status, Status::Playing);
+
+        // Not a board at all: nothing parses, so no pieces.
+        assert_eq!(crate::ai::best_move(&with("nonsense"), 3, 1), None);
+    }
+
     #[test]
     fn king_capture_ends_game() {
         let mut g = Game::new(GameConfig::default());

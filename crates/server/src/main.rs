@@ -101,7 +101,7 @@ impl AppState {
             let mut r = room.lock();
             if r.game.status == rubrik_core::Status::Playing
                 && r.clock.unlimited()
-                && now - r.clock.at > room::IDLE_UNLIMITED_MS
+                && now - r.last_move_at > room::IDLE_UNLIMITED_MS
             {
                 r.end(
                     self,
@@ -132,8 +132,9 @@ impl AppState {
 const SWEEP_EVERY: std::time::Duration = std::time::Duration::from_secs(600);
 /// `gone` entries this old are past any claim window.
 const GONE_KEEP_MS: i64 = 3_600_000;
-/// Longer than the widest rate-limit window.
-const LIMIT_KEEP_MS: i64 = 60_000;
+/// Longer than the widest rate-limit window (`tour_create`, 1h), so the sweep never
+/// hands out a fresh budget.
+const LIMIT_KEEP_MS: i64 = 3_600_000;
 
 pub fn now_ms() -> i64 {
     std::time::SystemTime::now()
@@ -337,10 +338,18 @@ async fn post_password(
         return error(StatusCode::INTERNAL_SERVER_ERROR, "hash failed");
     };
     db::set_password(&conn, &user.id, &hash);
+    // A stolen session must not outlive the password it was obtained with.
+    db::delete_other_sessions(&conn, &user.id, &sid_cookie(&headers).unwrap_or_default());
     Json(json!(user)).into_response()
 }
 
 async fn post_login(State(state): State<Arc<AppState>>, Json(body): Json<CredsBody>) -> Response {
+    // No session yet, so the limit is keyed by the account being guessed at: 10 argon2
+    // verifications per 10 minutes and account.
+    let name = body.name.trim().to_lowercase();
+    if !state.allow(&format!("login:{name}"), "login", 10, 600_000) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
+    }
     let conn = state.db.lock();
     let user = db::user_by_name(&conn, body.name.trim());
     let ok = user.as_ref().is_some_and(|u| {
@@ -400,6 +409,38 @@ async fn get_games(State(state): State<Arc<AppState>>, Query(q): Query<ListQuery
     let limit = q.limit.unwrap_or(20).clamp(1, 200);
     let games = db::list_games(&state.db.lock(), limit, None, q.before);
     Json(games).into_response()
+}
+
+/// The current session's live games, so a client can badge "your turn" without
+/// polling every live game on the server (`/api/tv`).
+async fn get_my_games(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    let Some(user) = current_user(&state, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    let rooms: Vec<_> = state.rooms.lock().values().cloned().collect();
+    let now = now_ms();
+    let mine: Vec<serde_json::Value> = rooms
+        .iter()
+        .filter_map(|room| {
+            let r = room.lock();
+            let color = r.color_of(&user.id)?;
+            if r.game.status != rubrik_core::Status::Playing {
+                return None;
+            }
+            let opponent = match color {
+                rubrik_core::Color::White => &r.black,
+                rubrik_core::Color::Black => &r.white,
+            };
+            Some(json!({
+                "id": r.id,
+                "opponent": opponent,
+                "my_turn": r.game.turn == color,
+                "plies": r.game.history.len(),
+                "clock": r.clock.normalized(now),
+            }))
+        })
+        .collect();
+    Json(mine).into_response()
 }
 
 /// Games in progress right now, most watched first.
@@ -508,10 +549,6 @@ async fn post_tournament(
     let Some(user) = current_user(&state, &headers) else {
         return error(StatusCode::UNAUTHORIZED, "no session");
     };
-    // Anonymous creators are fine, but only a few arenas an hour each.
-    if !state.allow(&user.id, "tour_create", 3, 3_600_000) {
-        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
-    }
     let name = body.name.trim().to_string();
     if !(3..=40).contains(&name.chars().count()) || name.chars().any(char::is_control) {
         return error(StatusCode::BAD_REQUEST, "invalid name");
@@ -523,6 +560,11 @@ async fn post_tournament(
         || !(300_000..=7_200_000).contains(&body.duration_ms)
     {
         return error(StatusCode::BAD_REQUEST, "invalid schedule");
+    }
+    // Anonymous creators are fine, but only a few arenas an hour each. After validation:
+    // typos must not burn the quota.
+    if !state.allow(&user.id, "tour_create", 3, 3_600_000) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
     }
     let arena = Arena {
         id: rand_id(8),
@@ -647,6 +689,7 @@ pub fn router(state: Arc<AppState>) -> Router {
     let static_files = ServeDir::new(&dist).fallback(ServeFile::new(index));
     Router::new()
         .route("/api/me", get(get_me).post(post_me))
+        .route("/api/me/games", get(get_my_games))
         .route("/api/register", post(post_register))
         .route("/api/password", post(post_password))
         .route("/api/login", post(post_login))

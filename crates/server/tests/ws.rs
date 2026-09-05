@@ -997,3 +997,109 @@ async fn tour_leave_without_join_and_index_under_load() {
     assert_eq!(view["tournament"]["players"], 1);
     assert_eq!(view["joined"], json!(false));
 }
+
+/// Password guessing is capped per account name: argon2 verification is expensive.
+#[tokio::test]
+async fn login_is_rate_limited() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let http = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("client");
+    http.get(format!("{base}/api/me")).send().await.expect("me");
+    http.post(format!("{base}/api/register"))
+        .json(&json!({"name": "Fischer", "password": "hunter22"}))
+        .send()
+        .await
+        .expect("register");
+
+    let wrong = json!({"name": "fischer", "password": "guessing"});
+    for _ in 0..10 {
+        let res = http
+            .post(format!("{base}/api/login"))
+            .json(&wrong)
+            .send()
+            .await
+            .expect("login");
+        assert_eq!(res.status(), reqwest::StatusCode::UNAUTHORIZED);
+    }
+    let res = http
+        .post(format!("{base}/api/login"))
+        .json(&wrong)
+        .send()
+        .await
+        .expect("login");
+    assert_eq!(res.status(), reqwest::StatusCode::TOO_MANY_REQUESTS);
+    // the correct password is refused too while the window lasts
+    let res = http
+        .post(format!("{base}/api/login"))
+        .json(&json!({"name": "Fischer", "password": "hunter22"}))
+        .send()
+        .await
+        .expect("login");
+    assert_eq!(res.status(), reqwest::StatusCode::TOO_MANY_REQUESTS);
+}
+
+/// `/api/me/games` lists only the session's own live games; oversized custom
+/// positions never become one.
+#[tokio::test]
+async fn my_games_and_setup_limits() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let http = reqwest::Client::new();
+
+    let (mut a, a_sid) = connect_sid(server.port).await;
+    let mut b = connect(server.port).await;
+    let a_id = hello_id(&mut a).await;
+    wait_for(&mut b, "hello").await;
+
+    // 72 white queens: rejected before any game exists
+    let mut rows = vec!["--------"; 48];
+    rows[0] = "K-------";
+    rows[1..10].fill("QQQQQQQQ");
+    rows[47] = "-------k";
+    send(
+        &mut a,
+        json!({"t":"challenge","clock":{"initial_ms":60000,"increment_ms":0},
+               "setup": rows.join("\n")}),
+    )
+    .await;
+    assert_eq!(wait_for(&mut a, "error").await["msg"], "invalid position");
+
+    // `_b` stays connected: dropping it would end the game.
+    let (mut a, _b, a_id, game_id) = seek_accept_with(a, b, a_id).await;
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    let a_is_white = state["white"]["id"] == a_id.as_str();
+
+    let mine: Value = http
+        .get(format!("{base}/api/me/games"))
+        .header("cookie", &a_sid)
+        .send()
+        .await
+        .expect("my games")
+        .json()
+        .await
+        .expect("json");
+    let mine = mine.as_array().expect("array");
+    assert_eq!(mine.len(), 1);
+    assert_eq!(mine[0]["id"], game_id.as_str());
+    assert_eq!(mine[0]["my_turn"], a_is_white);
+    assert_eq!(mine[0]["plies"], 0);
+    assert_eq!(mine[0]["clock"]["initial_ms"], 60000);
+    let opponent = if a_is_white {
+        &state["black"]["id"]
+    } else {
+        &state["white"]["id"]
+    };
+    assert_eq!(&mine[0]["opponent"]["id"], opponent);
+
+    // no session → 401
+    let res = http
+        .get(format!("{base}/api/me/games"))
+        .send()
+        .await
+        .expect("my games");
+    assert_eq!(res.status(), reqwest::StatusCode::UNAUTHORIZED);
+}

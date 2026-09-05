@@ -115,6 +115,9 @@ pub struct Room {
     pub rematch_offer: Option<Color>,
     pub takeback_offer: Option<Color>,
     pub created_at: i64,
+    /// Last move (or game creation), persisted as `games.updated_at`: the idle sweep must
+    /// not restart its 14-day window on every server restart.
+    pub last_move_at: i64,
     pub white_diff: Option<i64>,
     pub black_diff: Option<i64>,
     /// Arena this game was paired for, if any.
@@ -149,6 +152,7 @@ impl Room {
             rematch_offer: None,
             takeback_offer: None,
             created_at,
+            last_move_at: created_at,
             white_diff: None,
             black_diff: None,
             tournament_id: None,
@@ -167,6 +171,7 @@ impl Room {
         let mut clock = row.clock;
         clock.at = now_ms();
         let mut room = Room::new(row.id, game, row.white, row.black, clock, row.created_at);
+        room.last_move_at = row.updated_at;
         room.white_diff = row.white_diff;
         room.black_diff = row.black_diff;
         room.tournament_id = row.tournament_id;
@@ -240,6 +245,7 @@ impl Room {
         self.game.play(mv).map_err(|e| e.to_string())?;
         let now = now_ms();
         self.clock.on_move(color, now);
+        self.last_move_at = now;
         self.draw_offer = None;
         self.takeback_offer = None;
         let mv = self.game.history.last().expect("just played");
@@ -397,7 +403,9 @@ pub fn rehydrate(state: &Arc<AppState>) {
         };
         let room = Arc::new(Mutex::new(room));
         state.rooms.lock().insert(id, room.clone());
-        arm_timeout(state.clone(), room);
+        arm_timeout(state.clone(), room.clone());
+        // A restored game with < 2 plies still owes its opening move.
+        arm_first_move_expiry(state.clone(), room);
     }
 }
 

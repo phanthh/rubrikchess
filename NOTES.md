@@ -276,4 +276,26 @@ Pairing/scoring details:
 Lock order (`parking_lot`, no timeouts → an inversion is a hard deadlock): **`rooms` → `tournaments` → `db`**.
 `GET /api/tournaments` takes `tournaments` before `db` like every other path.
 Challenges (not lobby seeks) may carry `setup` (16- or 48-row board-editor position, validated: 8 chars/row, piece letters or `-`, exactly one king per side) → `GameConfig.setup`; rematches keep it.
-Scheduled arenas: the tick keeps one system-owned (user `system`, name "Rubrik") tournament upcoming: next full hour (≥5 min away), 30 min, clock rotating Blitz 3+2 / Bullet 1+0 / Blitz 5+0 / Rapid 10+0 by hour.
+Scheduled arenas: the tick keeps one system-owned (user `system`, name "Rubrik") tournament upcoming: next full hour (≥5 min away), 30 min, clock rotating Blitz 3+2 / Bullet 1+0 / Blitz 5+0 / Rapid 10+0 by hour. Only arenas with status `created` count, so a *running* system arena does not block the next one from being scheduled.
+
+## Phase 9: hardening (review 3)
+
+```
+GET /api/me/games   → [{id, opponent: User, my_turn: bool, plies, clock}]   session's live games; 401 without a session
+```
+Cheap per-user "your turn" inbox: one pass over the live rooms, keeping only the ones the caller plays in
+(`/api/tv` serialises *every* live game and is not meant to be polled per user).
+
+Other behaviour changes:
+- WS frames are capped at 64 KiB (`WebSocketUpgrade::max_message_size`); a bigger frame closes the socket.
+- `valid_setup` rejects inputs over 1024 bytes (before splitting) and positions with more than 64 pieces per
+  side — the server generates moves for a custom position on every ply.
+- `POST /api/login` is rate limited 10 / 10 min per (lowercased) account name; over it → 429 `slow down`,
+  correct password included. No session exists yet, so the name is the key.
+- `POST /api/password` deletes the user's *other* sessions (the current `sid` survives): a stolen cookie dies
+  with the password it was taken under.
+- `POST /api/tournaments` validates name/clock/schedule *before* spending the 3-per-hour quota.
+- Rate-limit windows are swept after 1h (was 1 min, i.e. shorter than the widest window).
+- Rehydrated rooms arm the first-move expiry as well as the flag-fall timer.
+- `Room.last_move_at` (persisted as `games.updated_at`, also exposed on `GameRow`) drives the 14-day idle sweep
+  for unlimited games, so a restart no longer grants another 14 days.

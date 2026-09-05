@@ -281,10 +281,11 @@ const HOUR_MS: i64 = 3_600_000;
 
 fn schedule(state: &Arc<AppState>, now: i64) -> Option<Value> {
     let mut tours = state.tournaments.lock();
-    let has_system = tours
+    // Only *upcoming* ones count: while an arena runs there must still be a next one to join.
+    let has_upcoming = tours
         .values()
-        .any(|a| a.created_by == db::SYSTEM_USER_ID && a.status != TourStatus::Finished);
-    if has_system {
+        .any(|a| a.created_by == db::SYSTEM_USER_ID && a.status == TourStatus::Created);
+    if has_upcoming {
         return None;
     }
     let mut starts_at = (now / HOUR_MS + 1) * HOUR_MS;

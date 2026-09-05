@@ -97,29 +97,43 @@ pub fn game_config(walled: bool, layout: Layout, setup: Option<String>) -> GameC
     }
 }
 
-/// A board-editor setup: 16 or 48 rows of 8 piece letters / `-`, exactly one king per side.
+/// A board-editor setup: 16 or 48 rows of 8 piece letters / `-`, exactly one king per side,
+/// at most `MAX_PIECES` per side (the server generates moves for this position on every ply).
 pub fn valid_setup(setup: &str) -> bool {
+    // 48 rows of 8 + separators; anything longer is not a board. Checked before the
+    // split allocates a Vec sized by the input.
+    if setup.len() > 1024 {
+        return false;
+    }
     let rows: Vec<&str> = setup.split_whitespace().collect();
     if rows.len() != 16 && rows.len() != 48 {
         return false;
     }
     let mut kings = (0, 0);
+    let mut pieces = (0, 0);
     for row in &rows {
         if row.chars().count() != 8 {
             return false;
         }
         for ch in row.chars() {
             match ch {
-                '-' => {}
+                '-' => continue,
                 'K' => kings.0 += 1,
                 'k' => kings.1 += 1,
                 c if "pnbrqxscotPNBRQXSCOT".contains(c) => {}
                 _ => return false,
             }
+            match ch.is_ascii_uppercase() {
+                true => pieces.0 += 1,
+                false => pieces.1 += 1,
+            }
         }
     }
-    kings == (1, 1)
+    kings == (1, 1) && pieces.0 <= MAX_PIECES && pieces.1 <= MAX_PIECES
 }
+
+/// Pieces one side may start a custom position with.
+const MAX_PIECES: usize = 64;
 
 /// Private invite: not in the lobby, joined by link.
 #[derive(Clone, Debug, Serialize)]
@@ -200,5 +214,9 @@ mod tests {
         rows[2] = "--------";
         assert!(!valid_setup(&rows[..47].join("\n"))); // wrong row count
         assert!(valid_setup(rubrik_core::SETUP_STANDARD));
+        // 72 white queens: a position the server would generate moves for on every ply
+        rows[1..10].fill("QQQQQQQQ");
+        assert!(!valid_setup(&rows.join("\n")));
+        assert!(!valid_setup(&"Q".repeat(2000))); // over the length cap
     }
 }

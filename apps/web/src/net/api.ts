@@ -96,3 +96,12 @@ export const createTournament = (body: {
 	starts_in_ms: number;
 	duration_ms: number;
 }) => post<Tournament>('/tournaments', body);
+
+export type MyGame = {
+	id: string;
+	opponent: User;
+	my_turn: boolean;
+	plies: number;
+	clock: ClockSpec;
+};
+export const myGames = () => req<MyGame[]>('/me/games');

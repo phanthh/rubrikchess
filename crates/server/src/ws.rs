@@ -116,7 +116,11 @@ pub async fn handler(
     ws: WebSocketUpgrade,
 ) -> Response {
     let (user, cookie) = crate::session(&state, &headers);
-    let mut res = ws.on_upgrade(move |socket| session_loop(state, user, socket));
+    // No client message is near this; without a cap an anon socket can make us buffer
+    // (and parse) megabytes.
+    let mut res = ws
+        .max_message_size(64 * 1024)
+        .on_upgrade(move |socket| session_loop(state, user, socket));
     if let Some(c) = cookie {
         if let Ok(v) = c.parse() {
             res.headers_mut().insert(header::SET_COOKIE, v);
