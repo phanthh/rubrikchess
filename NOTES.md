@@ -227,3 +227,27 @@ Variant = `{walled: bool, layout: "standard"|"rubrik"}`. `rubrik` = 6 distinct f
 - Chat history: room keeps last 50 chat lines in memory; `game_state` gains `chat: [{user, text, at}]` (not persisted across restarts).
 
 First-move expiry: a timed game whose first ply is not played within `clamp(2×inc + initial/5, 20s, 60s)` is aborted (`Draw{Abandoned}`, unrated). WS server sends a Ping frame every 25s of idle output.
+
+## Phase 8: arena tournaments
+In-memory `Arena` per tournament in `AppState.tournaments` + sqlite persistence (`tournaments(id, name, clock JSON, walled, layout, starts_at, duration_ms, created_by, status)`,
+`tournament_players(tid, user_id, score, games, wins, joined_at)`; rows written on change, rehydrated on boot: running/created ones resume; finished ones are history).
+Rules: anyone joins/leaves any time before the end. Pairing loop every 3s while `running`: players who are joined, connected (≥1 socket) and not in an unfinished tournament game are
+shuffled and paired (avoid pairing the same two players twice in a row when another option exists). Colours: alternate per player (whoever has had more whites gets black). Games are
+normal rated games with `tournament_id`. Score: win 2, draw 1, loss 0 (unrated aborts 0/0). Status: `created` → `running` at `starts_at` → `finished` at `starts_at + duration_ms`
+(no new pairings; running games finish normally and still count). Standings sorted by score desc, then wins desc, then joined_at.
+
+HTTP:
+```
+POST /api/tournaments {name (3..40 chars), clock: ClockSpec (valid, not unlimited), walled, layout, starts_in_ms (10_000..=3_600_000), duration_ms (300_000..=7_200_000)}
+                                          → Tournament ; needs a session; max 3 unfinished tournaments per creator
+GET  /api/tournaments                     → {upcoming: Tournament[], running: Tournament[], finished: Tournament[] (last 10)}
+GET  /api/tournaments/:id                 → {tournament: Tournament, standings: Standing[], games: GameRow[] (last 20)}
+Tournament = {id, name, clock, walled, layout, starts_at, duration_ms, status, players: n, created_by: User}
+Standing   = {user: User, score, games, wins, playing: bool}
+```
+WS:
+```
+client→server  {t:"tour_join", id}  {t:"tour_leave", id}                (errors: unknown / finished)
+server→client  {t:"tour", tournament: Tournament, joined: bool}         sent to the acting user on join/leave and to everyone (lobby channel) when players count / status changes
+               game_state gains `tournament_id: string|null`; GameRow / LiveGame gain `tournament_id`
+```
