@@ -27,8 +27,9 @@ export function RulesButton() {
 				</p>
 				<p className="text-sm text-muted-foreground">
 					Chess on a cube: 6 faces of 8x8. Pieces walk over the edges onto the next face. You win by
-					capturing the enemy king. In the <span className="font-mono">walled</span> variant no
-					piece may cross an edge, so every face is its own board.
+					capturing the enemy king; 100 plies without a capture is a draw. In the{' '}
+					<span className="font-mono">walled</span> variant no piece may cross an edge, so every
+					face is its own board.
 				</p>
 				<ul className="flex flex-col gap-2 text-sm">
 					{(Object.keys(PIECE_RULES) as PieceKind[]).map((kind) => (
