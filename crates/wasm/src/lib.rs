@@ -77,6 +77,17 @@ impl WasmGame {
         js(&best_move(&self.0, level, seed as u64))
     }
 
+    /// `{move, score}` for the side to move (score in centipawns, ±100000 = king capture). Null when over.
+    pub fn analyse(&self, level: u8, seed: u32) -> Result<JsValue, JsValue> {
+        #[derive(Serialize)]
+        struct Analysis {
+            #[serde(rename = "move")]
+            mv: Move,
+            score: i32,
+        }
+        js(&analyse(&self.0, level, seed as u64).map(|(mv, score)| Analysis { mv, score }))
+    }
+
     #[wasm_bindgen(js_name = historyLen)]
     pub fn history_len(&self) -> usize {
         self.0.history.len()

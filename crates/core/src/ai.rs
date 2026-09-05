@@ -5,7 +5,7 @@ use crate::board::{Color, PieceKind};
 use crate::game::{Game, Status};
 use crate::movegen::Move;
 
-const MATE: i32 = 100_000;
+pub const MATE: i32 = 100_000;
 
 pub fn value(kind: PieceKind) -> i32 {
     match kind {
@@ -120,6 +120,12 @@ fn search(game: &Game, depth: u8, mut alpha: i32, beta: i32) -> i32 {
 /// Pick a move for the side to move. `level`: 1 random, 2 greedy, 3 two-ply, 4 three-ply.
 /// `seed` breaks ties between equal moves so games do not repeat.
 pub fn best_move(game: &Game, level: u8, seed: u64) -> Option<Move> {
+    analyse(game, level, seed).map(|(mv, _)| mv)
+}
+
+/// Best move plus its score in centipawns from the side to move's view
+/// (±MATE for a forced king capture within the horizon).
+pub fn analyse(game: &Game, level: u8, seed: u64) -> Option<(Move, i32)> {
     if game.status != Status::Playing {
         return None;
     }
@@ -138,7 +144,8 @@ pub fn best_move(game: &Game, level: u8, seed: u64) -> Option<Move> {
         rng
     };
     if level <= 1 {
-        return Some(moves[(next() % moves.len() as u64) as usize].clone());
+        let mv = moves[(next() % moves.len() as u64) as usize].clone();
+        return Some((mv, material(game, game.turn)));
     }
     let depth = (level - 1).min(3);
     let mut best: Vec<Move> = Vec::new();
@@ -159,7 +166,10 @@ pub fn best_move(game: &Game, level: u8, seed: u64) -> Option<Move> {
             best.push(mv);
         }
     }
-    Some(best[(next() % best.len() as u64) as usize].clone())
+    Some((
+        best[(next() % best.len() as u64) as usize].clone(),
+        best_score,
+    ))
 }
 
 #[cfg(test)]
