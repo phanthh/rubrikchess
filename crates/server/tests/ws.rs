@@ -1558,3 +1558,63 @@ async fn play_the_bot() {
     let offer = wait_for(&mut a, "draw_offer").await;
     assert!(offer["by"].is_null(), "draw offer {offer}");
 }
+
+#[tokio::test]
+async fn puzzles_endpoint() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let empty = reqwest::get(format!("{base}/api/puzzles/random"))
+        .await
+        .expect("random");
+    assert_eq!(empty.status(), reqwest::StatusCode::NOT_FOUND);
+
+    // a game to hang the puzzle off, then a mined row (the miner itself is unit tested)
+    let (_a, _b, _, game_id) = seek_accept(server.port).await;
+
+    let solution = rubrik_core::Game::new(rubrik_core::GameConfig::default())
+        .legal_moves(9)
+        .first()
+        .expect("legal move")
+        .clone();
+    let db = rusqlite::Connection::open(server._dir.join("test.db")).expect("open db");
+    db.execute(
+        "INSERT INTO puzzles(game_id, ply, solution, gain, created_at) VALUES (?1, 0, ?2, 900, 0)",
+        rusqlite::params![
+            game_id,
+            serde_json::to_string(&solution).expect("json solution")
+        ],
+    )
+    .expect("insert puzzle");
+
+    let puzzle: Value = reqwest::get(format!("{base}/api/puzzles/random"))
+        .await
+        .expect("random")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(puzzle["game_id"], game_id.as_str());
+    assert_eq!(puzzle["ply"], 0);
+    assert_eq!(puzzle["gain"], 900);
+    assert_eq!(puzzle["moves"].as_array().expect("moves").len(), 0);
+    assert_eq!(
+        puzzle["solution"],
+        serde_json::to_value(&solution).expect("json")
+    );
+    assert!(puzzle["config"]["setup"].is_string());
+    assert!(puzzle["white"]["id"].is_string());
+
+    let count: Value = reqwest::get(format!("{base}/api/puzzles/count"))
+        .await
+        .expect("count")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(count["count"], 1);
+
+    // the only puzzle, excluded → nothing left to serve
+    let id = puzzle["id"].as_i64().expect("id");
+    let excluded = reqwest::get(format!("{base}/api/puzzles/random?exclude={id}"))
+        .await
+        .expect("random");
+    assert_eq!(excluded.status(), reqwest::StatusCode::NOT_FOUND);
+}

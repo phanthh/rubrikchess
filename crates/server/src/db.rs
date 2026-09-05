@@ -189,6 +189,15 @@ pub fn open(path: &str) -> Connection {
            at INTEGER NOT NULL,
            read INTEGER NOT NULL
          );
+         CREATE TABLE IF NOT EXISTS puzzles(
+           id INTEGER PRIMARY KEY,
+           game_id TEXT NOT NULL,
+           ply INTEGER NOT NULL,
+           solution TEXT NOT NULL,
+           gain INTEGER NOT NULL,
+           created_at INTEGER NOT NULL,
+           UNIQUE (game_id, ply)
+         );
          CREATE INDEX IF NOT EXISTS messages_to ON messages(to_id, at);
          CREATE INDEX IF NOT EXISTS messages_from ON messages(from_id, at);
          CREATE INDEX IF NOT EXISTS follows_target ON follows(target_id);
@@ -216,6 +225,8 @@ pub fn open(path: &str) -> Connection {
     add_column(&conn, "games", "black_diff", "INTEGER");
     add_column(&conn, "games", "tournament_id", "TEXT");
     add_column(&conn, "games", "times", "TEXT NOT NULL DEFAULT '[]'");
+    // 1 once the puzzle miner has looked at the game (whether or not it found anything).
+    add_column(&conn, "games", "mined", "INTEGER NOT NULL DEFAULT 0");
     // '' = the overall rating; a perf name = that speed's rating.
     add_column(&conn, "rating_history", "perf", "TEXT NOT NULL DEFAULT ''");
     // Owner of the auto-scheduled arenas; cannot log in (no password), never plays.
@@ -1035,6 +1046,85 @@ pub fn head_to_head(conn: &Connection, a: &str, b: &str) -> Vec<(String, bool, O
         .expect("head to head")
         .filter_map(|r| r.ok())
         .collect()
+}
+
+/// A mined tactic: the position after `ply` plies of `game_id` and its winning move.
+#[derive(Debug, Serialize)]
+pub struct PuzzleRow {
+    pub id: i64,
+    pub game_id: String,
+    pub ply: usize,
+    pub solution: Move,
+    pub gain: i64,
+    pub config: GameConfig,
+    /// The game's first `ply` moves: the client replays them to reach the position.
+    pub moves: Vec<Move>,
+    pub white: User,
+    pub black: User,
+}
+
+/// Finished games the miner has not looked at yet, oldest first.
+pub fn unmined_games(conn: &Connection, limit: i64) -> Vec<GameRow> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id FROM games
+             WHERE mined = 0 AND json_extract(status, '$.kind') != 'playing'
+               AND json_array_length(moves) >= 8
+             ORDER BY created_at LIMIT ?1",
+        )
+        .expect("prepare unmined");
+    let ids: Vec<String> = stmt
+        .query_map(params![limit], |r| r.get(0))
+        .expect("unmined games")
+        .filter_map(|r| r.ok())
+        .collect();
+    ids.iter().filter_map(|id| load_game(conn, id)).collect()
+}
+
+pub fn mark_mined(conn: &Connection, game_id: &str) {
+    conn.execute("UPDATE games SET mined = 1 WHERE id = ?1", params![game_id])
+        .expect("mark mined");
+}
+
+pub fn insert_puzzle(conn: &Connection, game_id: &str, ply: usize, solution: &Move, gain: i64) {
+    conn.execute(
+        "INSERT OR IGNORE INTO puzzles(game_id, ply, solution, gain, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![game_id, ply, json(solution), gain, crate::now_ms()],
+    )
+    .expect("insert puzzle");
+}
+
+pub fn puzzle_count(conn: &Connection) -> i64 {
+    conn.query_row("SELECT COUNT(*) FROM puzzles", [], |r| r.get(0))
+        .expect("count puzzles")
+}
+
+/// One random puzzle, skipping the ids the caller has already seen.
+pub fn random_puzzle(conn: &Connection, exclude: &[i64]) -> Option<PuzzleRow> {
+    let (id, game_id, ply, solution, gain): (i64, String, usize, String, i64) = conn
+        .query_row(
+            "SELECT id, game_id, ply, solution, gain FROM puzzles
+             WHERE id NOT IN (SELECT value FROM json_each(?1))
+             ORDER BY RANDOM() LIMIT 1",
+            params![json(&exclude)],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+        )
+        .optional()
+        .expect("query puzzle")?;
+    let mut game = load_game(conn, &game_id)?;
+    game.moves.truncate(ply);
+    Some(PuzzleRow {
+        id,
+        game_id,
+        ply,
+        solution: serde_json::from_str(&solution).ok()?,
+        gain,
+        config: game.config,
+        moves: game.moves,
+        white: game.white,
+        black: game.black,
+    })
 }
 
 /// Rebuild a playable game from a stored row (validating every move).

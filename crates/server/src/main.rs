@@ -1,6 +1,7 @@
 mod bot;
 mod db;
 mod lobby;
+mod puzzles;
 mod rating;
 mod room;
 mod tournament;
@@ -607,6 +608,32 @@ async fn get_bot(State(state): State<Arc<AppState>>) -> Response {
     }
 }
 
+#[derive(Deserialize)]
+struct PuzzleQuery {
+    /// Ids the client has already been served, comma separated.
+    exclude: Option<String>,
+}
+
+async fn get_random_puzzle(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<PuzzleQuery>,
+) -> Response {
+    let exclude: Vec<i64> = q
+        .exclude
+        .unwrap_or_default()
+        .split(',')
+        .filter_map(|id| id.trim().parse().ok())
+        .collect();
+    match db::random_puzzle(&state.db.lock(), &exclude) {
+        Some(puzzle) => Json(puzzle).into_response(),
+        None => error(StatusCode::NOT_FOUND, "not found"),
+    }
+}
+
+async fn get_puzzle_count(State(state): State<Arc<AppState>>) -> Response {
+    Json(json!({ "count": db::puzzle_count(&state.db.lock()) })).into_response()
+}
+
 async fn get_leaderboard(
     State(state): State<Arc<AppState>>,
     Query(q): Query<LeaderQuery>,
@@ -964,6 +991,8 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(get_conversation).post(post_message),
         )
         .route("/api/bot", get(get_bot))
+        .route("/api/puzzles/random", get(get_random_puzzle))
+        .route("/api/puzzles/count", get(get_puzzle_count))
         .route("/api/leaderboard", get(get_leaderboard))
         .route("/api/games", get(get_games))
         .route("/api/tv", get(get_tv))
@@ -1001,6 +1030,7 @@ async fn main() {
     room::rehydrate(&state);
     tournament::rehydrate(&state);
     tournament::spawn_tick(state.clone());
+    puzzles::spawn_miner(state.clone());
     tokio::spawn({
         let state = state.clone();
         async move {

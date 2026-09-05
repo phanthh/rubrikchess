@@ -1,7 +1,7 @@
 import { Puzzle, scanPuzzles } from '@/ai';
 import { BoardPage } from '@/components/round/board-page';
 import { Button } from '@/components/ui/button';
-import { getGame, listGames } from '@/net/api';
+import { getGame, listGames, randomPuzzle } from '@/net/api';
 import { game, useGameStore } from '@/store/game';
 import { Move } from '@/types';
 import { notation } from '@/utils/notation';
@@ -31,6 +31,7 @@ export function PuzzlePage() {
 	const [loading, setLoading] = useState(true);
 	const solved = usePrefs((s) => s.puzzlesSolved);
 	const seen = useRef(new Set<string>());
+	const seenIds = useRef<number[]>([]);
 	const run = useRef(0);
 	const turn = useGameStore((s) => s.turn);
 	const history = useGameStore((s) => s.history);
@@ -41,6 +42,24 @@ export function PuzzlePage() {
 		setVerdict(null);
 		setLoading(true);
 		setStatus('Looking for a tactic in recent games…');
+		// server-mined puzzles first (instant); fall back to scanning recent games in the worker
+		const served = await randomPuzzle(seenIds.current).catch(() => null);
+		if (me !== run.current) return;
+		if (served) {
+			seenIds.current.push(served.id);
+			game().loadAnalysis(served.config, served.moves, {
+				white: served.white,
+				black: served.black,
+			});
+			game().setSetting({ flipped: game().turn === 'black' });
+			setTask({
+				gameId: served.game_id,
+				puzzle: { ply: served.ply, solution: served.solution, gain: served.gain },
+				players: `${served.white.name} vs ${served.black.name}`,
+			});
+			setLoading(false);
+			return;
+		}
 		const games = (await listGames(50)).filter((g) => g.plies >= 8 && g.status.kind !== 'playing');
 		for (const row of games.sort(() => Math.random() - 0.5).slice(0, 12)) {
 			if (me !== run.current) return;

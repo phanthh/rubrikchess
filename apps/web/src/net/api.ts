@@ -153,3 +153,17 @@ export const unblock = (name: string) =>
 export const bot = () => req<User>('/bot');
 
 export const incomingChallenges = () => req<Challenge[]>('/challenges');
+
+export type ServerPuzzle = {
+	id: number;
+	game_id: string;
+	ply: number;
+	solution: Move;
+	gain: number;
+	config: GameConfig;
+	moves: Move[];
+	white: User;
+	black: User;
+};
+export const randomPuzzle = (exclude: number[]) =>
+	req<ServerPuzzle>(`/puzzles/random${exclude.length ? `?exclude=${exclude.join(',')}` : ''}`);
