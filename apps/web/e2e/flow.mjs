@@ -260,10 +260,21 @@ await J.waitForURL(/\/c\//, { timeout: 5000 });
 await J.waitForTimeout(600);
 await shot(J, 'challenge-direct');
 assert((await J.getByText(`Waiting for ${kName} to join`).count()) === 1, 'owner sees targeted challenge');
-await K.getByRole('button', { name: 'Accept' }).click();
+// the challenge also sits in K's lobby inbox; decline it there, then send another and accept
+await K.getByRole('button', { name: 'Decline' }).last().click();
+await J.waitForTimeout(600);
+assert((await J.getByText(/declined your challenge/).count()) === 1, 'creator sees the decline');
+await J.waitForURL((u) => !/\/c\//.test(u.toString()), { timeout: 5000 });
+await J.getByRole('button', { name: 'Play with a friend' }).click();
+await J.getByPlaceholder('anyone with the link').fill(kName);
+await J.getByRole('button', { name: `Challenge ${kName}` }).click();
+await J.waitForURL(/\/c\//, { timeout: 5000 });
+await K.waitForTimeout(600);
+assert((await K.getByText(/challenges you/).count()) >= 1, 'incoming challenge box in lobby');
+await K.locator('.box', { hasText: 'challenges you' }).getByRole('button', { name: 'Accept' }).click();
 await K.waitForURL(/\/g\//, { timeout: 5000 });
 await J.waitForURL(/\/g\//, { timeout: 5000 });
-assert(true, 'direct challenge accepted from toast');
+assert(true, 'direct challenge accepted from the lobby inbox');
 
 // confirm-move preference: first click stages, ✓ sends
 await J.waitForTimeout(1000);

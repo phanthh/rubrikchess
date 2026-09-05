@@ -149,3 +149,5 @@ export const unblock = (name: string) =>
 	req<{ blocked: boolean }>(`/block/${encodeURIComponent(name)}`, { method: 'DELETE' });
 
 export const bot = () => req<User>('/bot');
+
+export const incomingChallenges = () => req<Challenge[]>('/challenges');

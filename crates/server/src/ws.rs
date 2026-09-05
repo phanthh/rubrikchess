@@ -91,6 +91,9 @@ enum ClientMsg {
         setup: Option<String>,
     },
     CancelChallenge,
+    Decline {
+        challenge_id: String,
+    },
     Join {
         challenge_id: String,
     },
@@ -693,6 +696,27 @@ fn handle(
                 return;
             }
             state.challenges.lock().retain(|_, c| c.user.id != user.id);
+        }
+        ClientMsg::Decline { challenge_id } => {
+            if !state.allow(&user.id, "cancel_challenge", 20, 10_000) {
+                err(out, "slow down");
+                return;
+            }
+            let removed = {
+                let mut challenges = state.challenges.lock();
+                match challenges.get(&challenge_id) {
+                    Some(c) if c.to.as_ref().is_some_and(|t| t.id == user.id) => {
+                        challenges.remove(&challenge_id)
+                    }
+                    _ => None,
+                }
+            };
+            if let Some(c) = removed {
+                state.send_to_user(
+                    &c.user.id,
+                    &json!({"t": "challenge_declined", "id": c.id, "by": user}),
+                );
+            }
         }
         ClientMsg::Join { challenge_id } => {
             if !state.allow(&user.id, "join", 20, 10_000) {

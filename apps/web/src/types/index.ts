@@ -219,6 +219,7 @@ export type ClientMsg =
 			setup?: string;
 	  }
 	| { t: 'cancel_challenge' }
+	| { t: 'decline'; challenge_id: string }
 	| { t: 'join'; challenge_id: string }
 	| { t: 'claim'; game_id: string }
 	| { t: 'abort'; game_id: string }
@@ -278,6 +279,7 @@ export type ServerMsg =
 	| { t: 'takeback_offer'; game_id: string; by: Color | null }
 	| { t: 'challenge'; challenge: Challenge }
 	| { t: 'challenge_in'; challenge: Challenge }
+	| { t: 'challenge_declined'; id: string; by: User }
 	| { t: 'watchers'; game_id: string; n: number }
 	| { t: 'presence'; game_id: string; white: boolean; black: boolean }
 	| { t: 'gone'; game_id: string; color: Color }

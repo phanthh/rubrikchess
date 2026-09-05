@@ -750,6 +750,26 @@ async fn get_challenge(State(state): State<Arc<AppState>>, Path(id): Path<String
     }
 }
 
+/// Direct challenges addressed to the current session (still open).
+async fn get_incoming_challenges(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Response {
+    let Some(me) = current_user(&state, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    let now = now_ms();
+    let list: Vec<_> = state
+        .challenges
+        .lock()
+        .values()
+        .filter(|c| now - c.created_at < CHALLENGE_TTL_MS)
+        .filter(|c| c.to.as_ref().is_some_and(|t| t.id == me.id))
+        .cloned()
+        .collect();
+    Json(list).into_response()
+}
+
 #[derive(Deserialize)]
 struct TournamentBody {
     name: String,
@@ -938,6 +958,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/games", get(get_games))
         .route("/api/tv", get(get_tv))
         .route("/api/crosstable", get(get_crosstable))
+        .route("/api/challenges", get(get_incoming_challenges))
         .route("/api/challenges/{id}", get(get_challenge))
         .route(
             "/api/tournaments",

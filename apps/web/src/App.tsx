@@ -46,6 +46,9 @@ function ServerNav() {
 							action: { label: 'Reply', onClick: () => navigate(`/inbox/${msg.from.name}`) },
 						});
 					}
+				} else if (msg.t === 'challenge_declined') {
+					toast(`${msg.by.name} declined your challenge`);
+					if (location.pathname === `/c/${msg.id}`) navigate('/');
 				} else if (msg.t === 'challenge_in') {
 					const c = msg.challenge;
 					play('notify');

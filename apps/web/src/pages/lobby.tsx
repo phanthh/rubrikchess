@@ -5,14 +5,14 @@ import { Button } from '@/components/ui/button';
 import { leaderboard, listGames, liveGames } from '@/net/api';
 import { send, useNetStore } from '@/net/ws';
 import { variantLabel } from '@/utils/variant';
-import { GameRow, LiveGame, Seek, Tournament, User } from '@/types';
+import { Challenge, GameRow, LiveGame, Seek, Tournament, User } from '@/types';
 import { TourList } from './tournaments';
-import { bot, Friend, friends, listTournaments } from '@/net/api';
+import { bot, Friend, friends, incomingChallenges, listTournaments } from '@/net/api';
 import { onServerMsg } from '@/net/ws';
 import { clockLabel, perfOf, speedOf } from '@/utils/clock';
 import { requestNotifyPermission } from '@/utils/notify';
 import { cn } from '@/utils/ui';
-import { Loader2, Users } from 'lucide-react';
+import { Loader2, Swords, Users } from 'lucide-react';
 import { ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -65,6 +65,7 @@ export function LobbyPage() {
 	const [tours, setTours] = useState<Tournament[]>([]);
 	const [pals, setPals] = useState<Friend[]>([]);
 	const [botUser, setBotUser] = useState<User | null>(null);
+	const [incoming, setIncoming] = useState<Challenge[]>([]);
 
 	useEffect(() => {
 		const refresh = () => {
@@ -92,7 +93,14 @@ export function LobbyPage() {
 			.then(setBotUser)
 			.catch(() => undefined);
 		let debounce = 0;
+		const loadIncoming = () =>
+			me &&
+			incomingChallenges()
+				.then(setIncoming)
+				.catch(() => undefined);
+		loadIncoming();
 		const unsub = onServerMsg((m) => {
+			if (m.t === 'challenge_in' || m.t === 'game_start') loadIncoming();
 			if (m.t !== 'tour') return;
 			clearTimeout(debounce);
 			debounce = window.setTimeout(loadTours, 800);
@@ -121,6 +129,36 @@ export function LobbyPage() {
 		<Shell>
 			<div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
 				<div className="flex flex-col gap-4 min-w-0">
+					{incoming.map((c) => (
+						<div
+							key={c.id}
+							className="box flex items-center gap-3 px-4 py-3 border-brag/50 bg-brag/10 text-sm"
+						>
+							<Swords className="h-4 w-4 text-brag" />
+							<span className="flex-1">
+								<b>{c.user.name}</b>{' '}
+								<span className="text-brag text-xs">{Math.round(c.user.rating)}</span> challenges
+								you · {clockLabel(c.clock)} {speedOf(c.clock)} · {variantLabel(c.walled, c.layout)}
+							</span>
+							<Button
+								size="sm"
+								variant="secondary"
+								onClick={() => send({ t: 'join', challenge_id: c.id })}
+							>
+								Accept
+							</Button>
+							<Button
+								size="sm"
+								variant="ghost"
+								onClick={() => {
+									send({ t: 'decline', challenge_id: c.id });
+									setIncoming((prev) => prev.filter((x) => x.id !== c.id));
+								}}
+							>
+								Decline
+							</Button>
+						</div>
+					))}
 					{mine.map((g) => (
 						<Link
 							key={g.id}
