@@ -148,7 +148,7 @@ const before = (await state(W)).clock.white_ms;
 await W.getByTitle('Give your opponent 15 seconds').click();
 await W.waitForTimeout(500);
 const after = (await state(W)).clock.white_ms;
-assert(after - before >= 14_000, `moretime added 15s (${after - before})`);
+assert(after - before >= 12_000 && after - before <= 15_000, `moretime added ~15s (clock re-based) (${after - before})`);
 // abort before ply 2
 await W.getByTitle('Abort game').click();
 await W.waitForTimeout(600);
