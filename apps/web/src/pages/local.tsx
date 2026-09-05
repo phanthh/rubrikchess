@@ -47,7 +47,6 @@ export function LocalPage() {
 	};
 
 	// (re)start only when the mode or the position changes, not on every slider tweak
-	// oxlint-disable-next-line react-hooks/exhaustive-deps
 	useEffect(() => {
 		if (setup) {
 			game().setSetting({
@@ -56,6 +55,7 @@ export function LocalPage() {
 			});
 		}
 		start();
+		// oxlint-disable-next-line react-hooks/exhaustive-deps
 	}, [vsAi, setup]);
 
 	const thinking = !!ai && ai.color === turn && status.kind === 'playing';

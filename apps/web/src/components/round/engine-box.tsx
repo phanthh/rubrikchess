@@ -24,7 +24,6 @@ export function EngineBox() {
 	const key = `${cursor}:${history.length}:${history[cursor - 1] ? notation(history[cursor - 1]) : ''}`;
 
 	// `key` already encodes cursor + history; re-running on every history object would spam the worker
-	// oxlint-disable-next-line react-hooks/exhaustive-deps
 	useEffect(() => {
 		if (!config || status.kind !== 'playing') return;
 		let stale = false;
@@ -37,6 +36,7 @@ export function EngineBox() {
 			stale = true;
 			clearTimeout(t);
 		};
+		// oxlint-disable-next-line react-hooks/exhaustive-deps
 	}, [key, config, status.kind]);
 
 	const a = result?.key === key ? result.analysis : null;
