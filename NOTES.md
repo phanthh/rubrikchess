@@ -346,3 +346,8 @@ Background task (every 5 min, and once 30 s after boot): take up to 5 finished, 
 GET /api/puzzles/random?exclude=<id,id,...>   → {id, game_id, ply, solution: Move, gain, config, moves: Move[] (first `ply` plies), white: User, black: User}  or 404 when none
 GET /api/puzzles/count                        → {count}
 ```
+
+## Phase 16: server hardening (TODOS)
+1. Glicko-2 inactivity: users get `last_rated_at INTEGER` (ms; NULL = never). Before `rating::update` for a game, inflate each side's RD for the elapsed time: `rd' = min(350, sqrt(rd² + σ²·t))` with σ = stored volatility if present else 0.06, t = elapsed days / 30 (one rating period = 30 days, but only whole/fractional periods since the last rated game). Store volatility per user if not already (`volatility REAL DEFAULT 0.06`). Also apply on read for display (`/api/users/:name`, leaderboard) — optional; at minimum on update. Keep the existing rating tests green; add one for inflation.
+2. IP rate limiting: `POST /api/register`, `POST /api/login`, and anonymous session minting (first `/api/me` without a cookie) are limited per client IP via the existing `state.allow` with key `ip:<addr>` (`register` 5/10 min, `login` 10/min, anon mint 30/min). IP = first `X-Forwarded-For` hop if `TRUST_PROXY=1` env, else the socket peer (`ConnectInfo<SocketAddr>` — router must be served with `into_make_service_with_connect_info`). 429 "slow down".
+3. Per-arena chat channel: replace the lobby fan-out for `tour_chat` with a per-arena `broadcast::Sender<String>` (like rooms); clients subscribe with `{t:"tour_sub", id}` / `{t:"tour_unsub"}` (one arena per socket). `tour_chat` lines go only to subscribers. Chat history stays served on the arena payload as now.
