@@ -23,6 +23,8 @@ export function EngineBox() {
 	const [result, setResult] = useState<{ key: string; analysis: Analysis | null } | null>(null);
 	const key = `${cursor}:${history.length}:${history[cursor - 1] ? notation(history[cursor - 1]) : ''}`;
 
+	// `key` already encodes cursor + history; re-running on every history object would spam the worker
+	// oxlint-disable-next-line react-hooks/exhaustive-deps
 	useEffect(() => {
 		if (!config || status.kind !== 'playing') return;
 		let stale = false;

@@ -28,6 +28,8 @@ export function GamesPage() {
 		}
 	};
 
+	// initial page only; `more` is otherwise driven by the button
+	// oxlint-disable-next-line react-hooks/exhaustive-deps
 	useEffect(() => {
 		void more();
 	}, []);

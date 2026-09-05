@@ -46,6 +46,8 @@ export function LocalPage() {
 		game().newLocal(config, vsAi ? { color: c === 'white' ? 'black' : 'white', level: l } : null);
 	};
 
+	// (re)start only when the mode or the position changes, not on every slider tweak
+	// oxlint-disable-next-line react-hooks/exhaustive-deps
 	useEffect(() => {
 		if (setup) {
 			game().setSetting({
