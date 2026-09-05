@@ -5,4 +5,5 @@ challenges/tv/presence+claim/abort/moretime/crosstable/rating history/restart-re
 lobby, round page, prefs, sounds, analysis board, vs computer, profiles, tv, challenge pages), CI, Dockerfile, e2e flow script.
 
 ## Next
+- [ ] engine: iterative deepening with a time limit instead of the fixed node budget; per-speed ratings (bullet/blitz/rapid/correspondence)
 - [ ] oxlint: re-enable react/set-state-in-effect + react/purity + exhaustive-effect-dependencies (React Compiler rules) and refactor use-clock/tournament countdown/hooks.ts

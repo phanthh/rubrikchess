@@ -299,3 +299,6 @@ Other behaviour changes:
 - Rehydrated rooms arm the first-move expiry as well as the flag-fall timer.
 - `Room.last_move_at` (persisted as `games.updated_at`, also exposed on `GameRow`) drives the 14-day idle sweep
   for unlimited games, so a restart no longer grants another 14 days.
+
+## Phase 10: move times
+Room keeps `times: Vec<i64>` = remaining ms of the mover *after* each ply (post-increment; unlimited clocks → 0). Persisted in `games.times` (JSON), included in `game_state` and `GET /api/games/:id` as `times`. Takeback truncates it with the history.
