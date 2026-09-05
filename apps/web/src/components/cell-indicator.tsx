@@ -35,16 +35,16 @@ function Indicator({ cell, lowPerf }: CellIndicatorProps & { lowPerf: boolean })
 	const [color, props] = useInteractiveMesh(
 		{
 			normal: rotate
-				? '#ffff00'
+				? '#eab308'
 				: cell.state === 'targeted:path' || cell.state === 'targeted'
-					? '#ffbb00'
-					: '#00ff00',
+					? '#f59e0b'
+					: '#22c55e',
 			hover: rotate
-				? '#ffffaa'
+				? '#fde047'
 				: cell.state === 'targeted:path' || cell.state === 'targeted'
-					? '#eecc11'
-					: '#aaffaa',
-			active: '#ff0000',
+					? '#fbbf24'
+					: '#86efac',
+			active: '#ef4444',
 			tooltip:
 				cell.state === 'reachable'
 					? rotate
@@ -57,10 +57,25 @@ function Indicator({ cell, lowPerf }: CellIndicatorProps & { lowPerf: boolean })
 		cell.state === 'capturable',
 	);
 
+	const capture = cell.state === 'capturable';
+	const threat = cell.state === 'targeted' || cell.state === 'targeted:path';
 	return (
-		<mesh {...props} position={[0, 0, 0]} receiveShadow castShadow>
-			<boxGeometry args={[C_S - 1, C_S - 1, 0.5]} />
-			<meshStandardMaterial color={color} roughness={0.9} metalness={0.1} />
+		// lichess-style: a dot for a quiet move, a ring around a capturable piece; a thin
+		// invisible plate keeps the whole cell clickable
+		<mesh {...props} position={[0, 0, 0.06]}>
+			<planeGeometry args={[C_S, C_S]} />
+			<meshBasicMaterial transparent opacity={0} depthWrite={false} />
+			{capture || threat ? (
+				<mesh position={[0, 0, 0.04]}>
+					<ringGeometry args={[C_S * 0.34, C_S * 0.46, 32]} />
+					<meshBasicMaterial color={color} transparent opacity={0.85} depthWrite={false} />
+				</mesh>
+			) : (
+				<mesh position={[0, 0, 0.04]}>
+					<circleGeometry args={[rotate ? C_S * 0.22 : C_S * 0.16, 24]} />
+					<meshBasicMaterial color={color} transparent opacity={0.8} depthWrite={false} />
+				</mesh>
+			)}
 			{cell.state === 'targeted' && !lowPerf && (
 				<>
 					<mesh position={[0, 0, CL_H / 2]} rotation={[Math.PI / 2, 0, 0]}>
