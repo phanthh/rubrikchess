@@ -228,10 +228,9 @@ impl Room {
     /// Whether each player currently has at least one websocket open.
     pub fn presence(&self, state: &AppState) -> (bool, bool) {
         let conns = state.conns.lock();
-        (
-            conns.contains_key(&self.white.id),
-            conns.contains_key(&self.black.id),
-        )
+        // the bot has no socket but is always there
+        let here = |id: &str| id == db::SYSTEM_USER_ID || conns.contains_key(id);
+        (here(&self.white.id), here(&self.black.id))
     }
 
     pub fn presence_msg(&self, state: &AppState) -> Value {
