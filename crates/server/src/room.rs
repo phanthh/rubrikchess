@@ -344,8 +344,13 @@ impl Room {
         );
         db::set_game_diffs(&conn, &self.id, white_diff, black_diff);
         let at = now_ms();
-        db::add_rating_history(&conn, &white.id, &self.id, at, wr.r);
-        db::add_rating_history(&conn, &black.id, &self.id, at, br.r);
+        // First rated game: also record the starting rating so the chart has a line from move one.
+        for (u, r) in [(&white, wr.r), (&black, br.r)] {
+            if u.games == 0 {
+                db::add_rating_history(&conn, &u.id, "", self.created_at, u.rating);
+            }
+            db::add_rating_history(&conn, &u.id, &self.id, at, r);
+        }
         white.rating = wr.r;
         white.rd = wr.rd;
         white.vol = wr.vol;
