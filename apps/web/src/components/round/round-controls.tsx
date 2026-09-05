@@ -6,7 +6,8 @@ import { Color } from '@/types';
 import { unlimited } from '@/utils/clock';
 import { moveText, notation } from '@/utils/notation';
 import { cn, statusLabel } from '@/utils/ui';
-import { Check, Download, Flag, Plus, RefreshCw, Undo2, X } from 'lucide-react';
+import { Check, Download, Flag, Link2, Plus, RefreshCw, Undo2, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
@@ -121,6 +122,14 @@ export function RoundControls({
 			<RefreshCw className="h-4 w-4" />
 		</IconBtn>
 	);
+	const share = (
+		<IconBtn
+			title="Copy game link"
+			onClick={() => navigator.clipboard.writeText(location.href).then(() => toast.success('Link copied'))}
+		>
+			<Link2 className="h-4 w-4" />
+		</IconBtn>
+	);
 	const download = (
 		<IconBtn title="Export game" onClick={exportGame} disabled={history.length === 0}>
 			<Download className="h-4 w-4" />
@@ -188,6 +197,7 @@ export function RoundControls({
 				</div>
 				<div className="flex border-t border-border/60">
 					{flip}
+					{share}
 					{download}
 				</div>
 			</div>
@@ -198,6 +208,7 @@ export function RoundControls({
 		return (
 			<div className="box flex">
 				{flip}
+				{share}
 				{download}
 			</div>
 		);
@@ -291,6 +302,7 @@ export function RoundControls({
 						</IconBtn>
 					)}
 					{flip}
+					{share}
 					{download}
 				</div>
 			)}

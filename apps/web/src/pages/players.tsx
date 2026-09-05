@@ -29,7 +29,7 @@ export function PlayersPage() {
 				<div className="box-title">Leaderboard</div>
 				{top.length === 0 ? (
 					<div className="p-4 text-sm text-muted-foreground">
-						Nobody has an established rating yet. Registered players with a rating deviation under 200 appear here.
+						Nobody has played a rated game as a registered player yet. A ? marks a provisional rating.
 					</div>
 				) : (
 					<table className="w-full text-sm">
@@ -43,7 +43,10 @@ export function PlayersPage() {
 										</Link>
 									</td>
 									<td className="text-muted-foreground text-xs">{u.games} games</td>
-									<td className="text-right text-brag font-medium">{Math.round(u.rating)}</td>
+									<td className="text-right text-brag font-medium">
+										{Math.round(u.rating)}
+										{u.rd >= 200 && <span className="text-muted-foreground" title="provisional">?</span>}
+									</td>
 								</tr>
 							))}
 						</tbody>

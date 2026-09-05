@@ -142,7 +142,7 @@ POST /api/login {name, password}      → User          (new session bound to th
 POST /api/logout                      → User          (new anon user + session)
 POST /api/password {old, new}         → User          (registered only; 401 on wrong old password; 5 / 10 min)
 GET  /api/users/:name                 → {user: User, games: GameRow[]}   (404)
-GET  /api/leaderboard?limit=20        → User[]  (registered users only, sorted by rating, rd < 200)
+GET  /api/leaderboard?limit=20        → User[]  (registered users with ≥1 game; established (rd < 200) first, then provisional, by rating)
 GET  /api/games, /api/games/:id       → GameRow = {id, white: User, black: User, status, clock, created_at, plies, white_diff, black_diff}
 ```
 WS: `game_state.white/black` and lobby `seeks[].user` are `User` (with rating). `game_end` gains `white_diff, black_diff` (ints, null if unrated).

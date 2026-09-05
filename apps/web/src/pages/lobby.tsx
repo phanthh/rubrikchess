@@ -283,7 +283,7 @@ export function LobbyPage() {
 						}
 					>
 						{top.length === 0 ? (
-							<Empty>No established ratings yet. Register and play a few games.</Empty>
+							<Empty>No rated registered players yet. Register and play a game.</Empty>
 						) : (
 							<ol className="text-sm">
 								{top.map((u, i) => (
@@ -292,7 +292,10 @@ export function LobbyPage() {
 										<Link to={`/u/${u.name}`} className="flex-1 truncate text-foreground">
 											{u.name}
 										</Link>
-										<span className="text-brag font-medium">{Math.round(u.rating)}</span>
+										<span className="text-brag font-medium">
+											{Math.round(u.rating)}
+											{u.rd >= 200 && <span className="text-muted-foreground" title="provisional">?</span>}
+										</span>
 									</li>
 								))}
 							</ol>

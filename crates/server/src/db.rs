@@ -230,8 +230,8 @@ pub fn user_by_name(conn: &Connection, name: &str) -> Option<User> {
 pub fn leaderboard(conn: &Connection, limit: i64) -> Vec<User> {
     let mut stmt = conn
         .prepare(&format!(
-            "SELECT {USER_COLS} WHERE password_hash IS NOT NULL AND rd < 200
-             ORDER BY rating DESC LIMIT ?1"
+            "SELECT {USER_COLS} WHERE password_hash IS NOT NULL AND games > 0
+             ORDER BY (rd < 200) DESC, rating DESC LIMIT ?1"
         ))
         .expect("prepare leaderboard");
     let rows = stmt
