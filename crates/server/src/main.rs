@@ -4,7 +4,7 @@ mod rating;
 mod room;
 mod ws;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use argon2::password_hash::rand_core::OsRng;
@@ -25,7 +25,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 
 use crate::db::User;
-use crate::lobby::Lobby;
+use crate::lobby::{Challenge, Lobby, CHALLENGE_TTL_MS};
 use crate::room::Room;
 
 pub struct AppState {
@@ -34,6 +34,12 @@ pub struct AppState {
     pub rooms: Mutex<HashMap<String, Arc<Mutex<Room>>>>,
     /// Live websocket connections per user id (a user may have several tabs).
     pub conns: Mutex<HashMap<String, Vec<mpsc::UnboundedSender<String>>>>,
+    /// When each user's last socket closed (absent = currently connected).
+    pub gone: Mutex<HashMap<String, i64>>,
+    /// Open challenge links, one per user.
+    pub challenges: Mutex<HashMap<String, Challenge>>,
+    /// Chat rate limit: recent message times per (user, room).
+    pub chats: Mutex<HashMap<(String, String), VecDeque<i64>>>,
     pub lobby_tx: broadcast::Sender<String>,
 }
 
@@ -44,6 +50,9 @@ impl AppState {
             lobby: Mutex::new(Lobby::default()),
             rooms: Mutex::new(HashMap::new()),
             conns: Mutex::new(HashMap::new()),
+            gone: Mutex::new(HashMap::new()),
+            challenges: Mutex::new(HashMap::new()),
+            chats: Mutex::new(HashMap::new()),
             lobby_tx: broadcast::channel(64).0,
         }
     }
@@ -246,8 +255,9 @@ async fn get_user(State(state): State<Arc<AppState>>, Path(name): Path<String>) 
     let Some(user) = db::user_by_name(&conn, &name) else {
         return error(StatusCode::NOT_FOUND, "not found");
     };
-    let games = db::list_games(&conn, 20, Some(&user.id));
-    Json(json!({"user": user, "games": games})).into_response()
+    let games = db::list_games(&conn, 20, Some(&user.id), None);
+    let history = db::rating_history(&conn, &user.id);
+    Json(json!({"user": user, "games": games, "history": history})).into_response()
 }
 
 async fn get_leaderboard(
@@ -261,12 +271,55 @@ async fn get_leaderboard(
 #[derive(Deserialize)]
 struct ListQuery {
     limit: Option<i64>,
+    /// `created_at` cursor: only older games.
+    before: Option<i64>,
 }
 
 async fn get_games(State(state): State<Arc<AppState>>, Query(q): Query<ListQuery>) -> Response {
     let limit = q.limit.unwrap_or(20).clamp(1, 200);
-    let games = db::list_games(&state.db.lock(), limit, None);
+    let games = db::list_games(&state.db.lock(), limit, None, q.before);
     Json(games).into_response()
+}
+
+/// Games in progress right now, most watched first.
+async fn get_tv(State(state): State<Arc<AppState>>) -> Response {
+    let rooms: Vec<_> = state.rooms.lock().values().cloned().collect();
+    let mut live: Vec<(usize, i64, serde_json::Value)> = rooms
+        .iter()
+        .filter_map(|room| {
+            let r = room.lock();
+            if r.game.status != rubrik_core::Status::Playing {
+                return None;
+            }
+            let top = r.white.rating.max(r.black.rating).round() as i64;
+            let row = json!({
+                "id": r.id,
+                "white": r.white,
+                "black": r.black,
+                "clock": {
+                    "initial_ms": r.clock.initial_ms,
+                    "increment_ms": r.clock.increment_ms,
+                },
+                "plies": r.game.history.len(),
+                "watchers": r.watchers,
+                "created_at": r.created_at,
+            });
+            Some((r.watchers, top, row))
+        })
+        .collect();
+    live.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
+    Json(live.into_iter().map(|(_, _, v)| v).collect::<Vec<_>>()).into_response()
+}
+
+async fn get_challenge(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
+    let challenges = state.challenges.lock();
+    match challenges
+        .get(&id)
+        .filter(|c| now_ms() - c.created_at < CHALLENGE_TTL_MS)
+    {
+        Some(c) => Json(json!(c)).into_response(),
+        None => error(StatusCode::NOT_FOUND, "not found"),
+    }
 }
 
 async fn get_game(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
@@ -307,6 +360,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/users/{name}", get(get_user))
         .route("/api/leaderboard", get(get_leaderboard))
         .route("/api/games", get(get_games))
+        .route("/api/tv", get(get_tv))
+        .route("/api/challenges/{id}", get(get_challenge))
         .route("/api/games/{id}", get(get_game))
         .route("/ws", get(ws::handler))
         .fallback_service(static_files)

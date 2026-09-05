@@ -101,7 +101,6 @@ client→server
   {t:"move", game_id, move: Move}
   {t:"resign", game_id}
   {t:"draw", game_id, offer: bool}                               offer true = offer/accept, false = decline/withdraw
-  {t:"ping"}
 server→client
   {t:"hello", me:{id,name}}
   {t:"lobby", seeks:[{id, user:{id,name}, clock, walled}]}        full list on connect + on any change
@@ -111,7 +110,6 @@ server→client
   {t:"game_end", game_id, status}
   {t:"draw_offer", game_id, by: Color|null}
   {t:"error", msg}
-  {t:"pong"}
 ```
 Clock object everywhere = {initial_ms, increment_ms, white_ms, black_ms, running, at}. Ended game → running:null.
 Color on accept: random. draw_offer broadcast to whole room; decline → by:null.
@@ -181,7 +179,13 @@ server→client
   {t:"presence", game_id, white: bool, black: bool}          broadcast when a player's connection count goes 0↔>0 (also included in game_state)
   game_state gains: watchers: n, presence: {white, black}, takeback_offer: Color|null
 ```
-Presence: server tracks per room via `AppState.conns` (user has ≥1 socket). On a player's last socket closing, spawn 60s timer; if still gone and game playing → broadcast `{t:"gone", game_id, color}` so opponent UI can show "claim victory". `claim` re-checks (gone ≥60s) server-side.
+Presence: server tracks per room via `AppState.conns` (user has ≥1 socket) + `AppState.gone` (user id → ms of last socket close). On a player's last socket closing, spawn 60s timer; if still gone and game playing → broadcast `{t:"gone", game_id, color}` so opponent UI can show "claim victory". `claim` re-checks (gone ≥60s) server-side.
+
+As implemented: `watchers` is a counter on `Room` (inc on `watch`, dec on `unwatch`/socket close) and the
+broadcast includes the watcher who just joined (so a lone watcher first sees `n:1`). Pairing (quick pair,
+`accept`, challenge `join`) all go through `ws::pair`, which drops both players' lobby seeks. `challenge`
+replaces the sender's previous challenge and prunes expired ones. Takeback accept broadcasts `game_state`
+and re-arms the flag-fall timer.
 
 HTTP additions:
 ```

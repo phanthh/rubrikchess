@@ -14,7 +14,6 @@ pub struct User {
     #[serde(skip)]
     pub vol: f64,
     pub games: i64,
-    #[serde(skip)]
     pub wins: i64,
     pub registered: bool,
 }
@@ -83,7 +82,17 @@ pub fn open(path: &str) -> Connection {
            clock TEXT NOT NULL,
            created_at INTEGER NOT NULL,
            updated_at INTEGER NOT NULL
-         );",
+         );
+         CREATE TABLE IF NOT EXISTS rating_history(
+           user_id TEXT NOT NULL,
+           game_id TEXT NOT NULL,
+           at INTEGER NOT NULL,
+           rating REAL NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS games_created_at ON games(created_at);
+         CREATE INDEX IF NOT EXISTS games_white ON games(white);
+         CREATE INDEX IF NOT EXISTS games_black ON games(black);
+         CREATE INDEX IF NOT EXISTS rating_history_user ON rating_history(user_id, at);",
     )
     .expect("migrate");
     add_column(&conn, "users", "password_hash", "TEXT");
@@ -245,6 +254,33 @@ pub fn set_rating(conn: &Connection, id: &str, rating: &Rating, games: i64, wins
     .expect("set rating");
 }
 
+pub fn add_rating_history(conn: &Connection, user_id: &str, game_id: &str, at: i64, rating: f64) {
+    conn.execute(
+        "INSERT INTO rating_history(user_id, game_id, at, rating) VALUES (?1, ?2, ?3, ?4)",
+        params![user_id, game_id, at, rating],
+    )
+    .expect("insert rating history");
+}
+
+/// Last 100 rating points for a user, oldest first.
+pub fn rating_history(conn: &Connection, user_id: &str) -> Vec<serde_json::Value> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT at, rating FROM rating_history WHERE user_id = ?1
+             ORDER BY at DESC LIMIT 100",
+        )
+        .expect("prepare history");
+    let mut rows: Vec<serde_json::Value> = stmt
+        .query_map(params![user_id], |r| {
+            Ok(serde_json::json!({"at": r.get::<_, i64>(0)?, "rating": r.get::<_, f64>(1)?}))
+        })
+        .expect("rating history")
+        .filter_map(|r| r.ok())
+        .collect();
+    rows.reverse();
+    rows
+}
+
 pub fn set_game_diffs(conn: &Connection, game_id: &str, white: i64, black: i64) {
     conn.execute(
         "UPDATE games SET white_diff = ?1, black_diff = ?2 WHERE id = ?3",
@@ -368,18 +404,25 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
     })
 }
 
-/// Recent games, newest first. `user_id` restricts to that player's games.
+/// Recent games, newest first. `user_id` restricts to that player's games,
+/// `before` is a `created_at` cursor (exclusive).
 /// ponytail: N+1 queries; fine for sqlite at limit ≤ 100.
-pub fn list_games(conn: &Connection, limit: i64, user_id: Option<&str>) -> Vec<GameRow> {
+pub fn list_games(
+    conn: &Connection,
+    limit: i64,
+    user_id: Option<&str>,
+    before: Option<i64>,
+) -> Vec<GameRow> {
     let mut stmt = conn
         .prepare(
             "SELECT id FROM games
-             WHERE ?2 IS NULL OR white = ?2 OR black = ?2
+             WHERE (?2 IS NULL OR white = ?2 OR black = ?2)
+               AND (?3 IS NULL OR created_at < ?3)
              ORDER BY created_at DESC LIMIT ?1",
         )
         .expect("prepare list");
     let ids: Vec<String> = stmt
-        .query_map(params![limit, user_id], |r| r.get(0))
+        .query_map(params![limit, user_id, before], |r| r.get(0))
         .expect("list games")
         .filter_map(|r| r.ok())
         .collect();

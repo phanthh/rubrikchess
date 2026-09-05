@@ -432,3 +432,177 @@ async fn restart_rehydrates_game() {
     send(&mut white, json!({"t":"resign","game_id":game_id})).await;
     wait_for(&mut spectator, "game_end").await;
 }
+
+/// Two compatible seeks pair without an explicit `accept`, and the live game
+/// shows up on TV with its watcher count.
+#[tokio::test]
+async fn quick_pairing_and_tv() {
+    let server = start_server().await;
+    let mut a = connect(server.port).await;
+    let mut b = connect(server.port).await;
+    let a_id = wait_for(&mut a, "hello").await["me"]["id"]
+        .as_str()
+        .expect("id")
+        .to_string();
+    wait_for(&mut b, "hello").await;
+
+    // an unplayable clock is rejected
+    send(
+        &mut a,
+        json!({"t":"seek","clock":{"initial_ms":0,"increment_ms":0}}),
+    )
+    .await;
+    wait_for(&mut a, "error").await;
+
+    let clock = json!({"initial_ms":60000,"increment_ms":1000});
+    send(
+        &mut a,
+        json!({"t":"seek","clock":clock,"walled":false,"color":"white"}),
+    )
+    .await;
+    // wait until b sees a's seek, so the second seek can match it
+    loop {
+        let lobby = wait_for(&mut b, "lobby").await;
+        if lobby["seeks"].as_array().is_some_and(|v| !v.is_empty()) {
+            break;
+        }
+    }
+    send(
+        &mut b,
+        json!({"t":"seek","clock":clock,"walled":false,"color":"random"}),
+    )
+    .await;
+
+    let game_id = wait_for(&mut a, "game_start").await["game_id"]
+        .as_str()
+        .expect("game id")
+        .to_string();
+    assert_eq!(wait_for(&mut b, "game_start").await["game_id"], game_id);
+
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    // the seeker asked for white and got it
+    assert_eq!(state["white"]["id"], a_id.as_str());
+    assert_eq!(state["watchers"], 1);
+    assert_eq!(state["presence"], json!({"white": true, "black": true}));
+    assert!(state["takeback_offer"].is_null());
+
+    send(&mut b, json!({"t":"watch","game_id":game_id})).await;
+    loop {
+        let n = wait_for(&mut a, "watchers").await;
+        assert_eq!(n["game_id"], game_id.as_str());
+        if n["n"] == 2 {
+            break;
+        }
+    }
+
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let tv: Value = reqwest::get(format!("{base}/api/tv"))
+        .await
+        .expect("tv")
+        .json()
+        .await
+        .expect("json");
+    let tv = tv.as_array().expect("array");
+    assert_eq!(tv.len(), 1);
+    assert_eq!(tv[0]["id"], game_id.as_str());
+    assert_eq!(tv[0]["plies"], 0);
+    assert_eq!(tv[0]["watchers"], 2);
+    assert_eq!(tv[0]["clock"]["initial_ms"], 60000);
+}
+
+/// Offer + accept a takeback: the move is rewound and everyone is resynced.
+#[tokio::test]
+async fn takeback() {
+    let server = start_server().await;
+    let (mut a, mut b, a_id, game_id) = seek_accept(server.port).await;
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    send(&mut b, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    wait_for(&mut b, "game_state").await;
+    let (white, black) = if state["white"]["id"] == a_id.as_str() {
+        (&mut a, &mut b)
+    } else {
+        (&mut b, &mut a)
+    };
+
+    let game = rubrik_core::Game::new(rubrik_core::GameConfig::default());
+    let mv = game.legal_moves(9).first().expect("legal move").clone();
+    send(white, json!({"t":"move","game_id":game_id,"move":mv})).await;
+    wait_for(black, "move").await;
+
+    send(
+        white,
+        json!({"t":"takeback","game_id":game_id,"offer":true}),
+    )
+    .await;
+    let offer = wait_for(black, "takeback_offer").await;
+    assert_eq!(offer["by"], "white");
+
+    send(
+        black,
+        json!({"t":"takeback","game_id":game_id,"offer":true}),
+    )
+    .await;
+    let state = wait_for(black, "game_state").await;
+    assert_eq!(
+        state["game"]["history"].as_array().expect("history").len(),
+        0
+    );
+    assert_eq!(state["game"]["turn"], "white");
+    assert_eq!(state["clock"]["running"], "white");
+    assert!(state["takeback_offer"].is_null());
+}
+
+/// A challenge link is fetchable over HTTP and starts a game when joined.
+#[tokio::test]
+async fn challenge_join() {
+    let server = start_server().await;
+    let mut a = connect(server.port).await;
+    let mut b = connect(server.port).await;
+    wait_for(&mut a, "hello").await;
+    let b_id = wait_for(&mut b, "hello").await["me"]["id"]
+        .as_str()
+        .expect("id")
+        .to_string();
+
+    send(
+        &mut a,
+        json!({"t":"challenge","clock":{"initial_ms":120000,"increment_ms":0},
+               "walled":true,"color":"black"}),
+    )
+    .await;
+    let ch = wait_for(&mut a, "challenge").await["challenge"].clone();
+    let ch_id = ch["id"].as_str().expect("id").to_string();
+    assert_eq!(ch["color"], "black");
+
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let fetched: Value = reqwest::get(format!("{base}/api/challenges/{ch_id}"))
+        .await
+        .expect("challenge")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(fetched["id"], ch_id.as_str());
+    assert_eq!(fetched["clock"]["initial_ms"], 120000);
+
+    send(&mut b, json!({"t":"join","challenge_id":ch_id})).await;
+    let game_id = wait_for(&mut b, "game_start").await["game_id"]
+        .as_str()
+        .expect("game id")
+        .to_string();
+    assert_eq!(wait_for(&mut a, "game_start").await["game_id"], game_id);
+
+    send(&mut b, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut b, "game_state").await;
+    // creator asked for black, so the joiner is white
+    assert_eq!(state["white"]["id"], b_id.as_str());
+    assert_eq!(state["game"]["config"]["rules"]["walled"], true);
+    assert_eq!(state["clock"]["initial_ms"], 120000);
+
+    // the challenge is consumed
+    let gone = reqwest::get(format!("{base}/api/challenges/{ch_id}"))
+        .await
+        .expect("challenge");
+    assert_eq!(gone.status(), reqwest::StatusCode::NOT_FOUND);
+}

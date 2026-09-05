@@ -85,9 +85,14 @@ pub struct Room {
     pub clock: Clock,
     pub draw_offer: Option<Color>,
     pub rematch_offer: Option<Color>,
+    pub takeback_offer: Option<Color>,
     pub created_at: i64,
     pub white_diff: Option<i64>,
     pub black_diff: Option<i64>,
+    /// Connections currently subscribed to this room (players included).
+    pub watchers: usize,
+    /// Eviction loop already armed.
+    evicting: bool,
     pub tx: broadcast::Sender<String>,
 }
 
@@ -108,9 +113,12 @@ impl Room {
             clock,
             draw_offer: None,
             rematch_offer: None,
+            takeback_offer: None,
             created_at,
             white_diff: None,
             black_diff: None,
+            watchers: 0,
+            evicting: false,
             tx: broadcast::channel(64).0,
         }
     }
@@ -141,7 +149,8 @@ impl Room {
         let _ = self.tx.send(msg.to_string());
     }
 
-    pub fn state_msg(&self) -> Value {
+    pub fn state_msg(&self, state: &AppState) -> Value {
+        let (white_on, black_on) = self.presence(state);
         json!({
             "t": "game_state",
             "game_id": self.id,
@@ -150,7 +159,24 @@ impl Room {
             "black": self.black,
             "clock": self.clock,
             "draw_offer": self.draw_offer,
+            "takeback_offer": self.takeback_offer,
+            "watchers": self.watchers,
+            "presence": {"white": white_on, "black": black_on},
         })
+    }
+
+    /// Whether each player currently has at least one websocket open.
+    pub fn presence(&self, state: &AppState) -> (bool, bool) {
+        let conns = state.conns.lock();
+        (
+            conns.contains_key(&self.white.id),
+            conns.contains_key(&self.black.id),
+        )
+    }
+
+    pub fn presence_msg(&self, state: &AppState) -> Value {
+        let (white, black) = self.presence(state);
+        json!({"t": "presence", "game_id": self.id, "white": white, "black": black})
     }
 
     pub fn play(&mut self, state: &Arc<AppState>, user_id: &str, mv: Move) -> Result<(), String> {
@@ -165,6 +191,7 @@ impl Room {
         let now = now_ms();
         self.clock.on_move(color, now);
         self.draw_offer = None;
+        self.takeback_offer = None;
         let mv = self.game.history.last().expect("just played");
         self.broadcast(json!({
             "t": "move",
@@ -189,9 +216,22 @@ impl Room {
         self.finish(state);
     }
 
+    /// Undo plies until it is `color`'s turn again (1 or 2). The clock keeps its
+    /// times and restarts for whoever is now on move.
+    pub fn takeback(&mut self, color: Color) {
+        while self.game.turn != color && !self.game.history.is_empty() {
+            self.game.undo();
+        }
+        self.takeback_offer = None;
+        self.draw_offer = None;
+        self.clock.running = Some(self.game.turn);
+        self.clock.at = now_ms();
+    }
+
     fn finish(&mut self, state: &Arc<AppState>) {
         self.clock.stop(now_ms());
         self.draw_offer = None;
+        self.takeback_offer = None;
         let (white_diff, black_diff) = self.rate(state);
         self.broadcast(json!({
             "t": "game_end",
@@ -200,13 +240,14 @@ impl Room {
             "white_diff": white_diff,
             "black_diff": black_diff,
         }));
-        evict_when_idle(state.clone(), self.id.clone(), self.tx.clone());
+        evict_when_idle(state.clone(), self);
     }
 
-    /// Glicko-2 update for a decided game; abandoned games stay unrated.
+    /// Glicko-2 update for a decided game; only abandoned *draws* (server
+    /// restart) stay unrated — a claimed win counts.
     fn rate(&mut self, state: &AppState) -> (Option<i64>, Option<i64>) {
         let score = match self.game.status {
-            Status::Won { winner, reason } if reason != EndReason::Abandoned => {
+            Status::Won { winner, .. } => {
                 if winner == Color::White {
                     1.0
                 } else {
@@ -242,6 +283,9 @@ impl Room {
             black.wins + (score == 0.0) as i64,
         );
         db::set_game_diffs(&conn, &self.id, white_diff, black_diff);
+        let at = now_ms();
+        db::add_rating_history(&conn, &white.id, &self.id, at, wr.r);
+        db::add_rating_history(&conn, &black.id, &self.id, at, br.r);
         white.rating = wr.r;
         white.rd = wr.rd;
         white.vol = wr.vol;
@@ -291,7 +335,12 @@ const EVICT_EVERY: std::time::Duration = std::time::Duration::from_secs(600);
 
 /// Drop a finished room from memory once nobody is subscribed to it; a later
 /// `watch` reloads it from the DB.
-pub fn evict_when_idle(state: Arc<AppState>, id: String, tx: broadcast::Sender<String>) {
+pub fn evict_when_idle(state: Arc<AppState>, room: &mut Room) {
+    if room.evicting {
+        return;
+    }
+    room.evicting = true;
+    let (id, tx) = (room.id.clone(), room.tx.clone());
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(EVICT_EVERY).await;
