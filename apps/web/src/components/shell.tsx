@@ -95,7 +95,7 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 								cn(
 									'px-2 sm:px-2.5 py-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-accent hover:no-underline',
 									isActive && 'text-foreground bg-accent/70',
-									to === '/local' && 'hidden sm:block',
+									to !== '/' && to !== '/tv' && 'hidden sm:block',
 								)
 							}
 						>
@@ -145,6 +145,13 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 						</button>
 						{menu && me && (
 							<div className="absolute right-0 mt-1 w-48 box bg-popover text-popover-foreground py-1 text-sm shadow-lg">
+								<div className="sm:hidden border-b border-border/60 mb-1 pb-1">
+									{NAV.filter(([to]) => to !== '/' && to !== '/tv').map(([to, label]) => (
+										<MenuItem key={to} to={to} onClick={() => setMenu(false)}>
+											{label}
+										</MenuItem>
+									))}
+								</div>
 								{me.registered ? (
 									<>
 										<MenuItem to={`/u/${me.name}`} onClick={() => setMenu(false)}>
