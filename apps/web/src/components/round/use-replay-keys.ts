@@ -25,6 +25,9 @@ export function useReplayKeys() {
 				case 'f':
 					g.setSetting({ flipped: !g.flipped });
 					break;
+				case 'z':
+					g.setSetting({ zen: !g.zen });
+					break;
 				default:
 					return;
 			}

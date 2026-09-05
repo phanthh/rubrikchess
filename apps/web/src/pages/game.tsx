@@ -1,13 +1,13 @@
-import { GameCanvas } from '@/components/game-canvas';
+import { BoardPage } from '@/components/round/board-page';
 import { Chat, ChatLine } from '@/components/round/chat';
 import { useClock } from '@/components/round/use-clock';
 import { MoveList } from '@/components/round/move-list';
 import { PlayerBar } from '@/components/round/player-bar';
 import { RoundControls } from '@/components/round/round-controls';
-import { Shell } from '@/components/shell';
 import { onServerMsg, send, useNetStore } from '@/net/ws';
 import { game, useGameStore } from '@/store/game';
 import { Color } from '@/types';
+import { notify } from '@/utils/notify';
 import { play } from '@/utils/sound';
 import { statusLabel } from '@/utils/ui';
 import { useEffect, useState } from 'react';
@@ -22,7 +22,7 @@ export function GamePage() {
 	const [chat, setChat] = useState<ChatLine[]>([]);
 	const [rematchBy, setRematchBy] = useState<Color | null>(null);
 	const [gone, setGone] = useState<Color | null>(null);
-	const { turn, status, players, clock, myColor, flipped, watchers, cursor, history } = useGameStore(
+	const { turn, status, players, clock, myColor, flipped, watchers } = useGameStore(
 		useShallow((s) => ({
 			turn: s.turn,
 			status: s.status,
@@ -31,8 +31,6 @@ export function GamePage() {
 			myColor: s.myColor,
 			flipped: s.flipped,
 			watchers: s.watchers,
-			cursor: s.cursor,
-			history: s.history,
 		})),
 	);
 	const { remaining } = useClock();
@@ -96,14 +94,15 @@ export function GamePage() {
 		};
 	}, [id, connected]);
 
-	// Tab title tells you it's your move even when the tab is hidden.
+	// Tab title (and a desktop notification) tell you it's your move even when the tab is hidden.
 	useEffect(() => {
 		const mine = status.kind === 'playing' && myColor === turn;
 		document.title = mine ? '● Your move – Rubrik Chess' : 'Rubrik Chess';
+		if (mine) notify('Your move', `${players.white?.name} vs ${players.black?.name}`);
 		return () => {
 			document.title = 'Rubrik Chess';
 		};
-	}, [status, myColor, turn]);
+	}, [status, myColor, turn, players]);
 
 	const bottom: Color = flipped ? 'black' : 'white';
 	const top: Color = flipped ? 'white' : 'black';
@@ -111,9 +110,10 @@ export function GamePage() {
 	const banner = over ? statusLabel(status) : myColor === turn ? 'Your move' : `${side(turn)} to move`;
 
 	return (
-		<Shell fill>
-			<div className="h-full flex flex-col lg:flex-row lg:gap-3 lg:p-3 overflow-y-auto lg:overflow-hidden">
-				<aside className="hidden lg:flex w-64 shrink-0 flex-col gap-3 min-h-0">
+		<BoardPage
+			banner={banner}
+			left={
+				<>
 					<div className="box p-3 text-sm flex flex-col gap-1">
 						<div className="font-semibold">
 							{clock ? `${clock.initial_ms / 60000}+${clock.increment_ms / 1000}` : '—'}{' '}
@@ -126,28 +126,17 @@ export function GamePage() {
 						</div>
 					</div>
 					{id && <Chat gameId={id} lines={chat} watchers={watchers} className="flex-1" />}
-				</aside>
-
-				<div className="relative flex-1 min-h-[55vh] shrink-0 lg:shrink lg:min-h-0 lg:rounded-md overflow-hidden">
-					<GameCanvas />
-					<div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/50 text-xs text-white/90 backdrop-blur">
-						{banner}
-						{cursor !== history.length && ` · viewing move ${cursor}/${history.length}`}
-					</div>
-				</div>
-
-				<aside className="w-full lg:w-72 shrink-0 flex flex-col gap-2 p-2 lg:p-0 min-h-0">
+				</>
+			}
+			right={
+				<>
 					<PlayerBar color={top} player={players[top]} ms={remaining(top)} />
 					<MoveList className="flex-1 min-h-40 lg:min-h-0" />
 					{id && <RoundControls gameId={id} gone={gone} rematchBy={rematchBy} />}
 					<PlayerBar color={bottom} player={players[bottom]} ms={remaining(bottom)} />
-					{id && (
-						<div className="lg:hidden">
-							<Chat gameId={id} lines={chat} watchers={watchers} className="h-56" />
-						</div>
-					)}
-				</aside>
-			</div>
-		</Shell>
+				</>
+			}
+			below={id && <Chat gameId={id} lines={chat} watchers={watchers} className="h-56" />}
+		/>
 	);
 }

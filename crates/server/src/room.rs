@@ -67,6 +67,11 @@ impl Clock {
         self.at = now;
     }
 
+    /// Gift time to a player; `at` is unchanged so a running clock keeps ticking.
+    pub fn add_time(&mut self, color: Color, ms: i64) {
+        self.set(color, self.base(color) + ms);
+    }
+
     fn stop(&mut self, now: i64) {
         if let Some(c) = self.running {
             let left = self.remaining(c, now).max(0);

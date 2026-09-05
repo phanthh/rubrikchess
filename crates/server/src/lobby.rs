@@ -101,7 +101,8 @@ impl Lobby {
         Some(self.seeks.remove(i))
     }
 
-    pub fn msg(&self) -> serde_json::Value {
-        serde_json::json!({ "t": "lobby", "seeks": self.seeks })
+    /// `online` = users with at least one open socket.
+    pub fn msg(&self, online: usize) -> serde_json::Value {
+        serde_json::json!({ "t": "lobby", "seeks": self.seeks, "online": online })
     }
 }

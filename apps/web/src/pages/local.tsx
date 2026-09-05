@@ -1,6 +1,5 @@
-import { GameCanvas } from '@/components/game-canvas';
+import { BoardPage } from '@/components/round/board-page';
 import { MoveList } from '@/components/round/move-list';
-import { Shell } from '@/components/shell';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { game, localConfig, useGameStore } from '@/store/game';
@@ -15,7 +14,7 @@ import { useShallow } from 'zustand/react/shallow';
 /** `/local` = sandbox; `/local?ai=3&color=white` = play the engine (level 1..4) as white. */
 export function LocalPage() {
 	const [params] = useSearchParams();
-	const { history, turn, status, animating, walled, debug, flipped, cursor, ai } = useGameStore(
+	const { history, turn, status, animating, walled, debug, flipped, ai } = useGameStore(
 		useShallow((s) => ({
 			history: s.history,
 			turn: s.turn,
@@ -24,7 +23,6 @@ export function LocalPage() {
 			walled: s.walled,
 			debug: s.debug,
 			flipped: s.flipped,
-			cursor: s.cursor,
 			ai: s.ai,
 		})),
 	);
@@ -50,16 +48,10 @@ export function LocalPage() {
 		(ai ? (thinking ? 'Computer is thinking…' : 'Your move') : `${turn === 'white' ? 'White' : 'Black'} to move`);
 
 	return (
-		<Shell fill>
-			<div className="h-full flex flex-col lg:flex-row lg:gap-3 lg:p-3 overflow-y-auto lg:overflow-hidden">
-				<div className="relative flex-1 min-h-[55vh] shrink-0 lg:shrink lg:min-h-0 lg:rounded-md overflow-hidden">
-					<GameCanvas />
-					<div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/50 text-xs text-white/90 backdrop-blur">
-						{banner}
-						{cursor !== history.length && ` · viewing move ${cursor}/${history.length}`}
-					</div>
-				</div>
-				<aside className="w-full lg:w-72 shrink-0 flex flex-col gap-2 p-2 lg:p-0 min-h-0">
+		<BoardPage
+			banner={banner}
+			right={
+				<>
 					<div className="box p-3 flex flex-col gap-3 text-sm">
 						<div className="font-semibold">{vsAi ? 'Play the computer' : 'Sandbox'}</div>
 						<p className="text-xs text-muted-foreground">
@@ -147,8 +139,8 @@ export function LocalPage() {
 						</div>
 					</div>
 					<MoveList className="flex-1 min-h-40 lg:min-h-0" />
-				</aside>
-			</div>
-		</Shell>
+				</>
+			}
+		/>
 	);
 }

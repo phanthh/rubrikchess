@@ -125,16 +125,22 @@ async fn wait_for(ws: &mut Ws, want: &str) -> Value {
 
 /// Two fresh clients that seek/accept into a game: (a, b, a's id, game id).
 async fn seek_accept(port: u16) -> (Ws, Ws, String, String) {
-    seek_accept_with(connect(port).await, connect(port).await).await
+    let (mut a, mut b) = (connect(port).await, connect(port).await);
+    let a_id = hello_id(&mut a).await;
+    wait_for(&mut b, "hello").await;
+    seek_accept_with(a, b, a_id).await
 }
 
-async fn seek_accept_with(mut a: Ws, mut b: Ws) -> (Ws, Ws, String, String) {
-    let a_id = wait_for(&mut a, "hello").await["me"]["id"]
+/// Own user id from the `hello` greeting.
+async fn hello_id(ws: &mut Ws) -> String {
+    wait_for(ws, "hello").await["me"]["id"]
         .as_str()
         .expect("id")
-        .to_string();
-    wait_for(&mut b, "hello").await;
+        .to_string()
+}
 
+/// Both `hello` greetings must already be consumed.
+async fn seek_accept_with(mut a: Ws, mut b: Ws, a_id: String) -> (Ws, Ws, String, String) {
     send(
         &mut a,
         json!({"t":"seek","clock":{"initial_ms":60000,"increment_ms":1000},"walled":false}),
@@ -367,9 +373,11 @@ async fn register_logout_login() {
 #[tokio::test]
 async fn restart_rehydrates_game() {
     let mut server = start_server().await;
-    let (a, a_sid) = connect_sid(server.port).await;
-    let (b, b_sid) = connect_sid(server.port).await;
-    let (mut a, mut b, a_id, game_id) = seek_accept_with(a, b).await;
+    let (mut a, a_sid) = connect_sid(server.port).await;
+    let (mut b, b_sid) = connect_sid(server.port).await;
+    let a_id = hello_id(&mut a).await;
+    wait_for(&mut b, "hello").await;
+    let (mut a, mut b, a_id, game_id) = seek_accept_with(a, b, a_id).await;
 
     send(&mut a, json!({"t":"watch","game_id":game_id})).await;
     wait_for(&mut a, "game_state").await;
@@ -552,6 +560,91 @@ async fn takeback() {
     assert_eq!(state["game"]["turn"], "white");
     assert_eq!(state["clock"]["running"], "white");
     assert!(state["takeback_offer"].is_null());
+}
+
+/// `moretime` gifts the opponent 15s; `abort` ends an unplayed game unrated.
+#[tokio::test]
+async fn moretime_and_abort() {
+    let server = start_server().await;
+    let (mut a, mut b, a_id, game_id) = seek_accept(server.port).await;
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    send(&mut b, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    wait_for(&mut b, "game_state").await;
+    let (white, black) = if state["white"]["id"] == a_id.as_str() {
+        (&mut a, &mut b)
+    } else {
+        (&mut b, &mut a)
+    };
+
+    send(white, json!({"t":"moretime","game_id":game_id})).await;
+    let clock = wait_for(black, "clock").await;
+    assert_eq!(clock["game_id"], game_id.as_str());
+    assert_eq!(clock["clock"]["black_ms"], 75000);
+    assert_eq!(clock["clock"]["white_ms"], 60000);
+    assert_eq!(clock["clock"]["running"], "white");
+
+    // nothing played yet, so either player may abort; the game stays unrated
+    send(black, json!({"t":"abort","game_id":game_id})).await;
+    let end = wait_for(white, "game_end").await;
+    assert_eq!(end["status"], json!({"kind":"draw","reason":"abandoned"}));
+    assert!(end["white_diff"].is_null());
+
+    // ...and a second abort is refused
+    send(black, json!({"t":"abort","game_id":game_id})).await;
+    assert_eq!(wait_for(black, "error").await["msg"], "cannot abort");
+}
+
+/// The lobby carries the count of connected users; finished games between two
+/// players add up in the crosstable.
+#[tokio::test]
+async fn online_count_and_crosstable() {
+    let server = start_server().await;
+    let mut a = connect(server.port).await;
+    let a_id = hello_id(&mut a).await;
+    assert_eq!(wait_for(&mut a, "lobby").await["online"], 1);
+
+    let mut b = connect(server.port).await;
+    wait_for(&mut b, "hello").await;
+    loop {
+        if wait_for(&mut a, "lobby").await["online"] == 2 {
+            break;
+        }
+    }
+
+    let (mut a, mut b, a_id, game_id) = seek_accept_with(a, b, a_id).await;
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    send(&mut b, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    wait_for(&mut b, "game_state").await;
+    let b_id = if state["white"]["id"] == a_id.as_str() {
+        state["black"]["id"].as_str().expect("id").to_string()
+    } else {
+        state["white"]["id"].as_str().expect("id").to_string()
+    };
+
+    send(&mut a, json!({"t":"resign","game_id":game_id})).await;
+    wait_for(&mut b, "game_end").await;
+
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let cross: Value = reqwest::get(format!("{base}/api/crosstable?a={a_id}&b={b_id}"))
+        .await
+        .expect("crosstable")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(cross["games"], 1);
+    assert_eq!(cross["a_score"], 0.0);
+    assert_eq!(cross["b_score"], 1.0);
+    assert_eq!(cross["recent"], json!([{"id": game_id, "winner": "b"}]));
+
+    // a disconnects: the remaining client sees the online count drop
+    drop(a);
+    loop {
+        if wait_for(&mut b, "lobby").await["online"] == 1 {
+            break;
+        }
+    }
 }
 
 /// A challenge link is fetchable over HTTP and starts a game when joined.

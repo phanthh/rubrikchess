@@ -5,6 +5,7 @@ import { RulesButton } from '@/components/rules-panel';
 import { Tooltip } from '@/components/tooltip';
 import { logout, setName } from '@/net/api';
 import { connect, useNetStore } from '@/net/ws';
+import { useGameStore } from '@/store/game';
 import { cn } from '@/utils/ui';
 import { ChevronDown, Settings } from 'lucide-react';
 import { ReactNode, useEffect, useRef, useState } from 'react';
@@ -27,6 +28,7 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 	const [menu, setMenu] = useState(false);
 	const menuRef = useRef<HTMLDivElement>(null);
 
+	const zen = useGameStore((s) => s.zen);
 	useEffect(connect, []);
 
 	useEffect(() => {
@@ -49,7 +51,12 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 
 	return (
 		<div className="h-full flex flex-col">
-			<header className="h-12 shrink-0 flex items-center gap-1 px-3 sm:px-5 border-b border-border/60 bg-card/80 backdrop-blur z-40">
+			<header
+				className={cn(
+					'h-12 shrink-0 flex items-center gap-1 px-3 sm:px-5 border-b border-border/60 bg-card/80 backdrop-blur z-40',
+					fill && zen && 'hidden',
+				)}
+			>
 				<Link
 					to="/"
 					className="flex items-center gap-2 mr-4 text-foreground hover:no-underline font-bold tracking-tight"

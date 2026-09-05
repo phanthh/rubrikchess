@@ -429,6 +429,23 @@ pub fn list_games(
     ids.iter().filter_map(|id| load_game(conn, id)).collect()
 }
 
+/// Finished games between two players, oldest first:
+/// (id, `a` played white, winning colour if any).
+pub fn head_to_head(conn: &Connection, a: &str, b: &str) -> Vec<(String, bool, Option<String>)> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, white = ?1, json_extract(status, '$.winner') FROM games
+             WHERE ((white = ?1 AND black = ?2) OR (white = ?2 AND black = ?1))
+               AND json_extract(status, '$.kind') != 'playing'
+             ORDER BY created_at",
+        )
+        .expect("prepare head to head");
+    stmt.query_map(params![a, b], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .expect("head to head")
+        .filter_map(|r| r.ok())
+        .collect()
+}
+
 /// Rebuild a playable game from a stored row (validating every move).
 pub fn game_from_row(row: &GameRow) -> Option<Game> {
     let mut g = Game::replay(row.config.clone(), &row.moves).ok()?;

@@ -177,6 +177,8 @@ interface IGameStore {
 	flipped: boolean;
 	/** Local game against the engine: which colour it plays and how deep it looks. */
 	ai: { color: Color; level: number } | null;
+	/** Hide everything but the board (key `z`). */
+	zen: boolean;
 	// settings
 	walled: boolean;
 	debug: boolean;
@@ -186,6 +188,8 @@ interface IGameStore {
 	newLocal: (config?: GameConfig, ai?: { color: Color; level: number } | null) => void;
 	/** Ask the engine to move if it is its turn (local mode only). */
 	pokeAi: () => void;
+	/** Local board loaded from a finished/ongoing game's moves; branch anywhere. */
+	loadAnalysis: (config: GameConfig, moves: Move[], players: { white: User | null; black: User | null }) => void;
 	select: (id: CellId | null) => void;
 	play: (move: Move) => void;
 	undo: () => void;
@@ -196,7 +200,7 @@ interface IGameStore {
 	setDrawOffer: (by: Color | null) => void;
 	setSetting: (
 		patch: Partial<
-			Pick<IGameStore, 'walled' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers'>
+			Pick<IGameStore, 'walled' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers' | 'zen'>
 		>,
 	) => void;
 }
@@ -228,6 +232,7 @@ export const useGameStore = create(
 		watchers: 0,
 		flipped: false,
 		ai: null,
+		zen: false,
 		walled: false,
 		debug: false,
 		lowPerf: false,
@@ -243,7 +248,7 @@ export const useGameStore = create(
 			const source = replay ?? engine;
 			const view = live ? head : (replay!.state() as GameState);
 			const threats = prefs().showThreats ? (source.threats() as Threat[]) : [];
-			const pick = live ? selected : null;
+			const pick = live || get().mode === 'local' ? selected : null; // local boards branch from history
 			const legal = pick === null ? [] : (source.legalMoves(pick) as Move[]);
 			replay?.free();
 
@@ -301,11 +306,39 @@ export const useGameStore = create(
 			});
 		},
 
+		loadAnalysis: (config, moves, players) => {
+			get().engine?.free();
+			cancelAiMoves();
+			const engine = WasmGame.replay(config, moves);
+			set({
+				engine,
+				ai: null,
+				mode: 'local',
+				gameId: null,
+				myColor: null,
+				players,
+				diffs: { white: null, black: null },
+				clock: null,
+				drawOffer: null,
+				takebackOffer: null,
+				flipped: false,
+				cursor: engine.historyLen(),
+				sans: [],
+				selected: null,
+				cells: [],
+				animating: false,
+				endStatus: null,
+			});
+			get().render();
+		},
+
 		select: (id) => {
 			const { animating, cells, cursor, history, mode, myColor, turn, status } = get();
 			if (animating) return;
 			if (id !== null) {
-				if (cursor !== history.length || status.kind !== 'playing') return;
+				// online: only the live position is playable; local: branch from anywhere
+				if (mode === 'online' && cursor !== history.length) return;
+				if (status.kind !== 'playing') return;
 				const piece = cells[id]?.piece;
 				if (!piece || piece.color !== turn) return;
 				if (mode === 'online' && myColor !== turn) return;
@@ -328,6 +361,14 @@ export const useGameStore = create(
 			}
 
 			runMove(move, () => {
+				let engine = get().engine!;
+				const { cursor, history, config } = get();
+				if (cursor < history.length && config) {
+					// branching: the moves after the cursor are discarded
+					engine.free();
+					engine = WasmGame.replay(config, history.slice(0, cursor));
+					set({ engine });
+				}
 				try {
 					engine.play(move);
 					moveSound(move);
@@ -459,6 +500,8 @@ function runMove(move: Move, done: () => void) {
 		return;
 	}
 
+	// rotating cells come from the live engine; when branching from history skip the animation
+	if (game().cursor !== game().history.length) return done();
 	const axis = AXES[move.axis];
 	const angle = (move.sign * Math.PI) / 2;
 	const ids = engine.rotatingCells(move.from, move.axis) as CellId[];

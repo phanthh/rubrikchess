@@ -22,6 +22,9 @@ use crate::{now_ms, rand_id, AppState};
 /// A player fully disconnected for this long can be claimed against.
 pub const GONE_MS: i64 = 60_000;
 
+/// Time handed to the opponent by `moretime`.
+pub const MORETIME_MS: i64 = 15_000;
+
 #[derive(Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
 enum ClientMsg {
@@ -80,6 +83,12 @@ enum ClientMsg {
     Claim {
         game_id: String,
     },
+    Abort {
+        game_id: String,
+    },
+    Moretime {
+        game_id: String,
+    },
 }
 
 pub async fn handler(
@@ -117,6 +126,7 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
     if first_conn {
         state.gone.lock().remove(&user.id);
         broadcast_presence(&state, &user.id);
+        state.broadcast_lobby(); // the online count changed
     }
 
     let mut lobby_rx = state.lobby_tx.subscribe();
@@ -132,7 +142,8 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
     });
 
     send(&out_tx, json!({"t": "hello", "me": user}));
-    let lobby = state.lobby.lock().msg();
+    let online = state.conns.lock().len();
+    let lobby = state.lobby.lock().msg(online);
     send(&out_tx, lobby);
 
     let mut subs: HashMap<String, JoinHandle<()>> = HashMap::new();
@@ -155,7 +166,6 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
     drop(out_tx);
     writer.abort();
     state.lobby.lock().remove_user(&user.id);
-    state.broadcast_lobby();
     let last_conn = {
         let mut conns = state.conns.lock();
         let gone = match conns.get_mut(&user.id) {
@@ -170,6 +180,7 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
         }
         gone
     };
+    state.broadcast_lobby();
     if last_conn {
         state.gone.lock().insert(user.id.clone(), now_ms());
         broadcast_presence(&state, &user.id);
@@ -584,6 +595,50 @@ fn handle(
                 },
             );
             persist(state, &r);
+        }
+        ClientMsg::Abort { game_id } => {
+            let Some(room) = room_of(state, &game_id) else {
+                err(out, "no such game");
+                return;
+            };
+            let mut r = room.lock();
+            if r.color_of(&user.id).is_none() {
+                err(out, "not a player");
+                return;
+            }
+            // Only before both sides have played: an aborted game stays unrated.
+            if r.game.status != Status::Playing || r.game.history.len() >= 2 {
+                err(out, "cannot abort");
+                return;
+            }
+            r.end(
+                state,
+                Status::Draw {
+                    reason: EndReason::Abandoned,
+                },
+            );
+            persist(state, &r);
+        }
+        ClientMsg::Moretime { game_id } => {
+            let Some(room) = room_of(state, &game_id) else {
+                err(out, "no such game");
+                return;
+            };
+            {
+                let mut r = room.lock();
+                let Some(color) = r.color_of(&user.id) else {
+                    err(out, "not a player");
+                    return;
+                };
+                if r.game.status != Status::Playing {
+                    err(out, "game is over");
+                    return;
+                }
+                r.clock.add_time(color.other(), MORETIME_MS);
+                r.broadcast(json!({"t": "clock", "game_id": r.id, "clock": r.clock}));
+                persist(state, &r);
+            }
+            arm_timeout(state.clone(), room);
         }
     }
 }

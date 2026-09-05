@@ -6,6 +6,7 @@ import { leaderboard, listGames, liveGames } from '@/net/api';
 import { send, useNetStore } from '@/net/ws';
 import { GameRow, LiveGame, Seek, User } from '@/types';
 import { clockLabel, speedOf } from '@/utils/clock';
+import { requestNotifyPermission } from '@/utils/notify';
 import { cn } from '@/utils/ui';
 import { Loader2, Users } from 'lucide-react';
 import { ReactNode, useEffect, useState } from 'react';
@@ -77,9 +78,11 @@ export function LobbyPage() {
 								return (
 									<button
 										key={`${m}+${i}`}
-										onClick={() =>
-											active ? send({ t: 'unseek' }) : send({ t: 'seek', clock, walled: false, color: 'random' })
-										}
+										onClick={() => {
+											requestNotifyPermission();
+											if (active) send({ t: 'unseek' });
+											else send({ t: 'seek', clock, walled: false, color: 'random' });
+										}}
 										className={cn(
 											'relative flex flex-col items-center justify-center h-20 rounded-md border border-border bg-background/40 hover:bg-accent hover:border-primary/40 transition-colors',
 											mySeek && !active && 'opacity-40',

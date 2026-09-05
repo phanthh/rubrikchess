@@ -58,7 +58,8 @@ impl AppState {
     }
 
     pub fn broadcast_lobby(&self) {
-        let msg = self.lobby.lock().msg().to_string();
+        let online = self.conns.lock().len();
+        let msg = self.lobby.lock().msg(online).to_string();
         let _ = self.lobby_tx.send(msg);
     }
 
@@ -311,6 +312,44 @@ async fn get_tv(State(state): State<Arc<AppState>>) -> Response {
     Json(live.into_iter().map(|(_, _, v)| v).collect::<Vec<_>>()).into_response()
 }
 
+#[derive(Deserialize)]
+struct PairQuery {
+    a: String,
+    b: String,
+}
+
+/// Head-to-head record between two players (draws count a half).
+async fn get_crosstable(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<PairQuery>,
+) -> Response {
+    let games = db::head_to_head(&state.db.lock(), &q.a, &q.b);
+    let a_won = |a_white: bool, winner: &Option<String>| {
+        winner.as_deref().map(|w| (w == "white") == a_white)
+    };
+    let a_score: f64 = games
+        .iter()
+        .map(|(_, a_white, winner)| match a_won(*a_white, winner) {
+            Some(true) => 1.0,
+            Some(false) => 0.0,
+            None => 0.5,
+        })
+        .sum();
+    let recent: Vec<serde_json::Value> = games[games.len().saturating_sub(10)..]
+        .iter()
+        .map(|(id, a_white, winner)| {
+            json!({"id": id, "winner": a_won(*a_white, winner).map(|a| if a { "a" } else { "b" })})
+        })
+        .collect();
+    Json(json!({
+        "a_score": a_score,
+        "b_score": games.len() as f64 - a_score,
+        "games": games.len(),
+        "recent": recent,
+    }))
+    .into_response()
+}
+
 async fn get_challenge(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
     let challenges = state.challenges.lock();
     match challenges
@@ -361,6 +400,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/leaderboard", get(get_leaderboard))
         .route("/api/games", get(get_games))
         .route("/api/tv", get(get_tv))
+        .route("/api/crosstable", get(get_crosstable))
         .route("/api/challenges/{id}", get(get_challenge))
         .route("/api/games/{id}", get(get_game))
         .route("/ws", get(ws::handler))

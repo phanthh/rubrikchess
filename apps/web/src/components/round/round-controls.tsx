@@ -161,11 +161,18 @@ export function RoundControls({
 							{rematchBy === myColor ? 'Cancel rematch offer' : 'Rematch'}
 						</Button>
 					)}
-					<Button variant="outline" asChild>
-						<Link to="/" className="hover:no-underline text-foreground">
-							{myColor ? 'New opponent' : 'Back to lobby'}
-						</Link>
-					</Button>
+					<div className="flex gap-2">
+						<Button variant="outline" className="flex-1" asChild>
+							<Link to="/" className="hover:no-underline text-foreground">
+								{myColor ? 'New opponent' : 'Lobby'}
+							</Link>
+						</Button>
+						<Button variant="outline" className="flex-1" asChild>
+							<Link to={`/analysis/${gameId}`} className="hover:no-underline text-foreground">
+								Analyse
+							</Link>
+						</Button>
+					</div>
 				</div>
 				<div className="flex border-t border-border/60">
 					{flip}
