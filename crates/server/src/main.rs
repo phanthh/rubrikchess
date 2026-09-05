@@ -397,7 +397,7 @@ async fn get_tv(State(state): State<Arc<AppState>>) -> Response {
             Some(((r.watchers, !r.game.history.is_empty(), top), row))
         })
         .collect();
-    live.sort_by(|a, b| b.0.cmp(&a.0));
+    live.sort_by_key(|(k, _)| std::cmp::Reverse(k.clone()));
     Json(live.into_iter().map(|(_, v)| v).collect::<Vec<_>>()).into_response()
 }
 
