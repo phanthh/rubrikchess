@@ -370,7 +370,8 @@ async fn get_games(State(state): State<Arc<AppState>>, Query(q): Query<ListQuery
 /// Games in progress right now, most watched first.
 async fn get_tv(State(state): State<Arc<AppState>>) -> Response {
     let rooms: Vec<_> = state.rooms.lock().values().cloned().collect();
-    let mut live: Vec<(usize, i64, serde_json::Value)> = rooms
+    // TV order: most watched, then games that have actually started, then strongest players.
+    let mut live: Vec<((usize, bool, i64), serde_json::Value)> = rooms
         .iter()
         .filter_map(|room| {
             let r = room.lock();
@@ -393,11 +394,11 @@ async fn get_tv(State(state): State<Arc<AppState>>) -> Response {
                 "created_at": r.created_at,
                 "tournament_id": r.tournament_id,
             });
-            Some((r.watchers, top, row))
+            Some(((r.watchers, !r.game.history.is_empty(), top), row))
         })
         .collect();
-    live.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
-    Json(live.into_iter().map(|(_, _, v)| v).collect::<Vec<_>>()).into_response()
+    live.sort_by(|a, b| b.0.cmp(&a.0));
+    Json(live.into_iter().map(|(_, v)| v).collect::<Vec<_>>()).into_response()
 }
 
 #[derive(Deserialize)]
