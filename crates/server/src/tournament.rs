@@ -31,6 +31,8 @@ pub struct Player {
     pub games: i64,
     pub wins: i64,
     pub joined_at: i64,
+    /// False after leaving: keeps the score, no longer paired.
+    pub joined: bool,
     pub whites: i64,
     pub last_opponent: Option<String>,
 }
@@ -147,24 +149,19 @@ pub fn set_joined(state: &AppState, user: &User, id: &str, joined: bool) -> Resu
         if arena.status == TourStatus::Finished {
             return Err("tournament is over".into());
         }
-        let changed = if joined {
-            let missing = !arena.players.contains_key(&user.id);
-            if missing {
-                let p = Player {
-                    joined_at: now_ms(),
-                    ..Player::default()
-                };
-                db::upsert_tournament_player(&state.db.lock(), id, &user.id, &p);
-                arena.players.insert(user.id.clone(), p);
-            }
-            missing
-        } else {
-            let removed = arena.players.remove(&user.id).is_some();
-            if removed {
-                db::delete_tournament_player(&state.db.lock(), id, &user.id);
-            }
-            removed
-        };
+        let p = arena
+            .players
+            .entry(user.id.clone())
+            .or_insert_with(|| Player {
+                joined_at: now_ms(),
+                joined: false,
+                ..Player::default()
+            });
+        let changed = p.joined != joined;
+        if changed {
+            p.joined = joined;
+            db::upsert_tournament_player(&state.db.lock(), id, &user.id, p);
+        }
         let value = arena.json(&state.db.lock());
         if changed {
             let _ = state
@@ -261,8 +258,9 @@ fn tick(state: &Arc<AppState>) {
             let playing = busy.get(&arena.id).unwrap_or(&empty);
             let free: Vec<String> = arena
                 .players
-                .keys()
-                .filter(|id| online.contains(*id) && !playing.contains(*id))
+                .iter()
+                .filter(|(id, p)| p.joined && online.contains(*id) && !playing.contains(*id))
+                .map(|(id, _)| id)
                 .cloned()
                 .collect();
             for (white, black) in arena.pair(free) {

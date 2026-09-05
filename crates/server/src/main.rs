@@ -519,7 +519,12 @@ async fn get_tournaments(State(state): State<Arc<AppState>>) -> Response {
     .into_response()
 }
 
-async fn get_tournament(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
+async fn get_tournament(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Response {
+    let me = current_user(&state, &headers);
     // Rooms before tournaments: the tick loop takes the locks in that order too.
     let busy = tournament::busy_players(&state)
         .remove(&id)
@@ -533,10 +538,12 @@ async fn get_tournament(State(state): State<Arc<AppState>>, Path(id): Path<Strin
     let Some(arena) = tours.get(&id).or(stored.as_ref()) else {
         return error(StatusCode::NOT_FOUND, "not found");
     };
+    let joined = me.is_some_and(|u| arena.players.get(&u.id).is_some_and(|p| p.joined));
     Json(json!({
         "tournament": arena.json(&conn),
         "standings": arena.standings(&conn, &busy),
         "games": db::tournament_games(&conn, &id, 20),
+        "joined": joined,
     }))
     .into_response()
 }

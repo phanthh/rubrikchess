@@ -182,13 +182,18 @@ mod tests {
         let mut g = Game::new(GameConfig::default());
         for ply in 0..40 {
             let level = if g.turn == Color::White { 3 } else { 1 };
-            let Some(mv) = best_move(&g, level, ply) else { break };
+            let Some(mv) = best_move(&g, level, ply) else {
+                break;
+            };
             g.play(mv).unwrap();
             if g.status != Status::Playing {
                 break;
             }
         }
-        assert!(material(&g, Color::White) > 0, "search should out-material random play");
+        assert!(
+            material(&g, Color::White) > 0,
+            "search should out-material random play"
+        );
     }
 
     #[test]

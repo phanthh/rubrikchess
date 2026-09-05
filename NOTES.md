@@ -241,7 +241,7 @@ HTTP:
 POST /api/tournaments {name (3..40 chars), clock: ClockSpec (valid, not unlimited), walled, layout, starts_in_ms (10_000..=3_600_000), duration_ms (300_000..=7_200_000)}
                                           → Tournament ; needs a session; max 3 unfinished tournaments per creator
 GET  /api/tournaments                     → {upcoming: Tournament[], running: Tournament[], finished: Tournament[] (last 10)}
-GET  /api/tournaments/:id                 → {tournament: Tournament, standings: Standing[], games: GameRow[] (last 20)}
+GET  /api/tournaments/:id                 → {tournament: Tournament, standings: Standing[], games: GameRow[] (last 20), joined: bool (for the current session)}
 Tournament = {id, name, clock, walled, layout, starts_at, duration_ms, status, players: n, created_by: User}
 Standing   = {user: User, score, games, wins, playing: bool}
 ```

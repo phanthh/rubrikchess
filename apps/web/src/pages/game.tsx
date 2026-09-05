@@ -6,6 +6,7 @@ import { MoveList } from '@/components/round/move-list';
 import { Net } from '@/components/round/net';
 import { PlayerBar } from '@/components/round/player-bar';
 import { RoundControls } from '@/components/round/round-controls';
+import { getMe } from '@/net/api';
 import { onServerMsg, send, useNetStore } from '@/net/ws';
 import { game, layoutOf, useGameStore, variantLabel } from '@/store/game';
 import { Color } from '@/types';
@@ -58,6 +59,8 @@ export function GamePage() {
 				case 'game_end':
 					g.setEnd(msg);
 					sys(statusLabel(msg.status) ?? 'Game over');
+					// our rating just changed
+					if (g.myColor) getMe().then((me) => useNetStore.setState({ me })).catch(() => undefined);
 					break;
 				case 'draw_offer':
 					g.setDrawOffer(msg.by);

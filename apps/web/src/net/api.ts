@@ -23,6 +23,8 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T>(path: string, body: unknown) =>
 	req<T>(path, { method: 'POST', body: JSON.stringify(body) });
 
+export const getMe = () => req<User>('/me');
+
 export const setName = (name: string) => post<User>('/me', { name });
 
 export const register = (name: string, password: string) =>
@@ -64,7 +66,7 @@ export const crosstable = (a: string, b: string) =>
 export const listTournaments = () =>
 	req<{ upcoming: Tournament[]; running: Tournament[]; finished: Tournament[] }>('/tournaments');
 export const getTournament = (id: string) =>
-	req<{ tournament: Tournament; standings: Standing[]; games: GameRow[] }>(`/tournaments/${encodeURIComponent(id)}`);
+	req<{ tournament: Tournament; standings: Standing[]; games: GameRow[]; joined: boolean }>(`/tournaments/${encodeURIComponent(id)}`);
 export const createTournament = (body: {
 	name: string;
 	clock: ClockSpec;

@@ -31,7 +31,7 @@ pnpm dev                            # :5173, proxies /api and /ws → :3000
 ```
 
 Tests: `cargo test --workspace` (engine unit tests + server ws integration test). `pnpm typecheck`, `pnpm lint`.
-Browser flow (needs playwright + chromium, dev stack running): `PW=<playwright/index.mjs> CHROME=<chrome> node apps/web/e2e/flow.mjs`.
+Browser flows (need playwright + chromium, dev stack running): `PW=<playwright/index.mjs> CHROME=<chrome> node apps/web/e2e/flow.mjs` (and `e2e/tournament.mjs`).
 
 ## Deploy
 

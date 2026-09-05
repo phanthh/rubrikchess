@@ -120,6 +120,12 @@ pub fn open(path: &str) -> Connection {
     )
     .expect("migrate");
     add_column(&conn, "users", "password_hash", "TEXT");
+    add_column(
+        &conn,
+        "tournament_players",
+        "joined",
+        "INTEGER NOT NULL DEFAULT 1",
+    );
     add_column(&conn, "users", "rating", "REAL NOT NULL DEFAULT 1500");
     add_column(&conn, "users", "rd", "REAL NOT NULL DEFAULT 350");
     add_column(&conn, "users", "vol", "REAL NOT NULL DEFAULT 0.06");
@@ -520,19 +526,11 @@ pub fn set_tournament_status(conn: &Connection, id: &str, status: TourStatus) {
 
 pub fn upsert_tournament_player(conn: &Connection, tid: &str, user_id: &str, p: &Player) {
     conn.execute(
-        "INSERT OR REPLACE INTO tournament_players(tid, user_id, score, games, wins, joined_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![tid, user_id, p.score, p.games, p.wins, p.joined_at],
+        "INSERT OR REPLACE INTO tournament_players(tid, user_id, score, games, wins, joined_at, joined)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![tid, user_id, p.score, p.games, p.wins, p.joined_at, p.joined],
     )
     .expect("upsert tournament player");
-}
-
-pub fn delete_tournament_player(conn: &Connection, tid: &str, user_id: &str) {
-    conn.execute(
-        "DELETE FROM tournament_players WHERE tid = ?1 AND user_id = ?2",
-        params![tid, user_id],
-    )
-    .expect("delete tournament player");
 }
 
 const TOUR_COLS: &str =
@@ -591,7 +589,7 @@ pub fn load_tournaments(conn: &Connection, finished: bool, limit: i64) -> Vec<Ar
 fn tournament_players(conn: &Connection, tid: &str) -> std::collections::HashMap<String, Player> {
     let mut stmt = conn
         .prepare(
-            "SELECT user_id, score, games, wins, joined_at FROM tournament_players WHERE tid = ?1",
+            "SELECT user_id, score, games, wins, joined_at, joined FROM tournament_players WHERE tid = ?1",
         )
         .expect("prepare tournament players");
     stmt.query_map(params![tid], |r| {
@@ -602,6 +600,7 @@ fn tournament_players(conn: &Connection, tid: &str) -> std::collections::HashMap
                 games: r.get(2)?,
                 wins: r.get(3)?,
                 joined_at: r.get(4)?,
+                joined: r.get(5)?,
                 ..Player::default()
             },
         ))

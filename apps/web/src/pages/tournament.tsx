@@ -33,18 +33,23 @@ export function TourClock({ t }: { t: Tournament }) {
 export function TournamentPage() {
 	const { id } = useParams();
 	const me = useNetStore((s) => s.me);
-	const [data, setData] = useState<{ tournament: Tournament; standings: Standing[]; games: GameRow[] } | null>(null);
+	const [data, setData] = useState<{ tournament: Tournament; standings: Standing[]; games: GameRow[]; joined: boolean } | null>(null);
 	const [joined, setJoined] = useState(false);
 	const [missing, setMissing] = useState(false);
 
 	useEffect(() => {
 		if (!id) return;
-		const load = () => getTournament(id).then(setData).catch(() => setMissing(true));
+		const load = () =>
+			getTournament(id)
+				.then((d) => {
+					setData(d);
+					setJoined(d.joined);
+				})
+				.catch(() => setMissing(true));
 		load();
 		const i = setInterval(load, 5000);
 		const unsub = onServerMsg((msg) => {
 			if (msg.t !== 'tour' || msg.tournament.id !== id) return;
-			if (msg.joined !== undefined) setJoined(msg.joined);
 			load();
 		});
 		return () => {
