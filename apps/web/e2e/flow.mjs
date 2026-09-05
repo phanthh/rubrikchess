@@ -301,5 +301,12 @@ await lp.waitForTimeout(500);
 assert((await lp.evaluate(() => window.__game.getState().selected)) !== null, '3D click selects a piece');
 assert(errs.length === 0, `no page errors during 3D interaction (${errs[0] ?? ''})`);
 
+// learn page: piece pre-selected with its moves lit
+await lp.goto(BASE + '/learn');
+await lp.waitForTimeout(1500);
+await lp.getByRole('button', { name: 'Tesseract' }).click();
+await lp.waitForTimeout(600);
+assert((await lp.evaluate(() => window.__game.getState().legal.length)) > 0, 'learn page shows legal moves');
+
 await b.close();
 console.log('done');

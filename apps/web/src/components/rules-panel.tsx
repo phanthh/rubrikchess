@@ -4,6 +4,7 @@ import { PIECE_LETTER } from '@/utils/notation';
 import { PieceKind } from '@/types';
 import { CircleHelp } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 /** "?" button + rules dialog; rules text mirrors NOTES.md. */
 export function RulesButton() {
@@ -19,6 +20,11 @@ export function RulesButton() {
 				<CircleHelp className="h-4 w-4" />
 			</button>
 			<Dialog open={open} onClose={() => setOpen(false)} title="Rules" className="w-[42rem]">
+				<p className="text-sm text-muted-foreground">
+					<Link to="/learn" className="font-medium">
+						Try each piece on an empty cube →
+					</Link>
+				</p>
 				<p className="text-sm text-muted-foreground">
 					Chess on a cube: 6 faces of 8x8. Pieces walk over the edges onto the next face. You win by
 					capturing the enemy king. In the <span className="font-mono">walled</span> variant no piece

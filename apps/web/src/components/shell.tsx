@@ -18,6 +18,7 @@ const NAV = [
 	['/tournaments', 'Arena'],
 	['/players', 'Players'],
 	['/local', 'Sandbox'],
+	['/learn', 'Learn'],
 ] as const;
 
 /** Page frame: top bar with nav, connection state, prefs and the user menu. */
