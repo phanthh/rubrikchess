@@ -2,6 +2,7 @@ mod db;
 mod lobby;
 mod rating;
 mod room;
+mod tournament;
 mod ws;
 
 use std::collections::{HashMap, VecDeque};
@@ -27,6 +28,7 @@ use tower_http::trace::TraceLayer;
 use crate::db::User;
 use crate::lobby::{Challenge, Layout, Lobby, CHALLENGE_TTL_MS};
 use crate::room::Room;
+use crate::tournament::{Arena, TourStatus};
 
 pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
@@ -38,6 +40,8 @@ pub struct AppState {
     pub gone: Mutex<HashMap<String, i64>>,
     /// Open challenge links, one per user.
     pub challenges: Mutex<HashMap<String, Challenge>>,
+    /// Live arenas: created + running, plus the ones that finished this run.
+    pub tournaments: Mutex<HashMap<String, Arena>>,
     /// Sliding-window rate limits: recent event times per (user, key).
     pub limits: Mutex<HashMap<(String, String), VecDeque<i64>>>,
     pub lobby_tx: broadcast::Sender<String>,
@@ -52,6 +56,7 @@ impl AppState {
             conns: Mutex::new(HashMap::new()),
             gone: Mutex::new(HashMap::new()),
             challenges: Mutex::new(HashMap::new()),
+            tournaments: Mutex::new(HashMap::new()),
             limits: Mutex::new(HashMap::new()),
             lobby_tx: broadcast::channel(64).0,
         }
@@ -363,6 +368,7 @@ async fn get_tv(State(state): State<Arc<AppState>>) -> Response {
                 "plies": r.game.history.len(),
                 "watchers": r.watchers,
                 "created_at": r.created_at,
+                "tournament_id": r.tournament_id,
             });
             Some((r.watchers, top, row))
         })
@@ -420,6 +426,121 @@ async fn get_challenge(State(state): State<Arc<AppState>>, Path(id): Path<String
     }
 }
 
+#[derive(Deserialize)]
+struct TournamentBody {
+    name: String,
+    clock: lobby::ClockSpec,
+    #[serde(default)]
+    walled: bool,
+    #[serde(default)]
+    layout: Layout,
+    starts_in_ms: i64,
+    duration_ms: i64,
+}
+
+/// Unfinished arenas one user may have open at a time.
+const MAX_TOURNAMENTS_PER_USER: usize = 3;
+
+async fn post_tournament(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<TournamentBody>,
+) -> Response {
+    let Some(user) = current_user(&state, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    let name = body.name.trim().to_string();
+    if !(3..=40).contains(&name.chars().count()) {
+        return error(StatusCode::BAD_REQUEST, "invalid name");
+    }
+    if !body.clock.valid() || body.clock.unlimited() {
+        return error(StatusCode::BAD_REQUEST, "invalid clock");
+    }
+    if !(10_000..=3_600_000).contains(&body.starts_in_ms)
+        || !(300_000..=7_200_000).contains(&body.duration_ms)
+    {
+        return error(StatusCode::BAD_REQUEST, "invalid schedule");
+    }
+    let arena = Arena {
+        id: rand_id(8),
+        name,
+        clock: body.clock,
+        walled: body.walled,
+        layout: body.layout,
+        starts_at: now_ms() + body.starts_in_ms,
+        duration_ms: body.duration_ms,
+        created_by: user.id.clone(),
+        status: TourStatus::Created,
+        players: HashMap::new(),
+    };
+    let value = {
+        let mut tours = state.tournaments.lock();
+        let mine = tours
+            .values()
+            .filter(|a| a.created_by == user.id && a.status != TourStatus::Finished)
+            .count();
+        if mine >= MAX_TOURNAMENTS_PER_USER {
+            return error(StatusCode::CONFLICT, "too many tournaments");
+        }
+        db::insert_tournament(&state.db.lock(), &arena);
+        let value = arena.json(&state.db.lock());
+        tours.insert(arena.id.clone(), arena);
+        value
+    };
+    let _ = state
+        .lobby_tx
+        .send(json!({"t": "tour", "tournament": value}).to_string());
+    Json(value).into_response()
+}
+
+async fn get_tournaments(State(state): State<Arc<AppState>>) -> Response {
+    let conn = state.db.lock();
+    let (mut upcoming, mut running) = (Vec::new(), Vec::new());
+    for arena in state.tournaments.lock().values() {
+        match arena.status {
+            TourStatus::Created => upcoming.push((arena.starts_at, arena.json(&conn))),
+            TourStatus::Running => running.push((arena.starts_at, arena.json(&conn))),
+            TourStatus::Finished => {}
+        }
+    }
+    upcoming.sort_by_key(|(at, _)| *at);
+    running.sort_by_key(|(at, _)| *at);
+    let strip =
+        |v: Vec<(i64, serde_json::Value)>| v.into_iter().map(|(_, j)| j).collect::<Vec<_>>();
+    let finished: Vec<serde_json::Value> = db::load_tournaments(&conn, true, 10)
+        .iter()
+        .map(|a| a.json(&conn))
+        .collect();
+    Json(json!({
+        "upcoming": strip(upcoming),
+        "running": strip(running),
+        "finished": finished,
+    }))
+    .into_response()
+}
+
+async fn get_tournament(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
+    // Rooms before tournaments: the tick loop takes the locks in that order too.
+    let busy = tournament::busy_players(&state)
+        .remove(&id)
+        .unwrap_or_default();
+    let tours = state.tournaments.lock();
+    let conn = state.db.lock();
+    let stored = match tours.contains_key(&id) {
+        true => None,
+        false => db::load_tournament(&conn, &id),
+    };
+    let Some(arena) = tours.get(&id).or(stored.as_ref()) else {
+        return error(StatusCode::NOT_FOUND, "not found");
+    };
+    Json(json!({
+        "tournament": arena.json(&conn),
+        "standings": arena.standings(&conn, &busy),
+        "games": db::tournament_games(&conn, &id, 20),
+    }))
+    .into_response()
+}
+
 async fn get_game(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
     // Live room wins: it has the freshest clock/moves.
     let live = state.rooms.lock().get(&id).cloned();
@@ -438,6 +559,7 @@ async fn get_game(State(state): State<Arc<AppState>>, Path(id): Path<String>) ->
             "plies": r.game.history.len(),
             "white_diff": r.white_diff,
             "black_diff": r.black_diff,
+            "tournament_id": r.tournament_id,
         }))
         .into_response();
     }
@@ -462,6 +584,11 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/tv", get(get_tv))
         .route("/api/crosstable", get(get_crosstable))
         .route("/api/challenges/{id}", get(get_challenge))
+        .route(
+            "/api/tournaments",
+            get(get_tournaments).post(post_tournament),
+        )
+        .route("/api/tournaments/{id}", get(get_tournament))
         .route("/api/games/{id}", get(get_game))
         .route("/ws", get(ws::handler))
         .fallback_service(static_files)
@@ -486,6 +613,8 @@ async fn main() {
         .unwrap_or(3000);
     let state = Arc::new(AppState::new(&db_path));
     room::rehydrate(&state);
+    tournament::rehydrate(&state);
+    tournament::spawn_tick(state.clone());
     tokio::spawn({
         let state = state.clone();
         async move {

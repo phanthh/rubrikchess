@@ -17,6 +17,7 @@ use crate::db;
 use crate::db::User;
 use crate::lobby::{Challenge, ClockSpec, Layout, Seek, SeekColor, CHALLENGE_TTL_MS};
 use crate::room::{arm_first_move_expiry, arm_timeout, evict_when_idle, persist, Clock, Room};
+use crate::tournament;
 use crate::{now_ms, rand_id, AppState};
 
 /// A player fully disconnected for this long can be claimed against.
@@ -92,6 +93,12 @@ enum ClientMsg {
     },
     Moretime {
         game_id: String,
+    },
+    TourJoin {
+        id: String,
+    },
+    TourLeave {
+        id: String,
     },
 }
 
@@ -514,7 +521,7 @@ fn handle(
                 }
             };
             if let Some((white, black, clock, walled, layout)) = accepted {
-                create_game(state, white, black, clock, walled, layout);
+                create_game(state, white, black, clock, walled, layout, None);
             }
         }
         ClientMsg::Takeback { game_id, offer } => {
@@ -703,6 +710,24 @@ fn handle(
             }
             arm_timeout(state.clone(), room);
         }
+        ClientMsg::TourJoin { id } => {
+            if !state.allow(&user.id, "tour", 20, 10_000) {
+                err(out, "slow down");
+                return;
+            }
+            if let Err(e) = tournament::set_joined(state, user, &id, true) {
+                err(out, &e);
+            }
+        }
+        ClientMsg::TourLeave { id } => {
+            if !state.allow(&user.id, "tour", 20, 10_000) {
+                err(out, "slow down");
+                return;
+            }
+            if let Err(e) = tournament::set_joined(state, user, &id, false) {
+                err(out, &e);
+            }
+        }
     }
 }
 
@@ -739,18 +764,27 @@ fn pair(state: &Arc<AppState>, seek: Seek, joiner: User, joiner_color: SeekColor
         lobby.remove_user(&seek.user.id);
         lobby.remove_user(&joiner.id);
     }
-    create_game(state, white, black, seek.clock, seek.walled, seek.layout);
+    create_game(
+        state,
+        white,
+        black,
+        seek.clock,
+        seek.walled,
+        seek.layout,
+        None,
+    );
     state.broadcast_lobby();
 }
 
 /// Create + persist a game, put it live and tell both players.
-fn create_game(
+pub fn create_game(
     state: &Arc<AppState>,
     white: User,
     black: User,
     clock: ClockSpec,
     walled: bool,
     layout: Layout,
+    tournament_id: Option<String>,
 ) {
     let config = GameConfig {
         rules: Rules { walled },
@@ -760,15 +794,26 @@ fn create_game(
     let now = now_ms();
     let clock = Clock::new(clock, now);
     let id = rand_id(8);
-    db::insert_game(&state.db.lock(), &id, &white, &black, &config, &clock, now);
-    let room = Arc::new(Mutex::new(Room::new(
+    db::insert_game(
+        &state.db.lock(),
+        &id,
+        &white,
+        &black,
+        &config,
+        &clock,
+        now,
+        tournament_id.as_deref(),
+    );
+    let mut room = Room::new(
         id.clone(),
         Game::new(config),
         white.clone(),
         black.clone(),
         clock,
         now,
-    )));
+    );
+    room.tournament_id = tournament_id;
+    let room = Arc::new(Mutex::new(room));
     state.rooms.lock().insert(id.clone(), room.clone());
 
     let msg = json!({"t": "game_start", "game_id": id});

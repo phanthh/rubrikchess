@@ -251,3 +251,9 @@ client→server  {t:"tour_join", id}  {t:"tour_leave", id}                (error
 server→client  {t:"tour", tournament: Tournament, joined: bool}         sent to the acting user on join/leave and to everyone (lobby channel) when players count / status changes
                game_state gains `tournament_id: string|null`; GameRow / LiveGame gain `tournament_id`
 ```
+
+As implemented: the lobby broadcast omits `joined` (it is per-user); it fires on create, join/leave and status
+change, *not* on every score change (standings are polled over HTTP). Arenas that finish during a run stay in
+`AppState.tournaments` (their running games still score); `GET /api/tournaments`'s `finished` list comes from the
+DB, `GET /api/tournaments/:id` falls back to the DB for arenas from earlier runs. The 3-unfinished-per-creator cap
+counts the in-memory arenas. `tour_join`/`tour_leave` are rate limited 20 / 10s (shared budget).

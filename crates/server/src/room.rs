@@ -110,6 +110,8 @@ pub struct Room {
     pub created_at: i64,
     pub white_diff: Option<i64>,
     pub black_diff: Option<i64>,
+    /// Arena this game was paired for, if any.
+    pub tournament_id: Option<String>,
     /// Connections currently subscribed to this room (players included).
     pub watchers: usize,
     /// Recent chat lines, oldest first; memory only.
@@ -142,6 +144,7 @@ impl Room {
             created_at,
             white_diff: None,
             black_diff: None,
+            tournament_id: None,
             watchers: 0,
             chat: VecDeque::new(),
             instance: NEXT_INSTANCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
@@ -159,6 +162,7 @@ impl Room {
         let mut room = Room::new(row.id, game, row.white, row.black, clock, row.created_at);
         room.white_diff = row.white_diff;
         room.black_diff = row.black_diff;
+        room.tournament_id = row.tournament_id;
         Some(room)
     }
 
@@ -190,6 +194,7 @@ impl Room {
             "watchers": self.watchers,
             "presence": {"white": white_on, "black": black_on},
             "chat": self.chat,
+            "tournament_id": self.tournament_id,
         })
     }
 
@@ -272,6 +277,15 @@ impl Room {
         self.draw_offer = None;
         self.takeback_offer = None;
         let (white_diff, black_diff) = self.rate(state);
+        if let Some(tid) = self.tournament_id.clone() {
+            crate::tournament::record_result(
+                state,
+                &tid,
+                &self.white.id,
+                &self.black.id,
+                &self.game.status,
+            );
+        }
         self.broadcast(json!({
             "t": "game_end",
             "game_id": self.id,

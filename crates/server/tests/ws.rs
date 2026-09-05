@@ -107,6 +107,10 @@ async fn send(ws: &mut Ws, v: Value) {
 
 /// Read messages until one has `t == want`, panicking on timeout.
 async fn wait_for(ws: &mut Ws, want: &str) -> Value {
+    wait_for_within(ws, want, 5).await
+}
+
+async fn wait_for_within(ws: &mut Ws, want: &str, secs: u64) -> Value {
     let fut = async {
         while let Some(msg) = ws.next().await {
             if let Message::Text(t) = msg.expect("ws msg") {
@@ -118,7 +122,7 @@ async fn wait_for(ws: &mut Ws, want: &str) -> Value {
         }
         panic!("stream closed while waiting for {want}");
     };
-    tokio::time::timeout(Duration::from_secs(5), fut)
+    tokio::time::timeout(Duration::from_secs(secs), fut)
         .await
         .unwrap_or_else(|_| panic!("timeout waiting for {want}"))
 }
@@ -794,4 +798,110 @@ async fn rubrik_layout_and_chat_history() {
         .await
         .expect("json");
     assert_eq!(row["layout"], "rubrik");
+}
+
+/// Arena: two players join, get paired automatically once it starts, and the
+/// finished game feeds the standings.
+#[tokio::test]
+async fn arena_tournament() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let (mut a, a_sid) = connect_sid(server.port).await;
+    let (mut b, _b_sid) = connect_sid(server.port).await;
+    let a_id = hello_id(&mut a).await;
+    wait_for(&mut b, "hello").await;
+
+    let http = reqwest::Client::new();
+    let created: Value = http
+        .post(format!("{base}/api/tournaments"))
+        .header("cookie", &a_sid)
+        .json(
+            &json!({"name":"Test Arena","clock":{"initial_ms":60000,"increment_ms":0},
+                      "walled":false,"layout":"standard",
+                      "starts_in_ms":10000,"duration_ms":300000}),
+        )
+        .send()
+        .await
+        .expect("create tournament")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(created["status"], "created");
+    assert_eq!(created["name"], "Test Arena");
+    assert_eq!(created["created_by"]["id"], a_id.as_str());
+    let tid = created["id"].as_str().expect("id").to_string();
+
+    // a session is required to create one
+    let anon = http
+        .post(format!("{base}/api/tournaments"))
+        .json(
+            &json!({"name":"No Session","clock":{"initial_ms":60000,"increment_ms":0},
+                      "starts_in_ms":10000,"duration_ms":300000}),
+        )
+        .send()
+        .await
+        .expect("create tournament");
+    assert_eq!(anon.status(), reqwest::StatusCode::UNAUTHORIZED);
+
+    send(&mut a, json!({"t":"tour_join","id":tid})).await;
+    send(&mut b, json!({"t":"tour_join","id":tid})).await;
+    loop {
+        let msg = wait_for(&mut a, "tour").await;
+        if msg["joined"] == json!(true) {
+            assert_eq!(msg["tournament"]["id"], tid.as_str());
+            break;
+        }
+    }
+
+    // the arena starts on its own and pairs the two joined, connected players
+    let game_id = wait_for_within(&mut a, "game_start", 30).await["game_id"]
+        .as_str()
+        .expect("game id")
+        .to_string();
+    assert_eq!(
+        wait_for_within(&mut b, "game_start", 30).await["game_id"],
+        game_id
+    );
+
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    send(&mut b, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    wait_for(&mut b, "game_state").await;
+    assert_eq!(state["tournament_id"], tid.as_str());
+    assert_eq!(state["clock"]["initial_ms"], 60000);
+    let a_is_white = state["white"]["id"] == a_id.as_str();
+    let (white, black) = if a_is_white {
+        (&mut a, &mut b)
+    } else {
+        (&mut b, &mut a)
+    };
+
+    send(white, json!({"t":"resign","game_id":game_id})).await;
+    wait_for(black, "game_end").await;
+
+    let view: Value = reqwest::get(format!("{base}/api/tournaments/{tid}"))
+        .await
+        .expect("tournament")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(view["tournament"]["status"], "running");
+    assert_eq!(view["tournament"]["players"], 2);
+    let standings = view["standings"].as_array().expect("standings");
+    assert_eq!(standings.len(), 2);
+    assert_eq!(standings[0]["score"], 2);
+    assert_eq!(standings[0]["wins"], 1);
+    assert_eq!(standings[1]["score"], 0);
+    assert_eq!(standings[1]["games"], 1);
+    assert_eq!(view["games"][0]["tournament_id"], tid.as_str());
+
+    // it also shows up as running in the index
+    let index: Value = reqwest::get(format!("{base}/api/tournaments"))
+        .await
+        .expect("tournaments")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(index["running"][0]["id"], tid.as_str());
+    assert_eq!(index["upcoming"], json!([]));
 }
