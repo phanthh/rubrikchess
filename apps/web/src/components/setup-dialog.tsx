@@ -10,10 +10,10 @@ import { useState } from 'react';
 export type SetupMode = 'seek' | 'friend';
 
 /** Non-linear minute steps, like lichess' time slider. */
-const MINUTES = [
+export const MINUTES = [
 	0, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30, 45, 60, 90, 120, 180,
 ];
-const INCREMENTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30, 45, 60, 90, 120, 180];
+export const INCREMENTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30, 45, 60, 90, 120, 180];
 
 const COLORS: [SeekColor, string][] = [
 	['white', 'White'],

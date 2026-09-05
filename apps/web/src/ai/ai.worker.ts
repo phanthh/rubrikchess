@@ -32,16 +32,16 @@ self.onmessage = async (e: MessageEvent<AiRequest>) => {
 		g.free();
 	} else {
 		const g = new WasmGame(req.config);
-		for (let ply = 0; ply < req.moves.length; ply++) {
+		// bounded: the worker is shared with live play; ≤ 80 plies, stop after a few hits
+		const limit = Math.min(req.moves.length, 80);
+		for (let ply = 0; ply < limit && res.puzzles.length < 4; ply++) {
 			if (ply >= 4) {
 				const base = (g.analyse(1, seed) as Analysis | null)?.score ?? 0;
 				const greedy = g.analyse(2, seed) as Analysis | null;
 				const deep = g.analyse(3, seed) as Analysis | null;
 				if (deep && greedy) {
 					const gain = deep.score - base;
-					const same =
-						greedy.move.from === deep.move.from &&
-						JSON.stringify(greedy.move) === JSON.stringify(deep.move);
+					const same = JSON.stringify(greedy.move) === JSON.stringify(deep.move);
 					if (gain >= 300 && gain < 50_000 && !same)
 						res.puzzles.push({ ply, solution: deep.move, gain });
 				}

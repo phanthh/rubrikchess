@@ -17,6 +17,7 @@ export function TvPage() {
 	useEffect(() => {
 		let stop = false;
 		const poll = async () => {
+			if (document.hidden) return;
 			const games = await liveGames().catch(() => [] as LiveGame[]);
 			if (stop) return;
 			setLive(games);
@@ -24,8 +25,13 @@ export function TvPage() {
 				games.slice(0, 12).map((g) => getGame(g.id).catch(() => null)),
 			);
 			if (stop) return;
-			setBoards(
-				Object.fromEntries(details.filter((d): d is GameDetail => !!d).map((d) => [d.id, d])),
+			// keep object identity for unchanged positions so MiniBoard's memo holds (no replay per poll)
+			setBoards((prev) =>
+				Object.fromEntries(
+					details
+						.filter((d): d is GameDetail => !!d)
+						.map((d) => [d.id, prev[d.id]?.moves.length === d.moves.length ? prev[d.id] : d]),
+				),
 			);
 		};
 		void poll();

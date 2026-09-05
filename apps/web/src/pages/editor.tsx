@@ -9,6 +9,7 @@ import { PIECE_NAMES } from '@/utils/consts';
 import { PIECE_LETTER } from '@/utils/notation';
 import { encodeSetup, fromSetup, Placement, toSetup } from '@/utils/setup';
 import { cn } from '@/utils/ui';
+import { LAYOUTS } from '@/utils/variant';
 import { vec } from '@/utils/funcs';
 import { WasmGame } from 'rubrik-wasm';
 import { useMemo, useState } from 'react';
@@ -40,7 +41,7 @@ export function EditorPage() {
 	// initial geometry: cell id ↔ position, before any rotation
 	const base = useMemo(() => {
 		const cfg = baseConfig();
-		cfg.layout = rubrik ? [0, 1, 2, 3, 4, 5] : cfg.layout;
+		cfg.layout = LAYOUTS[rubrik ? 'rubrik' : 'standard'];
 		const g = new WasmGame(cfg);
 		const cells = (g.state() as GameState).board.cells.map((c, id) => ({
 			id,

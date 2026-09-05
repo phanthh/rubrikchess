@@ -3,21 +3,23 @@ import { Dialog } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { createTournament } from '@/net/api';
 import { Layout } from '@/types';
+import { INCREMENTS as ALL_INCREMENTS, MINUTES as ALL_MINUTES } from '@/components/setup-dialog';
 import { clockLabel, speedOf } from '@/utils/clock';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
-const MINUTES = [0.5, 1, 2, 3, 5, 10, 15];
-const INCREMENTS = [0, 1, 2, 3, 5];
+// arenas: 30s .. 15 min, increments up to 5s
+const MINUTES = ALL_MINUTES.filter((m) => m >= 0.5 && m <= 15);
+const INCREMENTS = ALL_INCREMENTS.filter((i) => i <= 5);
 const STARTS = [1, 2, 5, 10, 30, 60]; // minutes
 const DURATIONS = [10, 20, 30, 45, 60, 90, 120]; // minutes
 
 export function TournamentDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
 	const navigate = useNavigate();
 	const [name, setName] = useState('');
-	const [mi, setMi] = useState(2);
-	const [ii, setIi] = useState(2);
+	const [mi, setMi] = useState(MINUTES.indexOf(3));
+	const [ii, setIi] = useState(INCREMENTS.indexOf(2));
 	const [si, setSi] = useState(2);
 	const [di, setDi] = useState(2);
 	const [walled, setWalled] = useState(false);

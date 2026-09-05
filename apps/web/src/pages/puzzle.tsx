@@ -27,21 +27,27 @@ export function PuzzlePage() {
 	const [task, setTask] = useState<Task | null>(null);
 	const [verdict, setVerdict] = useState<Verdict>(null);
 	const [status, setStatus] = useState('Looking for a tactic in recent games…');
+	const [loading, setLoading] = useState(true);
 	const [solved, setSolved] = useState(0);
 	const seen = useRef(new Set<string>());
+	const run = useRef(0);
 	const turn = useGameStore((s) => s.turn);
 	const history = useGameStore((s) => s.history);
 
 	const next = useCallback(async () => {
+		const me = ++run.current; // a newer click supersedes this scan
 		setTask(null);
 		setVerdict(null);
+		setLoading(true);
 		setStatus('Looking for a tactic in recent games…');
 		const games = (await listGames(50)).filter((g) => g.plies >= 8 && g.status.kind !== 'playing');
-		for (const row of games.sort(() => Math.random() - 0.5)) {
+		for (const row of games.sort(() => Math.random() - 0.5).slice(0, 12)) {
+			if (me !== run.current) return;
 			const detail = await getGame(row.id);
 			const puzzles = (await scanPuzzles(detail.config, detail.moves)).filter(
 				(p) => !seen.current.has(`${row.id}:${p.ply}`),
 			);
+			if (me !== run.current) return;
 			if (puzzles.length === 0) continue;
 			const puzzle = puzzles[Math.floor(Math.random() * puzzles.length)];
 			seen.current.add(`${row.id}:${puzzle.ply}`);
@@ -51,8 +57,10 @@ export function PuzzlePage() {
 			});
 			game().setSetting({ flipped: game().turn === 'black' });
 			setTask({ gameId: row.id, puzzle, players: `${detail.white.name} vs ${detail.black.name}` });
+			setLoading(false);
 			return;
 		}
+		setLoading(false);
 		setStatus('No tactics found in recent games yet — play some games and come back!');
 	}, []);
 
@@ -77,7 +85,8 @@ export function PuzzlePage() {
 
 	const retry = () => {
 		if (!task) return;
-		while (game().history.length > task.puzzle.ply) game().undo();
+		// bounded: undo() is a no-op mid-animation, so never loop on the live length
+		for (let i = game().history.length; i > task.puzzle.ply; i--) game().undo();
 		setVerdict(null);
 	};
 
@@ -134,7 +143,7 @@ export function PuzzlePage() {
 								className="flex-1"
 								onClick={() => {
 									retry();
-									setTimeout(() => game().play(task!.puzzle.solution), 50);
+									game().play(task!.puzzle.solution);
 								}}
 							>
 								Show answer
@@ -144,7 +153,7 @@ export function PuzzlePage() {
 							size="sm"
 							variant="secondary"
 							className="flex-1"
-							disabled={!task && status.startsWith('Looking')}
+							disabled={loading}
 							onClick={next}
 						>
 							{task ? 'Next puzzle' : 'Search again'}
