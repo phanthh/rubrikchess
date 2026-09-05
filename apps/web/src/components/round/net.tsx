@@ -1,7 +1,8 @@
 import { game, useGameStore } from '@/store/game';
 import { usePrefs } from '@/store/prefs';
 import { TCell } from '@/types';
-import { palette } from '@/utils/consts';
+import { useTooltipStore } from '@/store/tooltip';
+import { palette, PIECE_NAMES, PIECE_RULES } from '@/utils/consts';
 import { PieceDefs, PieceUse } from '@/components/piece-glyph';
 import { cn } from '@/utils/ui';
 import { memo } from 'react';
@@ -64,6 +65,14 @@ const STATE_FILL: Partial<Record<TCell['state'], string>> = {
 
 export type NetCell = Pick<TCell, 'id' | 'pos' | 'color' | 'piece' | 'state' | 'move'>;
 
+/** Same hover text as the 3D board (piece rule, or what a click here does). */
+function tip(cell: NetCell): string | null {
+	if (cell.state === 'capturable') return 'Capture Piece';
+	if (cell.state === 'reachable') return cell.move?.kind === 'rotate' ? 'Rotate Here' : 'Move Here';
+	if (cell.piece) return `${PIECE_NAMES[cell.piece.kind]} — ${PIECE_RULES[cell.piece.kind]}`;
+	return null;
+}
+
 export const Net = memo(function Net({
 	interactive,
 	className,
@@ -82,6 +91,7 @@ export const Net = memo(function Net({
 	const cells = given ?? storeCells;
 	const theme = usePrefs((s) => s.boardTheme);
 	const colors = palette(theme);
+	const setTip = useTooltipStore((s) => s.setContent);
 	const W = 4 * FACE + 3 * GAP;
 	const H = 3 * FACE + 2 * GAP;
 
@@ -125,6 +135,8 @@ export const Net = memo(function Net({
 										}
 									: undefined
 						}
+						onMouseEnter={() => setTip(tip(cell))}
+						onMouseLeave={() => setTip(null)}
 						className={
 							onCell || (interactive && (cell.move || cell.piece)) ? 'cursor-pointer' : undefined
 						}
