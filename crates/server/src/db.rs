@@ -138,8 +138,14 @@ pub fn open(path: &str) -> Connection {
     add_column(&conn, "games", "white_diff", "INTEGER");
     add_column(&conn, "games", "black_diff", "INTEGER");
     add_column(&conn, "games", "tournament_id", "TEXT");
+    // Owner of the auto-scheduled arenas; cannot log in (no password), never plays.
+    if user(&conn, SYSTEM_USER_ID).is_none() {
+        create_user(&conn, &User::anon(SYSTEM_USER_ID.into(), "Rubrik".into()));
+    }
     conn
 }
+
+pub const SYSTEM_USER_ID: &str = "system";
 
 fn add_column(conn: &Connection, table: &str, column: &str, decl: &str) {
     let exists = conn

@@ -1,7 +1,7 @@
 import { game, useGameStore } from '@/store/game';
 import { cn, statusLabel } from '@/utils/ui';
-import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { ChevronFirst, ChevronLast, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useReplayKeys } from './use-replay-keys';
 
 export function MoveList({ className }: { className?: string }) {
@@ -10,7 +10,19 @@ export function MoveList({ className }: { className?: string }) {
 	const status = useGameStore((s) => s.status);
 	const animating = useGameStore((s) => s.animating);
 	const active = useRef<HTMLButtonElement>(null);
+	const [auto, setAuto] = useState(false);
 	useReplayKeys();
+
+	// autoplay: one ply per second until the end
+	useEffect(() => {
+		if (!auto) return;
+		if (cursor >= sans.length) {
+			setAuto(false);
+			return;
+		}
+		const t = setTimeout(() => game().setCursor(game().cursor + 1), 1000);
+		return () => clearTimeout(t);
+	}, [auto, cursor, sans.length]);
 
 	useEffect(() => {
 		active.current?.scrollIntoView({ block: 'nearest' });
@@ -37,6 +49,17 @@ export function MoveList({ className }: { className?: string }) {
 			<div className="flex border-b border-border/60">
 				{nav(0, ChevronFirst, 'First (↑)', cursor === 0)}
 				{nav(cursor - 1, ChevronLeft, 'Previous (←)', cursor === 0)}
+				<button
+					title={auto ? 'Pause' : 'Autoplay'}
+					disabled={sans.length === 0}
+					onClick={() => {
+						if (!auto && cursor >= sans.length) game().setCursor(0);
+						setAuto(!auto);
+					}}
+					className="flex-1 flex justify-center py-1 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30"
+				>
+					{auto ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+				</button>
 				{nav(cursor + 1, ChevronRight, 'Next (→)', cursor >= sans.length)}
 				{nav(sans.length, ChevronLast, 'Last (↓)', cursor >= sans.length)}
 			</div>

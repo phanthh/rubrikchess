@@ -275,3 +275,4 @@ Pairing/scoring details:
 Lock order (`parking_lot`, no timeouts → an inversion is a hard deadlock): **`rooms` → `tournaments` → `db`**.
 `GET /api/tournaments` takes `tournaments` before `db` like every other path.
 Challenges (not lobby seeks) may carry `setup` (16- or 48-row board-editor position, validated: 8 chars/row, piece letters or `-`, exactly one king per side) → `GameConfig.setup`; rematches keep it.
+Scheduled arenas: the tick keeps one system-owned (user `system`, name "Rubrik") tournament upcoming: next full hour (≥5 min away), 30 min, clock rotating Blitz 3+2 / Bullet 1+0 / Blitz 5+0 / Rapid 10+0 by hour.

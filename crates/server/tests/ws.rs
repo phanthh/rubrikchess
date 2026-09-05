@@ -919,7 +919,10 @@ async fn arena_tournament() {
         .await
         .expect("json");
     assert_eq!(index["running"][0]["id"], tid.as_str());
-    assert_eq!(index["upcoming"], json!([]));
+    // the scheduler keeps one system arena upcoming at all times
+    let upcoming = index["upcoming"].as_array().expect("upcoming");
+    assert_eq!(upcoming.len(), 1);
+    assert_eq!(upcoming[0]["created_by"]["name"], "Rubrik");
 }
 
 /// A leave from a user who never joined must not create a standings row, and the

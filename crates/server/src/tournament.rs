@@ -269,6 +269,52 @@ pub fn spawn_tick(state: Arc<AppState>) {
     });
 }
 
+/// Hourly system arenas so there is always something to join: one upcoming at a time,
+/// starting on the next full hour (at least 5 minutes away), 30 minutes long.
+const SCHEDULE: [(&str, i64, i64); 4] = [
+    ("Hourly Blitz Arena", 3 * 60_000, 2_000),
+    ("Hourly Bullet Arena", 60_000, 0),
+    ("Hourly Blitz Arena", 5 * 60_000, 0),
+    ("Hourly Rapid Arena", 10 * 60_000, 0),
+];
+const HOUR_MS: i64 = 3_600_000;
+
+fn schedule(state: &Arc<AppState>, now: i64) -> Option<Value> {
+    let mut tours = state.tournaments.lock();
+    let has_system = tours
+        .values()
+        .any(|a| a.created_by == db::SYSTEM_USER_ID && a.status != TourStatus::Finished);
+    if has_system {
+        return None;
+    }
+    let mut starts_at = (now / HOUR_MS + 1) * HOUR_MS;
+    if starts_at - now < 5 * 60_000 {
+        starts_at += HOUR_MS;
+    }
+    let slot = ((starts_at / HOUR_MS) % SCHEDULE.len() as i64) as usize;
+    let (name, initial_ms, increment_ms) = SCHEDULE[slot];
+    let arena = Arena {
+        id: crate::rand_id(8),
+        name: name.into(),
+        clock: ClockSpec {
+            initial_ms,
+            increment_ms,
+        },
+        walled: false,
+        layout: Layout::Standard,
+        starts_at,
+        duration_ms: 30 * 60_000,
+        created_by: db::SYSTEM_USER_ID.into(),
+        status: TourStatus::Created,
+        players: HashMap::new(),
+    };
+    let conn = state.db.lock();
+    db::insert_tournament(&conn, &arena);
+    let value = arena.json(&conn);
+    tours.insert(arena.id.clone(), arena);
+    Some(value)
+}
+
 /// Advance statuses and pair whoever is free. Never holds the tournaments lock
 /// while touching rooms: the busy set is gathered first, games are created after.
 fn tick(state: &Arc<AppState>) {
@@ -276,6 +322,7 @@ fn tick(state: &Arc<AppState>) {
     let (busy_anywhere, busy_by_tour) = busy_players(state);
     let online: HashSet<String> = state.conns.lock().keys().cloned().collect();
     let mut announce: Vec<Value> = Vec::new();
+    announce.extend(schedule(state, now));
     let mut pairings: Vec<(String, ClockSpec, bool, Layout, String, String)> = Vec::new();
     {
         let mut tours = state.tournaments.lock();
