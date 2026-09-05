@@ -66,10 +66,25 @@ export function LobbyPage() {
 		!!s && s.clock.initial_ms === m * 60_000 && s.clock.increment_ms === i * 1000 && !s.walled && (s.color ?? 'random') === 'random';
 	const myPool = POOLS.find(([m, i]) => isPool(mySeek, m, i));
 
+	const mine = live.filter((g) => g.white.id === me?.id || g.black.id === me?.id);
+
 	return (
 		<Shell>
 			<div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
 				<div className="flex flex-col gap-4 min-w-0">
+					{mine.map((g) => (
+						<Link
+							key={g.id}
+							to={`/g/${g.id}`}
+							className="box flex items-center gap-3 px-4 py-3 border-primary/50 bg-primary/10 text-foreground hover:no-underline hover:bg-primary/20"
+						>
+							<span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+							<span className="flex-1 text-sm">
+								Game in progress against <b>{(g.white.id === me?.id ? g.black : g.white).name}</b> · {clockLabel(g.clock)} · ply {g.plies}
+							</span>
+							<span className="text-sm font-semibold text-primary">Resume →</span>
+						</Link>
+					))}
 					<Box title="Quick pairing">
 						<div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-3">
 							{POOLS.map(([m, i]) => {

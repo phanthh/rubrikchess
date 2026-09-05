@@ -135,6 +135,14 @@ await W.waitForTimeout(1200);
 const s2 = await state(W);
 assert(s2.myColor === 'black' && s2.plies === 0, `rematch started with swapped colours (${s2.myColor})`);
 
+// lobby shows the in-progress game to a player
+await W.goto(BASE);
+await W.waitForTimeout(1200);
+assert((await W.getByText('Game in progress against').count()) === 1, 'lobby resume banner');
+await W.getByText('Resume →').click();
+await W.waitForURL(/\/g\//, { timeout: 5000 });
+await W.waitForTimeout(1000);
+
 // moretime: W (now black) gives 15s → opponent (white) clock grows
 const before = (await state(W)).clock.white_ms;
 await W.getByTitle('Give your opponent 15 seconds').click();
