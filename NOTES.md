@@ -203,7 +203,7 @@ HTTP additions:
 ```
 GET /api/tv                          → [{id, white: User, black: User, clock: ClockSpec, plies, watchers, created_at}]  live rooms with status playing, sorted by watchers desc, then max rating desc
 GET /api/challenges/:id              → Challenge (404 if missing/expired)
-GET /api/games?limit=20&before=<created_at>   pagination cursor; index games(created_at), games(white), games(black)
+GET /api/games?limit=20&before=<created_at>&user=<name>   pagination cursor, optional user filter; index games(created_at), games(white), games(black)
 GET /api/users/:name                 → gains `history: [{at, rating}]` (last 100, asc) from table rating_history(user_id, game_id, at, rating) written in rate(); plus `user.wins` now serialized
 ```
 

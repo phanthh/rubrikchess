@@ -69,8 +69,10 @@ export const leaderboard = (limit = 20, perf?: string) =>
 
 export const listGames = (limit = 20) => req<GameRow[]>(`/games?limit=${limit}`);
 
-export const listGamesBefore = (before: number, limit = 20) =>
-	req<GameRow[]>(`/games?limit=${limit}&before=${before}`);
+export const listGamesBefore = (before: number, limit = 20, user?: string) =>
+	req<GameRow[]>(
+		`/games?limit=${limit}&before=${before}${user ? `&user=${encodeURIComponent(user)}` : ''}`,
+	);
 
 export const liveGames = () => req<LiveGame[]>('/tv');
 

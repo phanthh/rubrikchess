@@ -627,11 +627,21 @@ struct ListQuery {
     limit: Option<i64>,
     /// `created_at` cursor: only older games.
     before: Option<i64>,
+    /// Only games of this user (by name).
+    user: Option<String>,
 }
 
 async fn get_games(State(state): State<Arc<AppState>>, Query(q): Query<ListQuery>) -> Response {
     let limit = q.limit.unwrap_or(20).clamp(1, 200);
-    let games = db::list_games(&state.db.lock(), limit, None, q.before);
+    let conn = state.db.lock();
+    let user_id = match &q.user {
+        Some(name) => match db::user_by_name(&conn, name) {
+            Some(u) => Some(u.id),
+            None => return error(StatusCode::NOT_FOUND, "not found"),
+        },
+        None => None,
+    };
+    let games = db::list_games(&conn, limit, user_id.as_deref(), q.before);
     Json(games).into_response()
 }
 

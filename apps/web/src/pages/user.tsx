@@ -1,7 +1,7 @@
 import { GameRowItem } from '@/components/game-row';
 import { RatingChart } from '@/components/rating-chart';
 import { Shell } from '@/components/shell';
-import { block, follow, getUser, TourResult, unblock, unfollow } from '@/net/api';
+import { block, follow, getUser, listGamesBefore, TourResult, unblock, unfollow } from '@/net/api';
 import { Ban, Mail, Trophy, UserMinus, UserPlus } from 'lucide-react';
 import { GameRow, RatingPoint, User } from '@/types';
 import { useEffect, useState } from 'react';
@@ -25,6 +25,7 @@ export function UserPage() {
 	} | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [challenge, setChallenge] = useState(false);
+	const [more, setMore] = useState(true);
 	const me = useNetStore((s) => s.me);
 
 	useEffect(() => {
@@ -152,6 +153,24 @@ export function UserPage() {
 							{data.games.map((g) => (
 								<GameRowItem key={g.id} g={g} perspective={u.id} />
 							))}
+							{more && data.games.length >= 20 && (
+								<div className="p-3 flex justify-center border-t border-border/40">
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() =>
+											listGamesBefore(data.games[data.games.length - 1].created_at, 20, u.name)
+												.then((next) => {
+													setData({ ...data, games: [...data.games, ...next] });
+													if (next.length < 20) setMore(false);
+												})
+												.catch(() => undefined)
+										}
+									>
+										Load more
+									</Button>
+								</div>
+							)}
 						</section>
 					</div>
 					<aside className="box p-4 text-sm flex flex-col gap-2 self-start">
