@@ -10,7 +10,6 @@ import { LobbyPage } from './pages/lobby';
 import { PlayersPage } from './pages/players';
 import { TournamentPage } from './pages/tournament';
 import { TournamentsPage } from './pages/tournaments';
-import { TvPage } from './pages/tv';
 import { UserPage } from './pages/user';
 import { notify } from './utils/notify';
 import { play } from './utils/sound';
@@ -23,6 +22,7 @@ const AnalysisPage = lazy(() =>
 );
 const EditorPage = lazy(() => import('./pages/editor').then((m) => ({ default: m.EditorPage })));
 const LearnPage = lazy(() => import('./pages/learn').then((m) => ({ default: m.LearnPage })));
+const TvPage = lazy(() => import('./pages/tv').then((m) => ({ default: m.TvPage })));
 const PuzzlePage = lazy(() => import('./pages/puzzle').then((m) => ({ default: m.PuzzlePage })));
 
 /** Games and challenges can start from any page, so these listeners are global. */
