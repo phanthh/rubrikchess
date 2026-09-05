@@ -182,6 +182,32 @@ await C.waitForURL(/\/g\//, { timeout: 5000 });
 await D.waitForURL(/\/g\//, { timeout: 5000 });
 assert(true, 'challenge link started a game');
 
+// custom rubrik seek via the setup dialog, accepted from the seeks table
+const E = await ctx();
+await E.goto(BASE);
+await E.waitForTimeout(600);
+await E.getByRole('button', { name: 'Create a game' }).click();
+await E.locator('label', { hasText: 'Rubrik colours' }).locator('button').click();
+await E.getByRole('button', { name: 'Create game' }).click();
+await E.waitForTimeout(500);
+assert((await E.locator('table tbody tr', { hasText: 'rubrik' }).count()) === 1, 'rubrik seek listed');
+const F = await ctx();
+await F.goto(BASE);
+await F.waitForTimeout(600);
+await F.locator('table tbody tr', { hasText: 'rubrik' }).click();
+await F.waitForURL(/\/g\//, { timeout: 5000 });
+await F.waitForTimeout(1200);
+const lay = await F.evaluate(() => window.__game.getState().config.layout.join(''));
+assert(lay === '012345', `rubrik layout game started (${lay})`);
+await F.locator('input[placeholder="Type a message…"]').first().fill('hello history');
+await F.locator('input[placeholder="Type a message…"]').first().press('Enter');
+await F.waitForTimeout(400);
+const G = await ctx();
+await G.goto(F.url());
+await G.waitForTimeout(1200);
+assert((await G.getByText('hello history').count()) > 0, 'late spectator gets chat history');
+await shot(G, 'game-rubrik');
+
 // prefs + profile + players pages
 await S.goto(BASE + '/u/' + encodeURIComponent((await W.evaluate(() => window.__game.getState().players.white.name))));
 await S.waitForTimeout(800);
