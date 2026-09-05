@@ -208,36 +208,55 @@ pub fn analyse(game: &Game, level: u8, seed: u64) -> Option<(Move, i32)> {
         let mv = moves[(next() % moves.len() as u64) as usize].clone();
         return Some((mv, material(game, game.turn)));
     }
-    let depth = (level - 1).min(3);
-    let mut best: Vec<Move> = Vec::new();
-    let mut best_score = -MATE - 1;
-    let mut nodes = 0u32;
-    for mv in moves {
-        let g0 = gain(game, &mv);
-        let score = if depth == 1 {
-            material(game, game.turn) + g0 // greedy: no lookahead by design
-        } else if g0 >= MATE {
-            MATE
-        } else {
-            let mut g = game.clone();
-            g.apply(mv.clone());
-            -search(
-                &g,
-                depth - 1,
-                quiesce_plies(depth),
-                &mut nodes,
-                -MATE - 1,
-                MATE + 1,
-            )
-        };
-        if score > best_score {
-            best_score = score;
-            best.clear();
+    let max_depth = (level - 1).min(3);
+    // Iterative deepening: each pass re-orders the root moves by the previous scores;
+    // a pass that exhausts the node budget is discarded in favour of the last complete one.
+    let mut order: Vec<Move> = moves;
+    let mut result: Vec<(Move, i32)> = Vec::new();
+    for depth in 1..=max_depth {
+        let mut nodes = 0u32;
+        let mut scored: Vec<(Move, i32)> = Vec::with_capacity(order.len());
+        let mut complete = true;
+        for mv in order.iter().cloned() {
+            let g0 = gain(game, &mv);
+            let score = if depth == 1 {
+                material(game, game.turn) + g0 // greedy: no lookahead by design
+            } else if g0 >= MATE {
+                MATE
+            } else {
+                let mut g = game.clone();
+                g.apply(mv.clone());
+                -search(
+                    &g,
+                    depth - 1,
+                    quiesce_plies(depth),
+                    &mut nodes,
+                    -MATE - 1,
+                    MATE + 1,
+                )
+            };
+            scored.push((mv, score));
+            if nodes > NODE_BUDGET {
+                complete = false;
+                break;
+            }
         }
-        if score == best_score {
-            best.push(mv);
+        if !complete && !result.is_empty() {
+            break;
+        }
+        scored.sort_by_key(|(_, s)| -s);
+        order = scored.iter().map(|(m, _)| m.clone()).collect();
+        result = scored;
+        if !complete {
+            break;
         }
     }
+    let best_score = result[0].1;
+    let best: Vec<Move> = result
+        .into_iter()
+        .take_while(|(_, s)| *s == best_score)
+        .map(|(m, _)| m)
+        .collect();
     Some((
         best[(next() % best.len() as u64) as usize].clone(),
         best_score,
