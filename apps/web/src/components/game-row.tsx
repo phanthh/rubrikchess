@@ -1,4 +1,5 @@
 import { RatingDiff } from '@/components/rating-diff';
+import { variantLabel } from '@/store/game';
 import { GameRow } from '@/types';
 import { clockLabel, timeAgo } from '@/utils/clock';
 import { cn, statusLabel } from '@/utils/ui';
@@ -33,7 +34,7 @@ export function GameRowItem({ g, perspective }: { g: GameRow; perspective?: stri
 					<RatingDiff diff={g.black_diff} />
 				</div>
 				<div className="text-xs text-muted-foreground truncate">
-					{clockLabel(g.clock)} · {statusLabel(g.status) ?? `in progress, ${g.plies} plies`} · {timeAgo(g.created_at)}
+					{clockLabel(g.clock)} · {variantLabel(false, g.layout)} · {statusLabel(g.status) ?? `in progress, ${g.plies} plies`} · {timeAgo(g.created_at)}
 				</div>
 			</div>
 		</Link>

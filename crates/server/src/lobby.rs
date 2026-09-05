@@ -1,3 +1,4 @@
+use rubrik_core::{LAYOUT_RUBRIK, LAYOUT_STANDARD};
 use serde::{Deserialize, Serialize};
 
 use crate::db::User;
@@ -44,12 +45,39 @@ impl SeekColor {
     }
 }
 
+/// Face colouring of the board.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Layout {
+    #[default]
+    Standard,
+    Rubrik,
+}
+
+impl Layout {
+    pub fn faces(self) -> [u8; 6] {
+        match self {
+            Layout::Standard => LAYOUT_STANDARD,
+            Layout::Rubrik => LAYOUT_RUBRIK,
+        }
+    }
+
+    pub fn of(faces: [u8; 6]) -> Layout {
+        if faces == LAYOUT_RUBRIK {
+            Layout::Rubrik
+        } else {
+            Layout::Standard
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Seek {
     pub id: String,
     pub user: User,
     pub clock: ClockSpec,
     pub walled: bool,
+    pub layout: Layout,
     pub color: SeekColor,
 }
 
@@ -60,6 +88,7 @@ pub struct Challenge {
     pub user: User,
     pub clock: ClockSpec,
     pub walled: bool,
+    pub layout: Layout,
     pub color: SeekColor,
     #[serde(skip)]
     pub created_at: i64,
@@ -91,6 +120,7 @@ impl Lobby {
                 s.user.id != seek.user.id
                     && s.clock == seek.clock
                     && s.walled == seek.walled
+                    && s.layout == seek.layout
                     && s.color.compatible(seek.color)
             })
             .map(|s| s.id.clone())

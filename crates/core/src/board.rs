@@ -74,6 +74,9 @@ pub struct Cell {
 /// Face colour layouts, palette indices: 0 white, 1 black, 2 red, 3 blue, 4 yellow, 5 green.
 pub const LAYOUT_STANDARD: [u8; 6] = [0, 0, 1, 1, 0, 1];
 
+/// Six distinct face colours: same-colour rules (Prince/Princess/Captain) bite harder.
+pub const LAYOUT_RUBRIK: [u8; 6] = [0, 1, 2, 3, 4, 5];
+
 pub const SETUP_STANDARD: &str = "
 --------
 -NPPPPN-

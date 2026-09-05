@@ -4,6 +4,7 @@ import { Shell } from '@/components/shell';
 import { Button } from '@/components/ui/button';
 import { leaderboard, listGames, liveGames } from '@/net/api';
 import { send, useNetStore } from '@/net/ws';
+import { variantLabel } from '@/store/game';
 import { GameRow, LiveGame, Seek, User } from '@/types';
 import { clockLabel, speedOf } from '@/utils/clock';
 import { requestNotifyPermission } from '@/utils/notify';
@@ -63,7 +64,12 @@ export function LobbyPage() {
 
 	const mySeek = seeks.find((s) => s.user.id === me?.id);
 	const isPool = (s: Seek | undefined, m: number, i: number) =>
-		!!s && s.clock.initial_ms === m * 60_000 && s.clock.increment_ms === i * 1000 && !s.walled && (s.color ?? 'random') === 'random';
+		!!s &&
+		s.clock.initial_ms === m * 60_000 &&
+		s.clock.increment_ms === i * 1000 &&
+		!s.walled &&
+		(s.layout ?? 'standard') === 'standard' &&
+		(s.color ?? 'random') === 'random';
 	const myPool = POOLS.find(([m, i]) => isPool(mySeek, m, i));
 
 	const mine = live.filter((g) => g.white.id === me?.id || g.black.id === me?.id);
@@ -174,8 +180,8 @@ export function LobbyPage() {
 													{clockLabel(seek.clock)}{' '}
 													<span className="text-xs text-muted-foreground font-sans">{speedOf(seek.clock)}</span>
 												</td>
-												<td className="text-muted-foreground">
-													{seek.walled ? 'Walled' : 'Standard'}
+												<td className="text-muted-foreground capitalize">
+													{variantLabel(seek.walled, seek.layout)}
 													{seek.color && seek.color !== 'random' ? ` · plays ${seek.color}` : ''}
 												</td>
 												<td className="text-right text-xs text-muted-foreground">{own ? 'cancel' : 'join'}</td>

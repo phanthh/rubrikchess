@@ -15,7 +15,7 @@ use tokio::task::JoinHandle;
 
 use crate::db;
 use crate::db::User;
-use crate::lobby::{Challenge, ClockSpec, Seek, SeekColor, CHALLENGE_TTL_MS};
+use crate::lobby::{Challenge, ClockSpec, Layout, Seek, SeekColor, CHALLENGE_TTL_MS};
 use crate::room::{arm_timeout, evict_when_idle, persist, Clock, Room};
 use crate::{now_ms, rand_id, AppState};
 
@@ -32,6 +32,8 @@ enum ClientMsg {
         clock: ClockSpec,
         #[serde(default)]
         walled: bool,
+        #[serde(default)]
+        layout: Layout,
         #[serde(default)]
         color: SeekColor,
     },
@@ -73,6 +75,8 @@ enum ClientMsg {
         clock: ClockSpec,
         #[serde(default)]
         walled: bool,
+        #[serde(default)]
+        layout: Layout,
         #[serde(default)]
         color: SeekColor,
     },
@@ -272,6 +276,7 @@ fn handle(
         ClientMsg::Seek {
             clock,
             walled,
+            layout,
             color,
         } => {
             if !clock.valid() {
@@ -287,6 +292,7 @@ fn handle(
                 user: user.clone(),
                 clock,
                 walled,
+                layout,
                 color,
             };
             // Quick pairing: an open compatible seek starts a game right away.
@@ -447,7 +453,9 @@ fn handle(
             if !state.allow(&user.id, &format!("chat:{game_id}"), 5, 5000) {
                 return; // rate limited: drop silently
             }
-            room.lock().broadcast(json!({
+            let mut r = room.lock();
+            r.push_chat(json!({"user": user, "text": text, "at": now}));
+            r.broadcast(json!({
                 "t": "chat",
                 "game_id": game_id,
                 "user": user,
@@ -485,6 +493,7 @@ fn handle(
                             increment_ms: r.clock.increment_ms,
                         },
                         r.game.config.rules.walled,
+                        Layout::of(r.game.config.layout),
                     ))
                 } else {
                     r.rematch_offer = if offer { Some(color) } else { None };
@@ -494,8 +503,8 @@ fn handle(
                     None
                 }
             };
-            if let Some((white, black, clock, walled)) = accepted {
-                create_game(state, white, black, clock, walled);
+            if let Some((white, black, clock, walled, layout)) = accepted {
+                create_game(state, white, black, clock, walled, layout);
             }
         }
         ClientMsg::Takeback { game_id, offer } => {
@@ -535,6 +544,7 @@ fn handle(
         ClientMsg::Challenge {
             clock,
             walled,
+            layout,
             color,
         } => {
             if !clock.valid() {
@@ -550,6 +560,7 @@ fn handle(
                 user: user.clone(),
                 clock,
                 walled,
+                layout,
                 color,
                 created_at: now_ms(),
             };
@@ -594,6 +605,7 @@ fn handle(
                     user: c.user,
                     clock: c.clock,
                     walled: c.walled,
+                    layout: c.layout,
                     color: c.color,
                 },
                 user.clone(),
@@ -717,14 +729,22 @@ fn pair(state: &Arc<AppState>, seek: Seek, joiner: User, joiner_color: SeekColor
         lobby.remove_user(&seek.user.id);
         lobby.remove_user(&joiner.id);
     }
-    create_game(state, white, black, seek.clock, seek.walled);
+    create_game(state, white, black, seek.clock, seek.walled, seek.layout);
     state.broadcast_lobby();
 }
 
 /// Create + persist a game, put it live and tell both players.
-fn create_game(state: &Arc<AppState>, white: User, black: User, clock: ClockSpec, walled: bool) {
+fn create_game(
+    state: &Arc<AppState>,
+    white: User,
+    black: User,
+    clock: ClockSpec,
+    walled: bool,
+    layout: Layout,
+) {
     let config = GameConfig {
         rules: Rules { walled },
+        layout: layout.faces(),
         ..Default::default()
     };
     let now = now_ms();

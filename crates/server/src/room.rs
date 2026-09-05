@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -107,6 +108,8 @@ pub struct Room {
     pub black_diff: Option<i64>,
     /// Connections currently subscribed to this room (players included).
     pub watchers: usize,
+    /// Recent chat lines, oldest first; memory only.
+    pub chat: VecDeque<Value>,
     /// Identity of this in-memory instance; a re-loaded room gets a new one.
     instance: u64,
     /// Eviction loop already armed.
@@ -136,6 +139,7 @@ impl Room {
             white_diff: None,
             black_diff: None,
             watchers: 0,
+            chat: VecDeque::new(),
             instance: NEXT_INSTANCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             evicting: false,
             tx: broadcast::channel(64).0,
@@ -181,7 +185,16 @@ impl Room {
             "takeback_offer": self.takeback_offer,
             "watchers": self.watchers,
             "presence": {"white": white_on, "black": black_on},
+            "chat": self.chat,
         })
+    }
+
+    /// Keep the tail of the conversation for clients joining later.
+    pub fn push_chat(&mut self, line: Value) {
+        if self.chat.len() == CHAT_HISTORY {
+            self.chat.pop_front();
+        }
+        self.chat.push_back(line);
     }
 
     /// Whether each player currently has at least one websocket open.
@@ -323,6 +336,9 @@ impl Room {
         (Some(white_diff), Some(black_diff))
     }
 }
+
+/// Chat lines kept per room.
+const CHAT_HISTORY: usize = 50;
 
 pub fn persist(state: &AppState, room: &Room) {
     let conn = state.db.lock();

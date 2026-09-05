@@ -5,7 +5,16 @@ import { game, useGameStore } from '@/store/game';
 import { usePrefs } from '@/store/prefs';
 import { cn } from '@/utils/ui';
 import { Box, LayoutGrid } from 'lucide-react';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { Dialog } from '@/components/ui/dialog';
+
+const KEYS: [string, string][] = [
+	['← →', 'Previous / next move'],
+	['↑ ↓', 'First / last move'],
+	['f', 'Flip the board'],
+	['z', 'Zen mode'],
+	['?', 'This help'],
+];
 
 /**
  * Three-column round layout: optional left meta column, board, right table.
@@ -16,6 +25,14 @@ export function BoardPage({ banner, left, right, below }: { banner: ReactNode; l
 	const cursor = useGameStore((s) => s.cursor);
 	const plies = useGameStore((s) => s.history.length);
 	const view2d = usePrefs((s) => s.view2d);
+	const [keys, setKeys] = useState(false);
+	useEffect(() => {
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === '?' && (e.target as HTMLElement)?.tagName !== 'INPUT') setKeys((k) => !k);
+		};
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
+	}, []);
 	return (
 		<Shell fill>
 			<div className="h-full flex flex-col lg:flex-row lg:gap-3 lg:p-3 overflow-y-auto lg:overflow-hidden">
@@ -45,6 +62,20 @@ export function BoardPage({ banner, left, right, below }: { banner: ReactNode; l
 					{below && <div className="lg:hidden">{below}</div>}
 				</aside>
 			</div>
+			<Dialog open={keys} onClose={() => setKeys(false)} title="Keyboard shortcuts">
+				<table className="text-sm">
+					<tbody>
+						{KEYS.map(([k, what]) => (
+							<tr key={k}>
+								<td className="pr-4 py-0.5">
+									<kbd className="font-mono bg-muted px-1.5 py-0.5 rounded">{k}</kbd>
+								</td>
+								<td>{what}</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</Dialog>
 		</Shell>
 	);
 }

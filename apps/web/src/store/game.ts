@@ -5,6 +5,7 @@ import {
 	Color,
 	GameConfig,
 	GameState,
+	Layout,
 	Move,
 	Piece,
 	RawCell,
@@ -44,9 +45,22 @@ export function baseConfig(): GameConfig {
 	return structuredClone(defaultConfig);
 }
 
-export function localConfig(walled: boolean): GameConfig {
+export const LAYOUTS: Record<Layout, number[]> = { standard: [0, 0, 1, 1, 0, 1], rubrik: [0, 1, 2, 3, 4, 5] };
+
+export function layoutOf(config: GameConfig | null | undefined): Layout {
+	return config && config.layout.some((c, i) => c !== LAYOUTS.standard[i]) ? 'rubrik' : 'standard';
+}
+
+/** Human label for a game's rules, e.g. "walled · rubrik" or "standard". */
+export function variantLabel(walled: boolean, layout: Layout = 'standard') {
+	const parts = [walled && 'walled', layout === 'rubrik' && 'rubrik'].filter(Boolean);
+	return parts.length ? parts.join(' · ') : 'standard';
+}
+
+export function localConfig(walled: boolean, layout: Layout = 'standard'): GameConfig {
 	const config = baseConfig();
 	config.rules.walled = walled;
+	config.layout = LAYOUTS[layout];
 	return config;
 }
 
@@ -187,6 +201,7 @@ interface IGameStore {
 	zen: boolean;
 	// settings
 	walled: boolean;
+	layout: Layout;
 	debug: boolean;
 	lowPerf: boolean;
 	// actions
@@ -206,7 +221,7 @@ interface IGameStore {
 	setDrawOffer: (by: Color | null) => void;
 	setSetting: (
 		patch: Partial<
-			Pick<IGameStore, 'walled' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers' | 'zen' | 'clock'>
+			Pick<IGameStore, 'walled' | 'layout' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers' | 'zen' | 'clock'>
 		>,
 	) => void;
 }
@@ -240,6 +255,7 @@ export const useGameStore = create(
 		ai: null,
 		zen: false,
 		walled: false,
+		layout: 'standard',
 		debug: false,
 		lowPerf: false,
 
@@ -273,7 +289,7 @@ export const useGameStore = create(
 		},
 
 		newLocal: (config, ai = null) => {
-			loadLocal(new WasmGame(config ?? localConfig(get().walled)), {
+			loadLocal(new WasmGame(config ?? localConfig(get().walled, get().layout)), {
 				ai,
 				flipped: ai?.color === 'white',
 			});

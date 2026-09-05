@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { send } from '@/net/ws';
-import { SeekColor } from '@/types';
+import { Layout, SeekColor } from '@/types';
 import { clockLabel, speedOf } from '@/utils/clock';
 import { cn } from '@/utils/ui';
 import { useState } from 'react';
@@ -23,13 +23,14 @@ export function SetupDialog({ mode, onClose }: { mode: SetupMode | null; onClose
 	const [mi, setMi] = useState(8); // 5 min
 	const [ii, setIi] = useState(3); // 3 s
 	const [walled, setWalled] = useState(false);
+	const [layout, setLayout] = useState<Layout>('standard');
 	const [color, setColor] = useState<SeekColor>('random');
 	const clock = { initial_ms: MINUTES[mi] * 60_000, increment_ms: INCREMENTS[ii] * 1000 };
 	const valid = clock.initial_ms > 0 || clock.increment_ms > 0;
 
 	const submit = () => {
-		if (mode === 'friend') send({ t: 'challenge', clock, walled, color });
-		else send({ t: 'seek', clock, walled, color });
+		if (mode === 'friend') send({ t: 'challenge', clock, walled, color, layout });
+		else send({ t: 'seek', clock, walled, color, layout });
 		onClose();
 	};
 
@@ -71,6 +72,13 @@ export function SetupDialog({ mode, onClose }: { mode: SetupMode | null; onClose
 					<span className="block text-xs text-muted-foreground">Pieces may not cross cube edges</span>
 				</span>
 				<Switch checked={walled} onCheckedChange={setWalled} />
+			</label>
+			<label className="text-sm flex items-center justify-between">
+				<span>
+					Rubrik colours
+					<span className="block text-xs text-muted-foreground">Six face colours; prince, princess and captain follow them</span>
+				</span>
+				<Switch checked={layout === 'rubrik'} onCheckedChange={(v) => setLayout(v ? 'rubrik' : 'standard')} />
 			</label>
 			<div className="text-sm">
 				<div className="mb-1">Your colour</div>

@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { game, localConfig, useGameStore } from '@/store/game';
 import { statusLabel } from '@/utils/ui';
 import { AI_LEVELS } from '@/ai';
-import { Color } from '@/types';
+import { Color, Layout } from '@/types';
 import { cn } from '@/utils/ui';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -14,13 +14,14 @@ import { useShallow } from 'zustand/react/shallow';
 /** `/local` = sandbox; `/local?ai=3&color=white` = play the engine (level 1..4) as white. */
 export function LocalPage() {
 	const [params] = useSearchParams();
-	const { history, turn, status, animating, walled, debug, flipped, ai } = useGameStore(
+	const { history, turn, status, animating, walled, layout, debug, flipped, ai } = useGameStore(
 		useShallow((s) => ({
 			history: s.history,
 			turn: s.turn,
 			status: s.status,
 			animating: s.animating,
 			walled: s.walled,
+			layout: s.layout,
 			debug: s.debug,
 			flipped: s.flipped,
 			ai: s.ai,
@@ -30,11 +31,12 @@ export function LocalPage() {
 	const [color, setColor] = useState<Color>(params.get('color') === 'black' ? 'black' : 'white');
 	const vsAi = params.has('ai');
 
-	const start = (opts: { walled?: boolean; level?: number; color?: Color } = {}) => {
+	const start = (opts: { walled?: boolean; layout?: Layout; level?: number; color?: Color } = {}) => {
 		const w = opts.walled ?? game().walled;
+		const lay = opts.layout ?? game().layout;
 		const l = opts.level ?? level;
 		const c = opts.color ?? color;
-		game().newLocal(localConfig(w), vsAi ? { color: c === 'white' ? 'black' : 'white', level: l } : null);
+		game().newLocal(localConfig(w, lay), vsAi ? { color: c === 'white' ? 'black' : 'white', level: l } : null);
 	};
 
 	useEffect(() => {
@@ -103,6 +105,17 @@ export function LocalPage() {
 								onCheckedChange={(checked) => {
 									game().setSetting({ walled: checked });
 									start({ walled: checked });
+								}}
+							/>
+						</label>
+						<label className="flex items-center justify-between">
+							Rubrik colours
+							<Switch
+								checked={layout === 'rubrik'}
+								onCheckedChange={(v) => {
+									const lay: Layout = v ? 'rubrik' : 'standard';
+									game().setSetting({ layout: lay });
+									start({ layout: lay });
 								}}
 							/>
 						</label>

@@ -7,7 +7,7 @@ import { Net } from '@/components/round/net';
 import { PlayerBar } from '@/components/round/player-bar';
 import { RoundControls } from '@/components/round/round-controls';
 import { onServerMsg, send, useNetStore } from '@/net/ws';
-import { game, useGameStore } from '@/store/game';
+import { game, layoutOf, useGameStore, variantLabel } from '@/store/game';
 import { Color } from '@/types';
 import { notify } from '@/utils/notify';
 import { play } from '@/utils/sound';
@@ -48,6 +48,7 @@ export function GamePage() {
 			switch (msg.t) {
 				case 'game_state':
 					g.loadOnline(msg);
+					if (msg.chat) setChat(msg.chat.map((m) => ({ user: m.user.name, text: m.text, at: m.at })));
 					break;
 				case 'move':
 					g.applyRemoteMove(msg);
@@ -127,7 +128,7 @@ export function GamePage() {
 						<div className="font-semibold">
 							{clock ? `${clock.initial_ms / 60000}+${clock.increment_ms / 1000}` : '—'}{' '}
 							<span className="text-muted-foreground font-normal">
-								· {game().config?.rules.walled ? 'walled' : 'standard'} · rated
+								· {variantLabel(game().config?.rules.walled ?? false, layoutOf(game().config))} · rated
 							</span>
 						</div>
 						<div className="text-xs text-muted-foreground">

@@ -2,6 +2,7 @@ import { Shell } from '@/components/shell';
 import { Button } from '@/components/ui/button';
 import { getChallenge } from '@/net/api';
 import { send, useNetStore } from '@/net/ws';
+import { variantLabel } from '@/store/game';
 import { Challenge } from '@/types';
 import { clockLabel, speedOf } from '@/utils/clock';
 import { Copy, Loader2 } from 'lucide-react';
@@ -41,7 +42,7 @@ export function ChallengePage() {
 							<div className="text-center">
 								<div className="text-3xl font-bold font-mono">{clockLabel(c.clock)}</div>
 								<div className="text-xs text-muted-foreground">
-									{speedOf(c.clock)} · {c.walled ? 'Walled' : 'Standard'} · rated
+									{speedOf(c.clock)} · {variantLabel(c.walled, c.layout)} · rated
 								</div>
 							</div>
 							{own ? (

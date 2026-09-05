@@ -13,7 +13,7 @@ export type BoardTheme = keyof typeof BOARD_THEMES;
 
 /** Cell palette index -> hex (matches rubrik-core palette). */
 export function palette(theme: BoardTheme): string[] {
-	return [...BOARD_THEMES[theme], '#aa0000', '#0000aa', '#aaaa00', '#00aa00'];
+	return [...BOARD_THEMES[theme], '#b8433a', '#3b6fb6', '#d3a72e', '#4a9a4f'];
 }
 /** Piece colours, offset from the face colours so pieces stay visible on same-colour faces. */
 export const PIECE_WHITE = '#f2ead8';
