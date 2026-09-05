@@ -50,6 +50,9 @@ export const useInteractiveMesh = (
 	] as const;
 };
 
+/** Cells sit inside each other's raycast; stop events at the first hit so one click = one cell. */
+const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
+
 export const usePreventPropagation = () => {
 	const props = useMemo(() => {
 		return {

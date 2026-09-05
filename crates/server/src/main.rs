@@ -340,7 +340,10 @@ async fn get_user(State(state): State<Arc<AppState>>, Path(name): Path<String>) 
     };
     let games = db::list_games(&conn, 20, Some(&user.id), None);
     let history = db::rating_history(&conn, &user.id);
-    Json(json!({"user": user, "games": games, "history": history})).into_response()
+    drop(conn);
+    let online = state.conns.lock().contains_key(&user.id);
+    Json(json!({"user": user, "games": games, "history": history, "online": online}))
+        .into_response()
 }
 
 async fn get_leaderboard(

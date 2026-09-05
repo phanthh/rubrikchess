@@ -1,7 +1,7 @@
 import { useAnimationStore } from '@/store/animation';
 import { useGameStore } from '@/store/game';
 import { Piece as TPiece, PieceKind, TCell } from '@/types';
-import { PIECE_BLACK, PIECE_NAMES, PIECE_WHITE } from '@/utils/consts';
+import { PIECE_BLACK, PIECE_NAMES, PIECE_RULES, PIECE_WHITE } from '@/utils/consts';
 import { useInteractiveMesh } from '@/utils/hooks';
 import { GroupProps, MeshProps, useLoader } from '@react-three/fiber';
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';
@@ -39,7 +39,7 @@ export const Piece = memo(({ piece, cell, ...props }: PieceProps) => {
 			normal: piece.color === 'white' ? PIECE_WHITE : PIECE_BLACK,
 			hover: '#aaffaa',
 			active: '#aaffaa',
-			tooltip: PIECE_NAMES[piece.kind],
+			tooltip: `${PIECE_NAMES[piece.kind]} — ${PIECE_RULES[piece.kind]}`,
 		},
 		cell.state === 'active',
 	);

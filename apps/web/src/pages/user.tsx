@@ -12,7 +12,7 @@ import { useParams } from 'react-router-dom';
 
 export function UserPage() {
 	const { name } = useParams();
-	const [data, setData] = useState<{ user: User; games: GameRow[]; history?: RatingPoint[] } | null>(null);
+	const [data, setData] = useState<{ user: User; games: GameRow[]; history?: RatingPoint[]; online?: boolean } | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [challenge, setChallenge] = useState(false);
 	const me = useNetStore((s) => s.me);
@@ -39,8 +39,9 @@ export function UserPage() {
 						<section className="box p-4 flex flex-wrap items-end gap-x-6 gap-y-2">
 							<div>
 								<h1 className="text-2xl font-bold leading-tight">{u.name}</h1>
-								<div className="text-xs text-muted-foreground">
-									{u.registered ? 'Registered player' : 'Anonymous player'}
+								<div className="text-xs text-muted-foreground flex items-center gap-1.5">
+									<span className={`h-1.5 w-1.5 rounded-full ${data.online ? 'bg-secondary' : 'bg-muted-foreground/50'}`} />
+									{data.online ? 'Online' : 'Offline'} · {u.registered ? 'registered' : 'anonymous'}
 								</div>
 							</div>
 							{me && me.id !== u.id && (

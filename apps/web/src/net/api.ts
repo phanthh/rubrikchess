@@ -35,7 +35,7 @@ export const login = (name: string, password: string) => post<User>('/login', { 
 export const logout = () => post<User>('/logout', {});
 
 export const getUser = (name: string) =>
-	req<{ user: User; games: GameRow[]; history?: RatingPoint[] }>(`/users/${encodeURIComponent(name)}`);
+	req<{ user: User; games: GameRow[]; history?: RatingPoint[]; online?: boolean }>(`/users/${encodeURIComponent(name)}`);
 
 export const leaderboard = (limit = 20) => req<User[]>(`/leaderboard?limit=${limit}`);
 

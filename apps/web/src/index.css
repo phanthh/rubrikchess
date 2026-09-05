@@ -80,7 +80,8 @@
 		border-radius: 4px;
 		user-select: none;
 		border: 1px solid hsl(var(--border));
-		padding: 2px 6px;
+		padding: 3px 8px;
+		max-width: 20rem;
 		pointer-events: none;
 		transition-property: opacity;
 		transition-timing-function: ease-in-out;

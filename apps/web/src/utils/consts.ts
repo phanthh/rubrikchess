@@ -33,6 +33,21 @@ export const PIECE_NAMES: Record<PieceKind, string> = {
 	cannon: 'Cannon',
 };
 
+/** One-line rule per piece; mirrors NOTES.md. Shown in the rules dialog and piece tooltips. */
+export const PIECE_RULES: Record<PieceKind, string> = {
+	pawn: 'Moves to an empty cell one step away (also across an edge unless walled); captures diagonally. Any direction, no promotion.',
+	knight: 'Chess knight leap, wrapped around the cube edges; walled keeps it on its own face.',
+	bishop: 'Diagonal walk, climbing over edges onto neighbouring faces (unless walled).',
+	rook: 'Orthogonal walk, climbing over edges onto neighbouring faces (unless walled).',
+	queen: 'Rook plus bishop.',
+	king: 'One step in any direction, straight or diagonal, across edges too (unless walled). Lose it and you lose.',
+	prince: 'King moves, but only onto cells of its own colour.',
+	princess: 'Queen walk, but only over cells of its own colour.',
+	captain: 'Moves to any empty cell reachable orthogonally over cells of its own colour; also king moves (captures allowed).',
+	cannon: 'Captures or moves to the 4 cells found by rotating its position ±90° about the tangential axes; king moves without capturing.',
+	tesseract: 'King moves; or rotates its own slice of the cube by ±90° about the X, Y or Z axis, carrying every piece on it.',
+};
+
 export const AXES: Record<'x' | 'y' | 'z', Vector3> = {
 	x: vec(1, 0, 0),
 	y: vec(0, 1, 0),

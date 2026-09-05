@@ -276,5 +276,22 @@ await S.goto(gameUrl);
 await S.waitForTimeout(1500);
 await shot(S, 'game-mobile');
 
+// 3D picking + tooltip (regression: a stray global `stop` once broke every hover)
+const L = await b.newContext({ viewport: { width: 1200, height: 800 } });
+const lp = await L.newPage();
+const errs = [];
+lp.on('pageerror', (e) => errs.push(e.message));
+await lp.goto(BASE + '/local');
+await lp.waitForTimeout(1500);
+await lp.mouse.move(447, 330);
+await lp.waitForTimeout(300);
+await lp.mouse.move(449, 332);
+await lp.waitForTimeout(1300);
+assert((await lp.locator('.tooltip').textContent())?.startsWith('Knight'), 'piece tooltip with rule');
+await lp.mouse.click(449, 332);
+await lp.waitForTimeout(500);
+assert((await lp.evaluate(() => window.__game.getState().selected)) !== null, '3D click selects a piece');
+assert(errs.length === 0, `no page errors during 3D interaction (${errs[0] ?? ''})`);
+
 await b.close();
 console.log('done');
