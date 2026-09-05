@@ -24,4 +24,5 @@ jobs:
       - run: pnpm build:wasm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm lint
       - run: pnpm build
