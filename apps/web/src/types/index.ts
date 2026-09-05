@@ -142,6 +142,7 @@ export type LiveGame = {
 	plies: number;
 	watchers: number;
 	layout?: Layout;
+	walled?: boolean;
 	created_at: number;
 };
 export type RatingPoint = { at: number; rating: number };
@@ -169,6 +170,7 @@ export type GameRow = {
 	created_at: number;
 	plies: number;
 	layout?: Layout;
+	walled?: boolean;
 	tournament_id?: string | null;
 	white_diff: number | null;
 	black_diff: number | null;

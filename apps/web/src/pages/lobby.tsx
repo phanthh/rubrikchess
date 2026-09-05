@@ -67,10 +67,16 @@ export function LobbyPage() {
 				.then((d) => setTours([...d.running, ...d.upcoming]))
 				.catch(() => undefined);
 		loadTours();
-		const unsub = onServerMsg((m) => m.t === 'tour' && loadTours());
+		let debounce = 0;
+		const unsub = onServerMsg((m) => {
+			if (m.t !== 'tour') return;
+			clearTimeout(debounce);
+			debounce = window.setTimeout(loadTours, 800);
+		});
 		const t = setInterval(refresh, 10_000);
 		return () => {
 			clearInterval(t);
+			clearTimeout(debounce);
 			unsub();
 		};
 	}, [me?.id]);
@@ -245,7 +251,7 @@ export function LobbyPage() {
 											{g.black.name} <span className="text-brag text-xs">{Math.round(g.black.rating)}</span>
 										</div>
 										<div className="text-xs text-muted-foreground">
-											{clockLabel(g.clock)} · ply {g.plies}
+											{clockLabel(g.clock)} · {variantLabel(g.walled ?? false, g.layout)} · ply {g.plies}
 										</div>
 									</div>
 									<span className="flex items-center gap-1 text-xs text-muted-foreground">

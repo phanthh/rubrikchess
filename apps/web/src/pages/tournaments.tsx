@@ -38,7 +38,17 @@ export function TournamentsPage() {
 	useEffect(() => {
 		const load = () => listTournaments().then(setData).catch(() => undefined);
 		load();
-		return onServerMsg((m) => m.t === 'tour' && load());
+		// join/leave storms: coalesce reloads
+		let t = 0;
+		const unsub = onServerMsg((m) => {
+			if (m.t !== 'tour') return;
+			clearTimeout(t);
+			t = window.setTimeout(load, 800);
+		});
+		return () => {
+			clearTimeout(t);
+			unsub();
+		};
 	}, []);
 	return (
 		<Shell>

@@ -47,11 +47,9 @@ export function TournamentPage() {
 				})
 				.catch(() => setMissing(true));
 		load();
+		// the 5s poll covers standings; `tour` messages for this arena refresh immediately
 		const i = setInterval(load, 5000);
-		const unsub = onServerMsg((msg) => {
-			if (msg.t !== 'tour' || msg.tournament.id !== id) return;
-			load();
-		});
+		const unsub = onServerMsg((msg) => msg.t === 'tour' && msg.tournament.id === id && load());
 		return () => {
 			clearInterval(i);
 			unsub();
