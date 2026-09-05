@@ -273,28 +273,10 @@ export const useGameStore = create(
 		},
 
 		newLocal: (config, ai = null) => {
-			get().engine?.free();
-			cancelAiMoves();
-			set({
-				engine: new WasmGame(config ?? localConfig(get().walled)),
+			loadLocal(new WasmGame(config ?? localConfig(get().walled)), {
 				ai,
-				mode: 'local',
-				gameId: null,
-				myColor: null,
-				players: { white: null, black: null },
-				diffs: { white: null, black: null },
-				clock: null,
-				drawOffer: null,
-				takebackOffer: null,
 				flipped: ai?.color === 'white',
-				cursor: 0,
-				sans: [],
-				selected: null,
-				cells: [],
-				animating: false,
-				endStatus: null,
 			});
-			get().render();
 			get().pokeAi();
 		},
 
@@ -307,35 +289,19 @@ export const useGameStore = create(
 			void requestAiMove(engine.state() as GameState, ai.level).then((move) => {
 				const g = get();
 				if (!move || g.engine !== asked || g.engine.historyLen() !== ply || g.animating) return;
-				// feel: never answer instantly
-				setTimeout(() => get().engine === asked && get().play(move), Math.max(0, 400 - (Date.now() - t0)));
+				// feel: never answer instantly; re-check the position when the timer fires (undo/restart may have run)
+				setTimeout(
+					() => {
+						const g2 = get();
+						if (g2.engine === asked && g2.engine.historyLen() === ply && !g2.animating) g2.play(move);
+					},
+					Math.max(0, 400 - (Date.now() - t0)),
+				);
 			});
 		},
 
 		loadAnalysis: (config, moves, players) => {
-			get().engine?.free();
-			cancelAiMoves();
-			const engine = WasmGame.replay(config, moves);
-			set({
-				engine,
-				ai: null,
-				mode: 'local',
-				gameId: null,
-				myColor: null,
-				players,
-				diffs: { white: null, black: null },
-				clock: null,
-				drawOffer: null,
-				takebackOffer: null,
-				flipped: false,
-				cursor: engine.historyLen(),
-				sans: [],
-				selected: null,
-				cells: [],
-				animating: false,
-				endStatus: null,
-			});
-			get().render();
+			loadLocal(WasmGame.replay(config, moves), { players });
 		},
 
 		select: (id) => {
@@ -435,8 +401,20 @@ export const useGameStore = create(
 		},
 
 		applyRemoteMove: (msg) => {
-			const { engine, cursor, history } = get();
+			const { engine, cursor, history, animating } = get();
 			if (!engine) return;
+			if (animating) {
+				// a move landed mid-animation: apply it once the current one commits
+				const unsub = useGameStore.subscribe(
+					(s) => s.animating,
+					(a) => {
+						if (a) return;
+						unsub();
+						get().applyRemoteMove(msg);
+					},
+				);
+				return;
+			}
 			// viewing history: apply silently, keep the cursor where it is
 			const live = cursor === history.length;
 			const commit = () => {
@@ -483,6 +461,35 @@ export const useGameStore = create(
 
 export function game() {
 	return useGameStore.getState();
+}
+
+/** Swap in a local engine and reset every per-game field. */
+function loadLocal(engine: WasmGame, patch: Partial<IGameStore>) {
+	game().engine?.free();
+	cancelAiMoves();
+	useGameStore.setState({
+		engine,
+		ai: null,
+		mode: 'local',
+		gameId: null,
+		myColor: null,
+		players: { white: null, black: null },
+		diffs: { white: null, black: null },
+		clock: null,
+		drawOffer: null,
+		takebackOffer: null,
+		watchers: 0,
+		presence: { white: true, black: true },
+		flipped: false,
+		cursor: engine.historyLen(),
+		sans: [],
+		selected: null,
+		cells: [],
+		animating: false,
+		endStatus: null,
+		...patch,
+	});
+	game().render();
 }
 
 /** Run the move animation (or skip it) then `done()` commits it to the engine. */

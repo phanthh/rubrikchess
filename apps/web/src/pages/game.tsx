@@ -92,11 +92,15 @@ export function GamePage() {
 		return () => {
 			unsub();
 			send({ t: 'unwatch', game_id: id });
-			setChat([]);
-			setRematchBy(null);
-			setGone(null);
 		};
 	}, [id, connected]);
+
+	// per-game local state resets only when the game changes, not on reconnect
+	useEffect(() => {
+		setChat([]);
+		setRematchBy(null);
+		setGone(null);
+	}, [id]);
 
 	// Tab title (and a desktop notification) tell you it's your move even when the tab is hidden.
 	useEffect(() => {

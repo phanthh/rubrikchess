@@ -26,5 +26,6 @@ export function requestAiMove(state: GameState, level: number): Promise<Move | n
 
 /** Drop answers for moves requested before now (new game / undo). */
 export function cancelAiMoves() {
+	for (const resolve of pending.values()) resolve(null);
 	pending.clear();
 }

@@ -1,7 +1,7 @@
 import { CellId, Move, PieceKind } from '@/types';
 
 /** Face letters in engine face order: +Y +X +Z -Y -X -Z. */
-export const FACES = ['U', 'R', 'F', 'D', 'L', 'B'];
+const FACES = ['U', 'R', 'F', 'D', 'L', 'B'];
 
 export const PIECE_LETTER: Record<PieceKind, string> = {
 	pawn: '',
