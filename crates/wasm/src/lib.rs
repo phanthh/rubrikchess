@@ -88,6 +88,14 @@ impl WasmGame {
         js(&analyse(&self.0, level, seed as u64).map(|(mv, score)| Analysis { mv, score }))
     }
 
+    /// "white" | "black"
+    pub fn turn(&self) -> String {
+        match self.0.turn {
+            Color::White => "white".into(),
+            Color::Black => "black".into(),
+        }
+    }
+
     #[wasm_bindgen(js_name = historyLen)]
     pub fn history_len(&self) -> usize {
         self.0.history.len()

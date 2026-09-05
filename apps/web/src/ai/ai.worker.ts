@@ -37,7 +37,7 @@ self.onmessage = async (e: MessageEvent<AiRequest>) => {
 		const g = new WasmGame(req.config);
 		const limit = Math.min(req.moves.length, 200);
 		for (let ply = 0; ply <= limit; ply++) {
-			const turn = (g.state() as GameState).turn;
+			const turn = g.turn() as 'white' | 'black';
 			const a = g.analyse(3, seed) as Analysis | null;
 			const score = a ? (turn === 'white' ? a.score : -a.score) : 0;
 			res.evals.push(score);

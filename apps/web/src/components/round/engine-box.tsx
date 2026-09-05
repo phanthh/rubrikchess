@@ -8,7 +8,7 @@ import { useShallow } from 'zustand/react/shallow';
 
 const MATE = 100_000;
 
-/** Engine verdict for the position under the cursor (three-ply search in the worker). */
+/** Engine verdict for the position under the cursor (two-ply + capture search in the worker). */
 export function EngineBox() {
 	const { config, history, cursor, turn, status, cells } = useGameStore(
 		useShallow((s) => ({
@@ -28,7 +28,7 @@ export function EngineBox() {
 		if (!config || status.kind !== 'playing') return;
 		let stale = false;
 		const t = setTimeout(() => {
-			requestAnalysis(config, history.slice(0, cursor), 4).then(
+			requestAnalysis(config, history.slice(0, cursor), 3).then(
 				(analysis) => !stale && setResult({ key, analysis }),
 			);
 		}, 250);

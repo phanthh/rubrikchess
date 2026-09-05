@@ -80,29 +80,90 @@ fn own_moves(game: &Game) -> Vec<Move> {
     moves
 }
 
-fn search(game: &Game, depth: u8, mut alpha: i32, beta: i32) -> i32 {
+/// Capture-only extension at the horizon so a "free" piece that is immediately
+/// recaptured is not counted as won. Stand-pat on the static score. Deeper searches
+/// get a shorter extension to keep the tree bounded.
+fn quiesce_plies(depth: u8) -> u8 {
+    if depth >= 3 {
+        1
+    } else {
+        2
+    }
+}
+
+fn quiesce(game: &Game, qdepth: u8, mut alpha: i32, beta: i32) -> i32 {
     if let Status::Won { winner, .. } = game.status {
         return if winner == game.turn { MATE } else { -MATE };
     }
     if game.status != Status::Playing {
         return 0;
     }
-    let base = material(game, game.turn);
-    if depth == 0 {
-        return base;
+    let stand = material(game, game.turn);
+    if qdepth == 0 || stand >= beta {
+        return stand;
     }
+    alpha = alpha.max(stand);
+    let mut best = stand;
+    for mv in own_moves(game) {
+        let g0 = gain(game, &mv);
+        if g0 == 0 {
+            break; // sorted: captures first
+        }
+        // king capture ends the game; no need to look further
+        let score = if g0 >= MATE {
+            MATE
+        } else {
+            let mut g = game.clone();
+            g.apply(mv);
+            -quiesce(&g, qdepth - 1, -beta, -alpha)
+        };
+        if score > best {
+            best = score;
+        }
+        if best > alpha {
+            alpha = best;
+        }
+        if alpha >= beta {
+            break;
+        }
+    }
+    best
+}
+
+/// Node budget for a whole root search; once spent, remaining nodes are evaluated
+/// statically. Keeps "hard" bounded in wide midgame positions (<1s native).
+/// ponytail: root moves searched after the budget runs out get only a shallow look;
+/// upgrade path = iterative deepening with a time limit.
+const NODE_BUDGET: u32 = 15_000;
+
+fn search(game: &Game, depth: u8, q: u8, nodes: &mut u32, mut alpha: i32, beta: i32) -> i32 {
+    *nodes += 1;
+    if let Status::Won { winner, .. } = game.status {
+        return if winner == game.turn { MATE } else { -MATE };
+    }
+    if game.status != Status::Playing {
+        return 0;
+    }
+    if depth == 0 || *nodes > NODE_BUDGET {
+        return quiesce(game, q, alpha, beta);
+    }
+    let base = material(game, game.turn);
     let moves = own_moves(game);
     if moves.is_empty() {
         return base;
     }
     let mut best = -MATE - 1;
     for mv in moves {
-        let score = if depth == 1 {
-            base + gain(game, &mv)
+        let g0 = gain(game, &mv);
+        let score = if depth == 1 && g0 == 0 {
+            // quiet move at the horizon: static score (no capture to resolve)
+            base
+        } else if g0 >= MATE {
+            MATE
         } else {
             let mut g = game.clone();
             g.apply(mv);
-            -search(&g, depth - 1, -beta, -alpha)
+            -search(&g, depth - 1, q, nodes, -beta, -alpha)
         };
         if score > best {
             best = score;
@@ -150,13 +211,24 @@ pub fn analyse(game: &Game, level: u8, seed: u64) -> Option<(Move, i32)> {
     let depth = (level - 1).min(3);
     let mut best: Vec<Move> = Vec::new();
     let mut best_score = -MATE - 1;
+    let mut nodes = 0u32;
     for mv in moves {
+        let g0 = gain(game, &mv);
         let score = if depth == 1 {
-            material(game, game.turn) + gain(game, &mv)
+            material(game, game.turn) + g0 // greedy: no lookahead by design
+        } else if g0 >= MATE {
+            MATE
         } else {
             let mut g = game.clone();
             g.apply(mv.clone());
-            -search(&g, depth - 1, -MATE - 1, MATE + 1)
+            -search(
+                &g,
+                depth - 1,
+                quiesce_plies(depth),
+                &mut nodes,
+                -MATE - 1,
+                MATE + 1,
+            )
         };
         if score > best_score {
             best_score = score;

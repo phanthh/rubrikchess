@@ -21,4 +21,31 @@ fn main() {
             mv.map(|m| m.from())
         );
     }
+    // midgame: open lines, many captures available → quiescence cost shows here
+    let mut mid = Game::new(GameConfig::default());
+    // greedy vs greedy ends in a quick king grab; alternate greedy / random instead
+    for ply in 0..30 {
+        let level = 3;
+        let Some(mv) = best_move(&mid, level, ply) else {
+            break;
+        };
+        mid.play(mv).unwrap();
+        if mid.status != Status::Playing {
+            break;
+        }
+    }
+    println!(
+        "midgame after {} plies, status {:?}",
+        mid.history.len(),
+        mid.status
+    );
+    for level in 3..=4 {
+        let t = std::time::Instant::now();
+        let mv = best_move(&mid, level, 1);
+        println!(
+            "midgame best_move level {level}: {:?} → {:?}",
+            t.elapsed(),
+            mv.map(|m| m.from())
+        );
+    }
 }
