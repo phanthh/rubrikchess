@@ -419,7 +419,10 @@ export const useGameStore = create(
 				mode: 'online',
 				gameId: msg.game_id,
 				players: { white: msg.white, black: msg.black },
-				diffs: sameGame ? get().diffs : { white: null, black: null },
+				diffs: {
+					white: msg.white_diff ?? (sameGame ? get().diffs.white : null),
+					black: msg.black_diff ?? (sameGame ? get().diffs.black : null),
+				},
 				clock: msg.clock,
 				drawOffer: msg.draw_offer,
 				takebackOffer: msg.takeback_offer ?? null,

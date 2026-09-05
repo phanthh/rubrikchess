@@ -198,6 +198,8 @@ impl Room {
             "clock": self.clock.normalized(now_ms()),
             "draw_offer": self.draw_offer,
             "takeback_offer": self.takeback_offer,
+            "white_diff": self.white_diff,
+            "black_diff": self.black_diff,
             "watchers": self.watchers,
             "presence": {"white": white_on, "black": black_on},
             "chat": self.chat,

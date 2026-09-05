@@ -243,6 +243,8 @@ export type ServerMsg =
 			watchers?: number;
 			chat?: { user: User; text: string; at: number }[];
 			tournament_id?: string | null;
+			white_diff?: number | null;
+			black_diff?: number | null;
 	  }
 	| {
 			t: 'move';

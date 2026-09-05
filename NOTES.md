@@ -189,7 +189,7 @@ server→client
   {t:"challenge", challenge: Challenge}                      Challenge = {id, user: User, clock, walled, color}
   {t:"watchers", game_id, n}                                 broadcast on change (n = subscribed connections incl. players)
   {t:"presence", game_id, white: bool, black: bool}          broadcast when a player's connection count goes 0↔>0 (also included in game_state)
-  game_state gains: watchers: n, presence: {white, black}, takeback_offer: Color|null
+  game_state gains: watchers: n, presence: {white, black}, takeback_offer: Color|null, white_diff/black_diff (null until rated)
 ```
 Presence: server tracks per room via `AppState.conns` (user has ≥1 socket) + `AppState.gone` (user id → ms of last socket close). On a player's last socket closing, spawn 60s timer; if still gone and game playing → broadcast `{t:"gone", game_id, color}` so opponent UI can show "claim victory". `claim` re-checks (gone ≥60s) server-side.
 
