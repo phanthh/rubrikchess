@@ -23,6 +23,7 @@ const AnalysisPage = lazy(() =>
 );
 const EditorPage = lazy(() => import('./pages/editor').then((m) => ({ default: m.EditorPage })));
 const LearnPage = lazy(() => import('./pages/learn').then((m) => ({ default: m.LearnPage })));
+const PuzzlePage = lazy(() => import('./pages/puzzle').then((m) => ({ default: m.PuzzlePage })));
 
 /** Games and challenges can start from any page, so these listeners are global. */
 function ServerNav() {
@@ -62,6 +63,7 @@ export default function App() {
 					<Route path="/local" element={<LocalPage />} />
 					<Route path="/editor" element={<EditorPage />} />
 					<Route path="/learn" element={<LearnPage />} />
+					<Route path="/puzzle" element={<PuzzlePage />} />
 					<Route path="/tv" element={<TvPage />} />
 					<Route path="/games" element={<GamesPage />} />
 					<Route path="/tournaments" element={<TournamentsPage />} />

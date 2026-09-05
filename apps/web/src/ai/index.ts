@@ -1,7 +1,7 @@
 import type { GameConfig, GameState, Move } from '@/types';
-import type { AiRequest, AiResponse, Analysis } from './ai.worker';
+import type { AiRequest, AiResponse, Analysis, Puzzle } from './ai.worker';
 
-export type { Analysis };
+export type { Analysis, Puzzle };
 export const AI_LEVELS = ['Random', 'Greedy', 'Two-ply', 'Three-ply'] as const;
 
 let worker: Worker | null = null;
@@ -33,8 +33,11 @@ export const requestAiMove = (state: GameState, level: number) =>
 export const requestAnalysis = (config: GameConfig, moves: Move[], level: number) =>
 	ask({ kind: 'analyse', config, moves, level }).then((r) => r.analysis);
 
+/** Tactics candidates in a played game. */
+export const scanPuzzles = (config: GameConfig, moves: Move[]) => ask({ kind: 'scan', config, moves }).then((r) => r.puzzles);
+
 /** Drop answers for moves requested before now (new game / undo). */
 export function cancelAiMoves() {
-	for (const resolve of pending.values()) resolve({ id: 0, move: null, analysis: null });
+	for (const resolve of pending.values()) resolve({ id: 0, move: null, analysis: null, puzzles: [] });
 	pending.clear();
 }
