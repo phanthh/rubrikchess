@@ -227,7 +227,7 @@ Variant = `{walled: bool, layout: "standard"|"rubrik"}`. `rubrik` = 6 distinct f
 - seek / challenge / rematch carry `layout` (default "standard"); quick pairing matches on walled+layout too. `Seek`, `Challenge`, GameRow/LiveGame expose `layout`.
 - Chat history: room keeps last 50 chat lines in memory; `game_state` gains `chat: [{user, text, at}]` (not persisted across restarts).
 
-First-move expiry: each side gets `clamp(2×inc + initial/5, 20s, 60s)` for its opening move (armed at start and after ply 1), unlimited (correspondence) clocks a flat **3 days**; a no-show aborts the game (`Draw{Abandoned}`, unrated). Unlimited games idle for 14 days are abandoned by the 10-min sweep. WS server sends a Ping frame every 25s of idle output.
+First-move expiry: each side gets `clamp(2×inc + initial/5, 20s, 60s)` (1 day for days-per-move clocks) for its opening move (armed at start and after ply 1), unlimited (correspondence) clocks a flat **3 days**; a no-show aborts the game (`Draw{Abandoned}`, unrated). Unlimited games idle for 14 days are abandoned by the 10-min sweep. WS server sends a Ping frame every 25s of idle output.
 
 ## Phase 8: arena tournaments
 In-memory `Arena` per tournament in `AppState.tournaments` + sqlite persistence (`tournaments(id, name, clock JSON, walled, layout, starts_at, duration_ms, created_by, status)`,
