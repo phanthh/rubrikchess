@@ -50,6 +50,8 @@ pub struct GameRow {
     pub black: User,
     pub config: GameConfig,
     pub layout: Layout,
+    /// Mirror of `config.rules.walled`, so game lists need not parse the config.
+    pub walled: bool,
     pub moves: Vec<Move>,
     pub status: Status,
     pub clock: Clock,
@@ -443,6 +445,7 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
         white: user(conn, &white_id)?,
         black: user(conn, &black_id)?,
         layout: Layout::of(config.layout),
+        walled: config.rules.walled,
         config,
         plies: moves.len(),
         moves,
@@ -514,6 +517,16 @@ pub fn insert_tournament(conn: &Connection, a: &Arena) {
         ],
     )
     .expect("insert tournament");
+}
+
+/// Arenas this user created that are not over yet (the per-creator cap).
+pub fn unfinished_tournaments_by(conn: &Connection, user_id: &str) -> usize {
+    conn.query_row(
+        "SELECT COUNT(*) FROM tournaments WHERE created_by = ?1 AND status != '\"finished\"'",
+        params![user_id],
+        |r| r.get::<_, i64>(0),
+    )
+    .expect("count tournaments") as usize
 }
 
 pub fn set_tournament_status(conn: &Connection, id: &str, status: TourStatus) {

@@ -30,6 +30,8 @@ use crate::lobby::{Challenge, Layout, Lobby, CHALLENGE_TTL_MS};
 use crate::room::Room;
 use crate::tournament::{Arena, TourStatus};
 
+/// Lock order, taken by every path that needs more than one: `rooms` → `tournaments` →
+/// `db`. `parking_lot` mutexes never time out, so an inversion is a hard deadlock.
 pub struct AppState {
     pub db: Mutex<rusqlite::Connection>,
     pub lobby: Mutex<Lobby>,
@@ -40,7 +42,7 @@ pub struct AppState {
     pub gone: Mutex<HashMap<String, i64>>,
     /// Open challenge links, one per user.
     pub challenges: Mutex<HashMap<String, Challenge>>,
-    /// Live arenas: created + running, plus the ones that finished this run.
+    /// Live arenas: created + running, plus finished ones a live game still scores.
     pub tournaments: Mutex<HashMap<String, Arena>>,
     /// Sliding-window rate limits: recent event times per (user, key).
     pub limits: Mutex<HashMap<(String, String), VecDeque<i64>>>,
@@ -382,6 +384,7 @@ async fn get_tv(State(state): State<Arc<AppState>>) -> Response {
                     "increment_ms": r.clock.increment_ms,
                 },
                 "layout": Layout::of(r.game.config.layout),
+                "walled": r.game.config.rules.walled,
                 "plies": r.game.history.len(),
                 "watchers": r.watchers,
                 "created_at": r.created_at,
@@ -466,8 +469,12 @@ async fn post_tournament(
     let Some(user) = current_user(&state, &headers) else {
         return error(StatusCode::UNAUTHORIZED, "no session");
     };
+    // Anonymous creators are fine, but only a few arenas an hour each.
+    if !state.allow(&user.id, "tour_create", 3, 3_600_000) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
+    }
     let name = body.name.trim().to_string();
-    if !(3..=40).contains(&name.chars().count()) {
+    if !(3..=40).contains(&name.chars().count()) || name.chars().any(char::is_control) {
         return error(StatusCode::BAD_REQUEST, "invalid name");
     }
     if !body.clock.valid() || body.clock.unlimited() {
@@ -492,10 +499,8 @@ async fn post_tournament(
     };
     let value = {
         let mut tours = state.tournaments.lock();
-        let mine = tours
-            .values()
-            .filter(|a| a.created_by == user.id && a.status != TourStatus::Finished)
-            .count();
+        // From the DB: memory only holds the arenas of this run.
+        let mine = db::unfinished_tournaments_by(&state.db.lock(), &user.id);
         if mine >= MAX_TOURNAMENTS_PER_USER {
             return error(StatusCode::CONFLICT, "too many tournaments");
         }
@@ -511,9 +516,11 @@ async fn post_tournament(
 }
 
 async fn get_tournaments(State(state): State<Arc<AppState>>) -> Response {
+    // tournaments before db, like every other path (see AppState).
+    let tours = state.tournaments.lock();
     let conn = state.db.lock();
     let (mut upcoming, mut running) = (Vec::new(), Vec::new());
-    for arena in state.tournaments.lock().values() {
+    for arena in tours.values() {
         match arena.status {
             TourStatus::Created => upcoming.push((arena.starts_at, arena.json(&conn))),
             TourStatus::Running => running.push((arena.starts_at, arena.json(&conn))),
@@ -544,6 +551,7 @@ async fn get_tournament(
     let me = current_user(&state, &headers);
     // Rooms before tournaments: the tick loop takes the locks in that order too.
     let busy = tournament::busy_players(&state)
+        .1
         .remove(&id)
         .unwrap_or_default();
     let tours = state.tournaments.lock();
@@ -576,6 +584,7 @@ async fn get_game(State(state): State<Arc<AppState>>, Path(id): Path<String>) ->
             "black": r.black,
             "config": r.game.config,
             "layout": Layout::of(r.game.config.layout),
+            "walled": r.game.config.rules.walled,
             "moves": r.game.history,
             "status": r.game.status,
             "clock": r.clock,

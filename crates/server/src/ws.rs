@@ -509,10 +509,7 @@ fn handle(
                     Some((
                         r.black.clone(),
                         r.white.clone(),
-                        ClockSpec {
-                            initial_ms: r.clock.initial_ms,
-                            increment_ms: r.clock.increment_ms,
-                        },
+                        r.clock.spec(),
                         r.game.config.rules.walled,
                         Layout::of(r.game.config.layout),
                     ))
@@ -601,18 +598,24 @@ fn handle(
                 to,
                 created_at: now_ms(),
             };
+            {
+                let mut challenges = state.challenges.lock();
+                let now = now_ms();
+                // One public link + one direct challenge per user: a direct challenge must
+                // not silently kill the link its creator is sharing.
+                let direct = challenge.to.is_some();
+                challenges.retain(|_, c| {
+                    (c.user.id != user.id || c.to.is_some() != direct)
+                        && now - c.created_at < CHALLENGE_TTL_MS
+                });
+                challenges.insert(challenge.id.clone(), challenge.clone());
+            }
+            // After the insert: the target may accept immediately.
             if let Some(target) = &challenge.to {
                 state.send_to_user(
                     &target.id,
                     &json!({"t": "challenge_in", "challenge": challenge}),
                 );
-            }
-            {
-                let mut challenges = state.challenges.lock();
-                let now = now_ms();
-                challenges
-                    .retain(|_, c| c.user.id != user.id && now - c.created_at < CHALLENGE_TTL_MS);
-                challenges.insert(challenge.id.clone(), challenge.clone());
             }
             send(out, json!({"t": "challenge", "challenge": challenge}));
         }

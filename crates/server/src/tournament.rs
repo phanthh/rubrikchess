@@ -76,7 +76,7 @@ impl Arena {
         })
     }
 
-    /// Score desc, then wins desc, then whoever joined first.
+    /// Score desc, then wins desc, then whoever joined first. Capped at `MAX_STANDINGS`.
     pub fn standings(&self, conn: &rusqlite::Connection, busy: &HashSet<String>) -> Vec<Value> {
         let mut rows: Vec<(&String, &Player)> = self.players.iter().collect();
         rows.sort_by(|(_, a), (_, b)| {
@@ -85,6 +85,7 @@ impl Arena {
                 .then(b.wins.cmp(&a.wins))
                 .then(a.joined_at.cmp(&b.joined_at))
         });
+        rows.truncate(MAX_STANDINGS);
         rows.into_iter()
             .filter_map(|(id, p)| {
                 Some(json!({
@@ -118,19 +119,25 @@ impl Arena {
                 std::cmp::Ordering::Greater => false,
                 std::cmp::Ordering::Equal => rand::random(),
             };
-            let (white, black) = if a_white { (a, b) } else { (b, a) };
-            if let Some(p) = self.players.get_mut(&white) {
-                p.whites += 1;
-                p.last_opponent = Some(black.clone());
-            }
-            if let Some(p) = self.players.get_mut(&black) {
-                p.last_opponent = Some(white.clone());
-            }
-            out.push((white, black));
+            out.push(if a_white { (a, b) } else { (b, a) });
         }
         out
     }
+
+    /// Colour/opponent bookkeeping, applied once the game really exists.
+    fn applied(&mut self, white: &str, black: &str) {
+        if let Some(p) = self.players.get_mut(white) {
+            p.whites += 1;
+            p.last_opponent = Some(black.to_string());
+        }
+        if let Some(p) = self.players.get_mut(black) {
+            p.last_opponent = Some(white.to_string());
+        }
+    }
 }
+
+/// Rows returned by `standings`; an arena may hold far more players.
+const MAX_STANDINGS: usize = 200;
 
 /// Restore created/running tournaments; finished ones stay history in the DB.
 pub fn rehydrate(state: &Arc<AppState>) {
@@ -148,6 +155,10 @@ pub fn set_joined(state: &AppState, user: &User, id: &str, joined: bool) -> Resu
         let arena = tours.get_mut(id).ok_or("unknown tournament")?;
         if arena.status == TourStatus::Finished {
             return Err("tournament is over".into());
+        }
+        // Leaving without ever joining must not create a standings row.
+        if !joined && !arena.players.contains_key(&user.id) {
+            return Ok(());
         }
         let p = arena
             .players
@@ -190,6 +201,10 @@ pub fn record_result(state: &AppState, tid: &str, white: &str, black: &str, stat
     let Some(arena) = tours.get_mut(tid) else {
         return;
     };
+    // A game paired before the end may finish after it; the table is closed.
+    if arena.status == TourStatus::Finished {
+        return;
+    }
     let conn = state.db.lock();
     for (id, score) in [(white, white_score), (black, black_score)] {
         if let Some(p) = arena.players.get_mut(id) {
@@ -201,22 +216,48 @@ pub fn record_result(state: &AppState, tid: &str, white: &str, black: &str, stat
     }
 }
 
-/// Players busy in an unfinished tournament game, per tournament id.
-pub fn busy_players(state: &AppState) -> HashMap<String, HashSet<String>> {
+/// Everyone in a live game (`.0`, whatever the game is), and the subset playing a
+/// tournament game per tournament id (`.1`, for the `playing` badge). A player busy in a
+/// casual game must not be paired by an arena either, or they end up with two live games.
+pub fn busy_players(state: &AppState) -> (HashSet<String>, HashMap<String, HashSet<String>>) {
     let rooms: Vec<_> = state.rooms.lock().values().cloned().collect();
-    let mut busy: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut all: HashSet<String> = HashSet::new();
+    let mut by_tour: HashMap<String, HashSet<String>> = HashMap::new();
     for room in rooms {
         let r = room.lock();
         if r.game.status != Status::Playing {
             continue;
         }
+        all.insert(r.white.id.clone());
+        all.insert(r.black.id.clone());
         if let Some(tid) = &r.tournament_id {
-            let set = busy.entry(tid.clone()).or_default();
+            let set = by_tour.entry(tid.clone()).or_default();
             set.insert(r.white.id.clone());
             set.insert(r.black.id.clone());
         }
     }
-    busy
+    (all, by_tour)
+}
+
+/// Drop a player from the pairing pool (arena no-show); their score is kept.
+pub fn unjoin(state: &AppState, tid: &str, user_id: &str) {
+    let value = {
+        let mut tours = state.tournaments.lock();
+        let Some(arena) = tours.get_mut(tid) else {
+            return;
+        };
+        let Some(p) = arena.players.get_mut(user_id).filter(|p| p.joined) else {
+            return;
+        };
+        p.joined = false;
+        let conn = state.db.lock();
+        db::upsert_tournament_player(&conn, tid, user_id, p);
+        arena.json(&conn)
+    };
+    state.send_to_user(
+        user_id,
+        &json!({"t": "tour", "tournament": value, "joined": false}),
+    );
 }
 
 pub fn spawn_tick(state: Arc<AppState>) {
@@ -232,7 +273,7 @@ pub fn spawn_tick(state: Arc<AppState>) {
 /// while touching rooms: the busy set is gathered first, games are created after.
 fn tick(state: &Arc<AppState>) {
     let now = now_ms();
-    let busy = busy_players(state);
+    let (busy_anywhere, busy_by_tour) = busy_players(state);
     let online: HashSet<String> = state.conns.lock().keys().cloned().collect();
     let mut announce: Vec<Value> = Vec::new();
     let mut pairings: Vec<(String, ClockSpec, bool, Layout, String, String)> = Vec::new();
@@ -254,12 +295,14 @@ fn tick(state: &Arc<AppState>) {
             if arena.status != TourStatus::Running {
                 continue;
             }
-            let empty = HashSet::new();
-            let playing = busy.get(&arena.id).unwrap_or(&empty);
+            // Lichess-style: no pairing that cannot be finished inside the arena.
+            if now + arena.clock.initial_ms > arena.ends_at() {
+                continue;
+            }
             let free: Vec<String> = arena
                 .players
                 .iter()
-                .filter(|(id, p)| p.joined && online.contains(*id) && !playing.contains(*id))
+                .filter(|(id, p)| p.joined && online.contains(*id) && !busy_anywhere.contains(*id))
                 .map(|(id, _)| id)
                 .cloned()
                 .collect();
@@ -274,6 +317,8 @@ fn tick(state: &Arc<AppState>) {
                 ));
             }
         }
+        // Finished arenas are history in the DB; keep only the ones a live game still scores.
+        tours.retain(|id, a| a.status != TourStatus::Finished || busy_by_tour.contains_key(id));
     }
     for value in announce {
         let _ = state
@@ -288,6 +333,18 @@ fn tick(state: &Arc<AppState>) {
         let Some((white, black)) = users else {
             continue;
         };
-        crate::ws::create_game(state, white, black, clock, walled, layout, Some(tid));
+        let (white_id, black_id) = (white.id.clone(), black.id.clone());
+        crate::ws::create_game(
+            state,
+            white,
+            black,
+            clock,
+            walled,
+            layout,
+            Some(tid.clone()),
+        );
+        if let Some(arena) = state.tournaments.lock().get_mut(&tid) {
+            arena.applied(&white_id, &black_id);
+        }
     }
 }

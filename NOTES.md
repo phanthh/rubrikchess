@@ -177,7 +177,7 @@ client→server
                                          undo at least one ply, then until it is the *requester's* turn (1 or 2 plies),
                                          clock: running = new turn, at = now, times unchanged.
                                          Server broadcasts full `game_state` (clients reload). Any move clears pending takeback offer.
-  {t:"challenge", clock, walled, color, to?: username}  creates in-memory challenge (with `to`: direct — only that user may join; they receive {t:"challenge_in", challenge}) {id (8 chars), user, clock, walled, color, created_at}; expires after 1h; one per user (replaces).
+  {t:"challenge", clock, walled, color, to?: username}  creates in-memory challenge (with `to`: direct — only that user may join; they receive {t:"challenge_in", challenge}) {id (8 chars), user, clock, walled, color, created_at}; expires after 1h; **one public link + one direct challenge per user** (a new one replaces the previous of the *same kind*, so challenging a player no longer kills the public link being shared); `challenge_in` is sent after the challenge is in the map.
                                          reply {t:"challenge", challenge: Challenge}
   {t:"cancel_challenge"}
   {t:"join", challenge_id}               other user joins → game created (creator gets `color`, random resolved) → game_start to both. Error if missing/own.
@@ -226,7 +226,7 @@ Variant = `{walled: bool, layout: "standard"|"rubrik"}`. `rubrik` = 6 distinct f
 - seek / challenge / rematch carry `layout` (default "standard"); quick pairing matches on walled+layout too. `Seek`, `Challenge`, GameRow/LiveGame expose `layout`.
 - Chat history: room keeps last 50 chat lines in memory; `game_state` gains `chat: [{user, text, at}]` (not persisted across restarts).
 
-First-move expiry: each side gets `clamp(2×inc + initial/5, 20s, 60s)` for its opening move (armed at start and after ply 1); a no-show aborts the game (`Draw{Abandoned}`, unrated). Unlimited games idle for 14 days are abandoned by the 10-min sweep. WS server sends a Ping frame every 25s of idle output.
+First-move expiry: each side gets `clamp(2×inc + initial/5, 20s, 60s)` for its opening move (armed at start and after ply 1), unlimited (correspondence) clocks a flat **3 days**; a no-show aborts the game (`Draw{Abandoned}`, unrated). Unlimited games idle for 14 days are abandoned by the 10-min sweep. WS server sends a Ping frame every 25s of idle output.
 
 ## Phase 8: arena tournaments
 In-memory `Arena` per tournament in `AppState.tournaments` + sqlite persistence (`tournaments(id, name, clock JSON, walled, layout, starts_at, duration_ms, created_by, status)`,
@@ -250,10 +250,27 @@ WS:
 client→server  {t:"tour_join", id}  {t:"tour_leave", id}                (errors: unknown / finished)
 server→client  {t:"tour", tournament: Tournament, joined: bool}         sent to the acting user on join/leave and to everyone (lobby channel) when players count / status changes
                game_state gains `tournament_id: string|null`; GameRow / LiveGame gain `tournament_id`
+               GameRow / LiveGame / game_state also carry `walled: bool` (mirror of `config.rules.walled`, so lists can label the variant)
 ```
 
 As implemented: the lobby broadcast omits `joined` (it is per-user); it fires on create, join/leave and status
 change, *not* on every score change (standings are polled over HTTP). Arenas that finish during a run stay in
 `AppState.tournaments` (their running games still score); `GET /api/tournaments`'s `finished` list comes from the
 DB, `GET /api/tournaments/:id` falls back to the DB for arenas from earlier runs. The 3-unfinished-per-creator cap
-counts the in-memory arenas. `tour_join`/`tour_leave` are rate limited 20 / 10s (shared budget).
+is counted with `SELECT COUNT(*)` (memory only holds this run's arenas). `tour_join`/`tour_leave` are rate limited
+20 / 10s (shared budget); `POST /api/tournaments` 3 / hour per user (anonymous sessions may create arenas), name
+3..40 chars with no control characters.
+
+Pairing/scoring details:
+- A player in *any* live game (casual, challenge, other arena) is not paired — never two live games at once.
+- No pairing once `now + clock.initial_ms > ends_at` (lichess-style: a game that cannot finish inside the arena).
+- `record_result` ignores games that finish after the arena is `finished`; the table is closed.
+- A first-move abort of an arena game sets the no-show's `joined = false` (score kept), so the tick stops
+  re-pairing an AFK player every 3s. They get a `tour` message with `joined: false`.
+- `tour_leave` from a user who never joined creates no standings row.
+- `standings` is capped at 200 rows.
+- Finished arenas are dropped from `AppState.tournaments` by the tick once no live game references them
+  (`GET /api/tournaments/:id` reads them back from the DB).
+
+Lock order (`parking_lot`, no timeouts → an inversion is a hard deadlock): **`rooms` → `tournaments` → `db`**.
+`GET /api/tournaments` takes `tournaments` before `db` like every other path.

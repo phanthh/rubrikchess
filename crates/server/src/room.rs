@@ -84,8 +84,15 @@ impl Clock {
         self.set(color, self.base(color) + ms);
     }
 
+    pub fn spec(&self) -> ClockSpec {
+        ClockSpec {
+            initial_ms: self.initial_ms,
+            increment_ms: self.increment_ms,
+        }
+    }
+
     pub fn unlimited(&self) -> bool {
-        self.initial_ms == 0 && self.increment_ms == 0
+        self.spec().unlimited()
     }
 
     fn stop(&mut self, now: i64) {
@@ -458,35 +465,55 @@ pub fn arm_timeout(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
     });
 }
 
-/// Grace for the first move: `2 × increment + 20% of initial`, clamped to 20s..60s. A game
-/// whose first ply is never played is aborted (unrated) rather than lost on time.
+/// Grace for the first move: `2 × increment + 20% of initial`, clamped to 20s..60s.
+/// Unlimited (correspondence) clocks get a flat 3 days. A game whose first ply is never
+/// played is aborted (unrated) rather than lost on time.
 pub fn first_move_grace_ms(clock: &Clock) -> u64 {
+    if clock.unlimited() {
+        return UNLIMITED_FIRST_MOVE_MS;
+    }
     (2 * clock.increment_ms + clock.initial_ms / 5).clamp(20_000, 60_000) as u64
 }
+
+/// First-move grace for unlimited games: without it a correspondence game whose first
+/// move never comes would stay live forever.
+pub const UNLIMITED_FIRST_MOVE_MS: u64 = 3 * 24 * 60 * 60 * 1000;
 
 /// Armed at game start and again after white's first move: each side gets the grace for
 /// its opening move; a no-show aborts the game. No-op once both have moved.
 pub fn arm_first_move_expiry(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
     let (ply, delay) = {
         let r = room.lock();
-        if r.clock.unlimited() || r.game.history.len() >= 2 {
+        if r.game.history.len() >= 2 {
             return;
         }
         (r.game.history.len(), first_move_grace_ms(&r.clock))
     };
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
-        let mut r = room.lock();
-        if r.game.status != Status::Playing || r.game.history.len() != ply {
-            return;
+        // The side that never moved: white before ply 1, black after it.
+        let (tour, no_show) = {
+            let mut r = room.lock();
+            if r.game.status != Status::Playing || r.game.history.len() != ply {
+                return;
+            }
+            let no_show = match r.game.turn {
+                Color::White => r.white.id.clone(),
+                Color::Black => r.black.id.clone(),
+            };
+            r.end(
+                &state,
+                Status::Draw {
+                    reason: EndReason::Abandoned,
+                },
+            );
+            persist(&state, &r);
+            (r.tournament_id.clone(), no_show)
+        };
+        // Stop the arena from pairing a no-show again every tick.
+        if let Some(tid) = tour {
+            crate::tournament::unjoin(&state, &tid, &no_show);
         }
-        r.end(
-            &state,
-            Status::Draw {
-                reason: EndReason::Abandoned,
-            },
-        );
-        persist(&state, &r);
     });
 }
 

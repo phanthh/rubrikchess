@@ -729,6 +729,22 @@ async fn challenge_join() {
     assert_eq!(state["game"]["config"]["rules"]["walled"], true);
     assert_eq!(state["clock"]["initial_ms"], 120000);
 
+    // game rows and tv items carry `walled` so lists can label the variant
+    let row: Value = reqwest::get(format!("{base}/api/games/{game_id}"))
+        .await
+        .expect("game")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(row["walled"], true);
+    let tv: Value = reqwest::get(format!("{base}/api/tv"))
+        .await
+        .expect("tv")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(tv[0]["walled"], true);
+
     // the challenge is consumed
     let gone = reqwest::get(format!("{base}/api/challenges/{ch_id}"))
         .await
@@ -904,4 +920,77 @@ async fn arena_tournament() {
         .expect("json");
     assert_eq!(index["running"][0]["id"], tid.as_str());
     assert_eq!(index["upcoming"], json!([]));
+}
+
+/// A leave from a user who never joined must not create a standings row, and the
+/// index must stay responsive while players join (lock order tournaments → db).
+#[tokio::test]
+async fn tour_leave_without_join_and_index_under_load() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let (mut a, a_sid) = connect_sid(server.port).await;
+    let (mut b, _b_sid) = connect_sid(server.port).await;
+    wait_for(&mut a, "hello").await;
+    wait_for(&mut b, "hello").await;
+
+    let http = reqwest::Client::new();
+    let created: Value = http
+        .post(format!("{base}/api/tournaments"))
+        .header("cookie", &a_sid)
+        .json(
+            &json!({"name":"Lock Arena","clock":{"initial_ms":60000,"increment_ms":0},
+                      "starts_in_ms":600000,"duration_ms":300000}),
+        )
+        .send()
+        .await
+        .expect("create tournament")
+        .json()
+        .await
+        .expect("json");
+    let tid = created["id"].as_str().expect("id").to_string();
+
+    // b leaves without ever joining; the follow-up error proves it was handled
+    send(&mut b, json!({"t":"tour_leave","id":tid})).await;
+    send(&mut b, json!({"t":"tour_leave","id":"nosuchtour"})).await;
+    wait_for(&mut b, "error").await;
+
+    let view: Value = reqwest::get(format!("{base}/api/tournaments/{tid}"))
+        .await
+        .expect("tournament")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(view["tournament"]["players"], 0);
+    assert_eq!(view["standings"], json!([]));
+
+    // interleave joins/leaves with index fetches: an inverted lock order deadlocks here
+    for i in 0..20 {
+        let t = if i % 2 == 0 {
+            "tour_join"
+        } else {
+            "tour_leave"
+        };
+        send(&mut a, json!({"t":t,"id":tid})).await;
+        let index: Value = reqwest::get(format!("{base}/api/tournaments"))
+            .await
+            .expect("tournaments")
+            .json()
+            .await
+            .expect("json");
+        assert_eq!(index["upcoming"][0]["id"], tid.as_str());
+    }
+    send(&mut a, json!({"t":"tour_leave","id":"nosuchtour"})).await;
+    wait_for(&mut a, "error").await;
+
+    let view: Value = http
+        .get(format!("{base}/api/tournaments/{tid}"))
+        .header("cookie", &a_sid)
+        .send()
+        .await
+        .expect("tournament")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(view["tournament"]["players"], 1);
+    assert_eq!(view["joined"], json!(false));
 }
