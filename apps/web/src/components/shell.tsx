@@ -45,7 +45,10 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 					setMyTurn(
 						games
 							.filter((g) => (g.plies % 2 === 0 ? g.white.id : g.black.id) === me.id)
-							.map((g) => ({ id: g.id, opponent: (g.white.id === me.id ? g.black : g.white).name })),
+							.map((g) => ({
+								id: g.id,
+								opponent: (g.white.id === me.id ? g.black : g.white).name,
+							})),
 					),
 				)
 				.catch(() => undefined);
@@ -117,7 +120,9 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 						</Link>
 					)}
 					{connected && online > 0 && (
-						<span className="hidden sm:inline text-xs text-muted-foreground mr-1">{online} online</span>
+						<span className="hidden sm:inline text-xs text-muted-foreground mr-1">
+							{online} online
+						</span>
 					)}
 					<span
 						title={connected ? 'connected' : 'reconnecting…'}
@@ -213,7 +218,11 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 				</div>
 			</header>
 			<main className={cn('flex-1 min-h-0', !fill && 'overflow-auto')}>
-				{fill ? children : <div className="mx-auto w-full max-w-6xl px-3 sm:px-5 py-5">{children}</div>}
+				{fill ? (
+					children
+				) : (
+					<div className="mx-auto w-full max-w-6xl px-3 sm:px-5 py-5">{children}</div>
+				)}
 			</main>
 			<PrefsDialog open={prefsOpen} onClose={() => setPrefsOpen(false)} />
 			<AuthDialog mode={authMode} onClose={() => setAuthMode(null)} />
@@ -222,8 +231,17 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 	);
 }
 
-function MenuItem({ to, onClick, children }: { to?: string; onClick?: () => void; children: ReactNode }) {
-	const cls = 'block w-full text-left px-3 py-1.5 hover:bg-accent text-popover-foreground hover:no-underline';
+function MenuItem({
+	to,
+	onClick,
+	children,
+}: {
+	to?: string;
+	onClick?: () => void;
+	children: ReactNode;
+}) {
+	const cls =
+		'block w-full text-left px-3 py-1.5 hover:bg-accent text-popover-foreground hover:no-underline';
 	return to ? (
 		<Link to={to} className={cls} onClick={onClick}>
 			{children}

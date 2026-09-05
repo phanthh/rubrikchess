@@ -12,7 +12,12 @@ import { useParams } from 'react-router-dom';
 
 export function UserPage() {
 	const { name } = useParams();
-	const [data, setData] = useState<{ user: User; games: GameRow[]; history?: RatingPoint[]; online?: boolean } | null>(null);
+	const [data, setData] = useState<{
+		user: User;
+		games: GameRow[];
+		history?: RatingPoint[];
+		online?: boolean;
+	} | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [challenge, setChallenge] = useState(false);
 	const me = useNetStore((s) => s.me);
@@ -40,7 +45,9 @@ export function UserPage() {
 							<div>
 								<h1 className="text-2xl font-bold leading-tight">{u.name}</h1>
 								<div className="text-xs text-muted-foreground flex items-center gap-1.5">
-									<span className={`h-1.5 w-1.5 rounded-full ${data.online ? 'bg-secondary' : 'bg-muted-foreground/50'}`} />
+									<span
+										className={`h-1.5 w-1.5 rounded-full ${data.online ? 'bg-secondary' : 'bg-muted-foreground/50'}`}
+									/>
 									{data.online ? 'Online' : 'Offline'} · {u.registered ? 'registered' : 'anonymous'}
 								</div>
 							</div>
@@ -63,7 +70,9 @@ export function UserPage() {
 						</section>
 						<section className="box">
 							<div className="box-title">Games ({data.games.length})</div>
-							{data.games.length === 0 && <div className="p-4 text-sm text-muted-foreground">No games yet.</div>}
+							{data.games.length === 0 && (
+								<div className="p-4 text-sm text-muted-foreground">No games yet.</div>
+							)}
 							{data.games.map((g) => (
 								<GameRowItem key={g.id} g={g} perspective={u.id} />
 							))}
@@ -84,13 +93,23 @@ export function UserPage() {
 						</div>
 						{u.games > 0 && (
 							<div className="h-1.5 rounded bg-destructive/60 overflow-hidden mt-1">
-								<div className="h-full bg-secondary" style={{ width: `${((u.wins ?? 0) / u.games) * 100}%` }} />
+								<div
+									className="h-full bg-secondary"
+									style={{ width: `${((u.wins ?? 0) / u.games) * 100}%` }}
+								/>
 							</div>
 						)}
 					</aside>
 				</div>
 			)}
-			{u && <SetupDialog key={u.name} mode={challenge ? 'friend' : null} onClose={() => setChallenge(false)} opponent={u.name} />}
+			{u && (
+				<SetupDialog
+					key={u.name}
+					mode={challenge ? 'friend' : null}
+					onClose={() => setChallenge(false)}
+					opponent={u.name}
+				/>
+			)}
 		</Shell>
 	);
 }

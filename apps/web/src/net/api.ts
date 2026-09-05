@@ -1,4 +1,18 @@
-import { Challenge, ClockSpec, Crosstable, Layout, Standing, Tournament, GameConfig, GameRow, LiveGame, Move, RatingPoint, Status, User } from '@/types';
+import {
+	Challenge,
+	ClockSpec,
+	Crosstable,
+	Layout,
+	Standing,
+	Tournament,
+	GameConfig,
+	GameRow,
+	LiveGame,
+	Move,
+	RatingPoint,
+	Status,
+	User,
+} from '@/types';
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
 	const res = await fetch(`/api${path}`, {
@@ -34,10 +48,13 @@ export const login = (name: string, password: string) => post<User>('/login', { 
 
 export const logout = () => post<User>('/logout', {});
 
-export const changePassword = (old: string, next: string) => post<User>('/password', { old, new: next });
+export const changePassword = (old: string, next: string) =>
+	post<User>('/password', { old, new: next });
 
 export const getUser = (name: string) =>
-	req<{ user: User; games: GameRow[]; history?: RatingPoint[]; online?: boolean }>(`/users/${encodeURIComponent(name)}`);
+	req<{ user: User; games: GameRow[]; history?: RatingPoint[]; online?: boolean }>(
+		`/users/${encodeURIComponent(name)}`,
+	);
 
 export const leaderboard = (limit = 20) => req<User[]>(`/leaderboard?limit=${limit}`);
 
@@ -68,7 +85,9 @@ export const crosstable = (a: string, b: string) =>
 export const listTournaments = () =>
 	req<{ upcoming: Tournament[]; running: Tournament[]; finished: Tournament[] }>('/tournaments');
 export const getTournament = (id: string) =>
-	req<{ tournament: Tournament; standings: Standing[]; games: GameRow[]; joined: boolean }>(`/tournaments/${encodeURIComponent(id)}`);
+	req<{ tournament: Tournament; standings: Standing[]; games: GameRow[]; joined: boolean }>(
+		`/tournaments/${encodeURIComponent(id)}`,
+	);
 export const createTournament = (body: {
 	name: string;
 	clock: ClockSpec;

@@ -13,7 +13,9 @@ const KIND_BY_LETTER: Record<string, PieceKind> = {
 	o: 'cannon',
 	t: 'tesseract',
 };
-const LETTER_BY_KIND = Object.fromEntries(Object.entries(KIND_BY_LETTER).map(([l, k]) => [k, l])) as Record<PieceKind, string>;
+const LETTER_BY_KIND = Object.fromEntries(
+	Object.entries(KIND_BY_LETTER).map(([l, k]) => [k, l]),
+) as Record<PieceKind, string>;
 
 export type Placement = { kind: PieceKind; color: Color };
 
@@ -43,7 +45,11 @@ export function fromSetup(setup: string): Map<CellId, Placement> {
 			for (let j = 0; j < 8; j++) {
 				const ch = row[j];
 				const kind = ch && KIND_BY_LETTER[ch.toLowerCase()];
-				if (kind) out.set(face * 64 + i * 8 + j, { kind, color: ch === ch.toUpperCase() ? 'white' : 'black' });
+				if (kind)
+					out.set(face * 64 + i * 8 + j, {
+						kind,
+						color: ch === ch.toUpperCase() ? 'white' : 'black',
+					});
 			}
 		}
 	});

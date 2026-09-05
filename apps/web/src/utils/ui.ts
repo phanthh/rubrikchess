@@ -21,7 +21,9 @@ export function statusLabel(status: Status) {
 		case 'won':
 			return `${status.winner === 'white' ? 'White' : 'Black'} won by ${REASONS[status.reason] ?? status.reason}`;
 		case 'draw':
-			return status.reason === 'abandoned' ? 'Game aborted' : `Draw by ${REASONS[status.reason] ?? status.reason}`;
+			return status.reason === 'abandoned'
+				? 'Game aborted'
+				: `Draw by ${REASONS[status.reason] ?? status.reason}`;
 	}
 }
 

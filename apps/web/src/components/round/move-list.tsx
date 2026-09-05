@@ -31,7 +31,13 @@ export function MoveList({ className }: { className?: string }) {
 	const rows: [number, string, string | undefined][] = [];
 	for (let i = 0; i < sans.length; i += 2) rows.push([i, sans[i], sans[i + 1]]);
 	const result =
-		status.kind === 'won' ? (status.winner === 'white' ? '1-0' : '0-1') : status.kind === 'draw' ? '½-½' : null;
+		status.kind === 'won'
+			? status.winner === 'white'
+				? '1-0'
+				: '0-1'
+			: status.kind === 'draw'
+				? '½-½'
+				: null;
 
 	const nav = (to: number, Icon: typeof ChevronLeft, title: string, disabled: boolean) => (
 		<button
@@ -70,9 +76,15 @@ export function MoveList({ className }: { className?: string }) {
 				<div className="grid grid-cols-[2.25rem_1fr_1fr]">
 					{rows.map(([i, w, b]) => (
 						<div key={i} className="contents">
-							<span className="px-2 py-0.5 text-muted-foreground bg-muted/30 text-right">{i / 2 + 1}</span>
+							<span className="px-2 py-0.5 text-muted-foreground bg-muted/30 text-right">
+								{i / 2 + 1}
+							</span>
 							<Ply n={i + 1} san={w} cursor={cursor} active={active} />
-							{b !== undefined ? <Ply n={i + 2} san={b} cursor={cursor} active={active} /> : <span />}
+							{b !== undefined ? (
+								<Ply n={i + 2} san={b} cursor={cursor} active={active} />
+							) : (
+								<span />
+							)}
 						</div>
 					))}
 				</div>

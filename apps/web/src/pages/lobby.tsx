@@ -30,7 +30,15 @@ const POOLS: [minutes: number, inc: number][] = [
 	[30, 20],
 ];
 
-function Box({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+function Box({
+	title,
+	children,
+	action,
+}: {
+	title: string;
+	children: ReactNode;
+	action?: ReactNode;
+}) {
 	return (
 		<section className="box flex flex-col overflow-hidden">
 			<div className="box-title flex items-center">
@@ -57,11 +65,17 @@ export function LobbyPage() {
 
 	useEffect(() => {
 		const refresh = () => {
-			listGames(12).then(setGames).catch(() => undefined);
-			liveGames().then(setLive).catch(() => undefined);
+			listGames(12)
+				.then(setGames)
+				.catch(() => undefined);
+			liveGames()
+				.then(setLive)
+				.catch(() => undefined);
 		};
 		refresh();
-		leaderboard(10).then(setTop).catch(() => undefined);
+		leaderboard(10)
+			.then(setTop)
+			.catch(() => undefined);
 		const loadTours = () =>
 			listTournaments()
 				.then((d) => setTours([...d.running, ...d.upcoming]))
@@ -105,7 +119,8 @@ export function LobbyPage() {
 						>
 							<span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
 							<span className="flex-1 text-sm">
-								Game in progress against <b>{(g.white.id === me?.id ? g.black : g.white).name}</b> · {clockLabel(g.clock)} · ply {g.plies}
+								Game in progress against <b>{(g.white.id === me?.id ? g.black : g.white).name}</b> ·{' '}
+								{clockLabel(g.clock)} · ply {g.plies}
 							</span>
 							<span className="text-sm font-semibold text-primary">Resume →</span>
 						</Link>
@@ -132,12 +147,18 @@ export function LobbyPage() {
 										{active ? (
 											<>
 												<Loader2 className="h-6 w-6 animate-spin text-primary" />
-												<span className="text-[11px] text-muted-foreground mt-1">Waiting… click to cancel</span>
+												<span className="text-[11px] text-muted-foreground mt-1">
+													Waiting… click to cancel
+												</span>
 											</>
 										) : (
 											<>
-												<span className="text-2xl font-semibold font-mono leading-none">{clockLabel(clock)}</span>
-												<span className="text-[11px] text-muted-foreground mt-1.5">{speedOf(clock)}</span>
+												<span className="text-2xl font-semibold font-mono leading-none">
+													{clockLabel(clock)}
+												</span>
+												<span className="text-[11px] text-muted-foreground mt-1.5">
+													{speedOf(clock)}
+												</span>
 											</>
 										)}
 									</button>
@@ -154,10 +175,20 @@ export function LobbyPage() {
 					</Box>
 
 					<div className="flex flex-wrap gap-2">
-						<Button variant="secondary" size="lg" className="flex-1" onClick={() => setSetup('seek')}>
+						<Button
+							variant="secondary"
+							size="lg"
+							className="flex-1"
+							onClick={() => setSetup('seek')}
+						>
 							Create a game
 						</Button>
-						<Button variant="outline" size="lg" className="flex-1" onClick={() => setSetup('friend')}>
+						<Button
+							variant="outline"
+							size="lg"
+							className="flex-1"
+							onClick={() => setSetup('friend')}
+						>
 							Play with a friend
 						</Button>
 						<Button variant="outline" size="lg" className="flex-1" asChild>
@@ -187,7 +218,9 @@ export function LobbyPage() {
 										return (
 											<tr
 												key={seek.id}
-												onClick={() => (own ? send({ t: 'unseek' }) : send({ t: 'accept', seek_id: seek.id }))}
+												onClick={() =>
+													own ? send({ t: 'unseek' }) : send({ t: 'accept', seek_id: seek.id })
+												}
 												className={cn(
 													'cursor-pointer border-t border-border/40 hover:bg-accent/60 [&>td]:px-3 [&>td]:py-2',
 													own && 'bg-primary/10',
@@ -197,13 +230,17 @@ export function LobbyPage() {
 												<td className="text-brag">{Math.round(seek.user.rating)}</td>
 												<td className="font-mono">
 													{clockLabel(seek.clock)}{' '}
-													<span className="text-xs text-muted-foreground font-sans">{speedOf(seek.clock)}</span>
+													<span className="text-xs text-muted-foreground font-sans">
+														{speedOf(seek.clock)}
+													</span>
 												</td>
 												<td className="text-muted-foreground capitalize">
 													{variantLabel(seek.walled, seek.layout)}
 													{seek.color && seek.color !== 'random' ? ` · plays ${seek.color}` : ''}
 												</td>
-												<td className="text-right text-xs text-muted-foreground">{own ? 'cancel' : 'join'}</td>
+												<td className="text-right text-xs text-muted-foreground">
+													{own ? 'cancel' : 'join'}
+												</td>
 											</tr>
 										);
 									})}
@@ -220,7 +257,11 @@ export function LobbyPage() {
 							</Link>
 						}
 					>
-						{games.length === 0 ? <Empty>No games yet.</Empty> : games.map((g) => <GameRowItem key={g.id} g={g} />)}
+						{games.length === 0 ? (
+							<Empty>No games yet.</Empty>
+						) : (
+							games.map((g) => <GameRowItem key={g.id} g={g} />)
+						)}
 					</Box>
 				</div>
 
@@ -246,12 +287,15 @@ export function LobbyPage() {
 								>
 									<div className="min-w-0 flex-1">
 										<div className="truncate">
-											{g.white.name} <span className="text-brag text-xs">{Math.round(g.white.rating)}</span>
+											{g.white.name}{' '}
+											<span className="text-brag text-xs">{Math.round(g.white.rating)}</span>
 											<span className="text-muted-foreground text-xs px-1">vs</span>
-											{g.black.name} <span className="text-brag text-xs">{Math.round(g.black.rating)}</span>
+											{g.black.name}{' '}
+											<span className="text-brag text-xs">{Math.round(g.black.rating)}</span>
 										</div>
 										<div className="text-xs text-muted-foreground">
-											{clockLabel(g.clock)} · {variantLabel(g.walled ?? false, g.layout)} · ply {g.plies}
+											{clockLabel(g.clock)} · {variantLabel(g.walled ?? false, g.layout)} · ply{' '}
+											{g.plies}
 										</div>
 									</div>
 									<span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -287,14 +331,21 @@ export function LobbyPage() {
 						) : (
 							<ol className="text-sm">
 								{top.map((u, i) => (
-									<li key={u.id} className="flex items-center gap-2 px-3 py-1.5 border-t border-border/40 first:border-0">
+									<li
+										key={u.id}
+										className="flex items-center gap-2 px-3 py-1.5 border-t border-border/40 first:border-0"
+									>
 										<span className="w-5 text-xs text-muted-foreground">{i + 1}</span>
 										<Link to={`/u/${u.name}`} className="flex-1 truncate text-foreground">
 											{u.name}
 										</Link>
 										<span className="text-brag font-medium">
 											{Math.round(u.rating)}
-											{u.rd >= 200 && <span className="text-muted-foreground" title="provisional">?</span>}
+											{u.rd >= 200 && (
+												<span className="text-muted-foreground" title="provisional">
+													?
+												</span>
+											)}
 										</span>
 									</li>
 								))}

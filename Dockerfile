@@ -2,7 +2,7 @@
 FROM rust:1-bookworm AS web
 RUN rustup target add wasm32-unknown-unknown \
  && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh \
- && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs \
+ && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs \
  && npm i -g pnpm@8
 WORKDIR /src
 COPY . .

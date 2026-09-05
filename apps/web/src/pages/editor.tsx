@@ -14,7 +14,19 @@ import { WasmGame } from 'rubrik-wasm';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-const KINDS: PieceKind[] = ['king', 'queen', 'rook', 'bishop', 'knight', 'pawn', 'prince', 'princess', 'captain', 'cannon', 'tesseract'];
+const KINDS: PieceKind[] = [
+	'king',
+	'queen',
+	'rook',
+	'bishop',
+	'knight',
+	'pawn',
+	'prince',
+	'princess',
+	'captain',
+	'cannon',
+	'tesseract',
+];
 
 /** Board editor: place pieces on the unfolded net, then play the position locally. */
 export function EditorPage() {
@@ -30,7 +42,11 @@ export function EditorPage() {
 		const cfg = baseConfig();
 		cfg.layout = rubrik ? [0, 1, 2, 3, 4, 5] : cfg.layout;
 		const g = new WasmGame(cfg);
-		const cells = (g.state() as GameState).board.cells.map((c, id) => ({ id, pos: vec(c.pos.x, c.pos.y, c.pos.z), color: c.color }));
+		const cells = (g.state() as GameState).board.cells.map((c, id) => ({
+			id,
+			pos: vec(c.pos.x, c.pos.y, c.pos.z),
+			color: c.color,
+		}));
 		g.free();
 		return cells;
 	}, [rubrik]);
@@ -51,7 +67,8 @@ export function EditorPage() {
 	const kings = { white: 0, black: 0 };
 	for (const p of pieces.values()) if (p.kind === 'king') kings[p.color]++;
 	const valid = kings.white === 1 && kings.black === 1;
-	const query = () => `setup=${encodeURIComponent(encodeSetup(toSetup(pieces)))}${walled ? '&walled=1' : ''}${rubrik ? '&layout=rubrik' : ''}`;
+	const query = () =>
+		`setup=${encodeURIComponent(encodeSetup(toSetup(pieces)))}${walled ? '&walled=1' : ''}${rubrik ? '&layout=rubrik' : ''}`;
 
 	return (
 		<Shell>
@@ -62,7 +79,10 @@ export function EditorPage() {
 				<div className="flex flex-col gap-3">
 					<div className="box p-3 text-sm flex flex-col gap-2">
 						<div className="font-semibold">Board editor</div>
-						<p className="text-xs text-muted-foreground">Pick a piece, click cells to place it; click again to remove. One king per side is required.</p>
+						<p className="text-xs text-muted-foreground">
+							Pick a piece, click cells to place it; click again to remove. One king per side is
+							required.
+						</p>
 						{(['white', 'black'] as Color[]).map((color) => (
 							<div key={color} className="grid grid-cols-6 gap-1">
 								{KINDS.map((kind) => {
@@ -74,7 +94,9 @@ export function EditorPage() {
 											onClick={() => setBrush({ kind, color })}
 											className={cn(
 												'h-9 rounded border font-mono font-bold text-base',
-												color === 'white' ? 'bg-neutral-100 text-neutral-900 border-neutral-400' : 'bg-neutral-900 text-neutral-100 border-neutral-600',
+												color === 'white'
+													? 'bg-neutral-100 text-neutral-900 border-neutral-400'
+													: 'bg-neutral-900 text-neutral-100 border-neutral-600',
 												on && 'ring-2 ring-primary',
 											)}
 										>
@@ -85,17 +107,30 @@ export function EditorPage() {
 								<button
 									title="Eraser"
 									onClick={() => setBrush(null)}
-									className={cn('h-9 rounded border border-dashed text-muted-foreground', brush === null && 'ring-2 ring-primary')}
+									className={cn(
+										'h-9 rounded border border-dashed text-muted-foreground',
+										brush === null && 'ring-2 ring-primary',
+									)}
 								>
 									×
 								</button>
 							</div>
 						))}
 						<div className="flex gap-2 pt-1">
-							<Button size="sm" variant="outline" className="flex-1" onClick={() => setPieces(new Map())}>
+							<Button
+								size="sm"
+								variant="outline"
+								className="flex-1"
+								onClick={() => setPieces(new Map())}
+							>
 								Clear
 							</Button>
-							<Button size="sm" variant="outline" className="flex-1" onClick={() => setPieces(fromSetup(baseConfig().setup))}>
+							<Button
+								size="sm"
+								variant="outline"
+								className="flex-1"
+								onClick={() => setPieces(fromSetup(baseConfig().setup))}
+							>
 								Standard
 							</Button>
 						</div>
@@ -107,11 +142,21 @@ export function EditorPage() {
 						<label className="flex items-center justify-between">
 							Rubrik colours <Switch checked={rubrik} onCheckedChange={setRubrik} />
 						</label>
-						{!valid && <div className="text-xs text-destructive">Each side needs exactly one king.</div>}
-						<Button variant="secondary" disabled={!valid} onClick={() => navigate(`/local?${query()}`)}>
+						{!valid && (
+							<div className="text-xs text-destructive">Each side needs exactly one king.</div>
+						)}
+						<Button
+							variant="secondary"
+							disabled={!valid}
+							onClick={() => navigate(`/local?${query()}`)}
+						>
 							Play in sandbox
 						</Button>
-						<Button variant="outline" disabled={!valid} onClick={() => navigate(`/local?ai=3&${query()}`)}>
+						<Button
+							variant="outline"
+							disabled={!valid}
+							onClick={() => navigate(`/local?ai=3&${query()}`)}
+						>
 							Play vs computer
 						</Button>
 						<Button variant="outline" disabled={!valid} onClick={() => setChallenge(true)}>

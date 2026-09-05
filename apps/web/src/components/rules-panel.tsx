@@ -27,13 +27,15 @@ export function RulesButton() {
 				</p>
 				<p className="text-sm text-muted-foreground">
 					Chess on a cube: 6 faces of 8x8. Pieces walk over the edges onto the next face. You win by
-					capturing the enemy king. In the <span className="font-mono">walled</span> variant no piece
-					may cross an edge, so every face is its own board.
+					capturing the enemy king. In the <span className="font-mono">walled</span> variant no
+					piece may cross an edge, so every face is its own board.
 				</p>
 				<ul className="flex flex-col gap-2 text-sm">
 					{(Object.keys(PIECE_RULES) as PieceKind[]).map((kind) => (
 						<li key={kind} className="flex gap-2">
-							<span className="font-mono font-bold w-4 shrink-0 text-brag">{PIECE_LETTER[kind] || 'P'}</span>
+							<span className="font-mono font-bold w-4 shrink-0 text-brag">
+								{PIECE_LETTER[kind] || 'P'}
+							</span>
 							<span>
 								<span className="font-semibold">{PIECE_NAMES[kind]}</span> — {PIECE_RULES[kind]}
 							</span>

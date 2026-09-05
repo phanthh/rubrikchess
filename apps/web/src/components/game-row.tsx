@@ -8,7 +8,13 @@ import { Link } from 'react-router-dom';
 /** One finished/ongoing game line; `perspective` colours the result for that user. */
 export function GameRowItem({ g, perspective }: { g: GameRow; perspective?: string }) {
 	const won = g.status.kind === 'won' ? g.status.winner : null;
-	const mine = perspective ? (g.white.id === perspective ? 'white' : g.black.id === perspective ? 'black' : null) : null;
+	const mine = perspective
+		? g.white.id === perspective
+			? 'white'
+			: g.black.id === perspective
+				? 'black'
+				: null
+		: null;
 	const bar =
 		g.status.kind === 'playing'
 			? 'bg-primary'
@@ -34,7 +40,8 @@ export function GameRowItem({ g, perspective }: { g: GameRow; perspective?: stri
 					<RatingDiff diff={g.black_diff} />
 				</div>
 				<div className="text-xs text-muted-foreground truncate">
-					{clockLabel(g.clock)} · {variantLabel(g.walled ?? false, g.layout)} · {statusLabel(g.status) ?? `in progress, ${g.plies} plies`} · {timeAgo(g.created_at)}
+					{clockLabel(g.clock)} · {variantLabel(g.walled ?? false, g.layout)} ·{' '}
+					{statusLabel(g.status) ?? `in progress, ${g.plies} plies`} · {timeAgo(g.created_at)}
 				</div>
 			</div>
 		</Link>

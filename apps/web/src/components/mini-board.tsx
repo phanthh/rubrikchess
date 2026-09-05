@@ -5,7 +5,15 @@ import { WasmGame } from 'rubrik-wasm';
 import { useMemo } from 'react';
 
 /** Static unfolded-net thumbnail of a position (config + moves), last move tinted. */
-export function MiniBoard({ config, moves, className }: { config: GameConfig; moves: Move[]; className?: string }) {
+export function MiniBoard({
+	config,
+	moves,
+	className,
+}: {
+	config: GameConfig;
+	moves: Move[];
+	className?: string;
+}) {
 	const cells = useMemo<NetCell[]>(() => {
 		const g = WasmGame.replay(config, moves);
 		const state = g.state() as GameState;

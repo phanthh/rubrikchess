@@ -22,7 +22,17 @@ const KEYS: [string, string][] = [
  * Three-column round layout: optional left meta column, board, right table.
  * Below `lg` it stacks and scrolls. Zen (key `z`) hides both columns.
  */
-export function BoardPage({ banner, left, right, below }: { banner: ReactNode; left?: ReactNode; right: ReactNode; below?: ReactNode }) {
+export function BoardPage({
+	banner,
+	left,
+	right,
+	below,
+}: {
+	banner: ReactNode;
+	left?: ReactNode;
+	right: ReactNode;
+	below?: ReactNode;
+}) {
 	const zen = useUi((s) => s.zen);
 	const cursor = useGameStore((s) => s.cursor);
 	const plies = useGameStore((s) => s.history.length);
@@ -38,10 +48,15 @@ export function BoardPage({ banner, left, right, below }: { banner: ReactNode; l
 	return (
 		<Shell fill>
 			<div className="h-full flex flex-col lg:flex-row lg:gap-3 lg:p-3 overflow-y-auto lg:overflow-hidden">
-				{left && !zen && <aside className="hidden lg:flex w-64 shrink-0 flex-col gap-3 min-h-0">{left}</aside>}
+				{left && !zen && (
+					<aside className="hidden lg:flex w-64 shrink-0 flex-col gap-3 min-h-0">{left}</aside>
+				)}
 				<div className="relative flex-1 min-h-[55vh] shrink-0 lg:shrink lg:min-h-0 lg:rounded-md overflow-hidden">
 					{view2d ? (
-						<div className="h-full w-full flex items-center justify-center bg-[#101010] p-4" onClick={() => game().select(null)}>
+						<div
+							className="h-full w-full flex items-center justify-center bg-[#101010] p-4"
+							onClick={() => game().select(null)}
+						>
 							<Net interactive className="max-h-full max-w-full" />
 						</div>
 					) : (
@@ -68,7 +83,12 @@ export function BoardPage({ banner, left, right, below }: { banner: ReactNode; l
 						{view2d ? <Box className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
 					</button>
 				</div>
-				<aside className={cn('w-full lg:w-72 shrink-0 flex flex-col gap-2 p-2 lg:p-0 min-h-0', zen && 'hidden')}>
+				<aside
+					className={cn(
+						'w-full lg:w-72 shrink-0 flex flex-col gap-2 p-2 lg:p-0 min-h-0',
+						zen && 'hidden',
+					)}
+				>
 					{right}
 					{below && <div className="lg:hidden">{below}</div>}
 				</aside>

@@ -3,7 +3,11 @@ import { RatingPoint } from '@/types';
 /** Plain SVG line chart of rating over time. */
 export function RatingChart({ points }: { points: RatingPoint[] }) {
 	if (points.length < 2) {
-		return <div className="p-4 text-xs text-muted-foreground">Play a few rated games to see a chart.</div>;
+		return (
+			<div className="p-4 text-xs text-muted-foreground">
+				Play a few rated games to see a chart.
+			</div>
+		);
 	}
 	const W = 600;
 	const H = 160;
@@ -16,7 +20,9 @@ export function RatingChart({ points }: { points: RatingPoint[] }) {
 	const hi = Math.ceil((Math.max(...ys) + 20) / 50) * 50;
 	const X = (t: number) => P + ((t - x0) / Math.max(1, x1 - x0)) * (W - 2 * P);
 	const Y = (r: number) => H - P - ((r - lo) / Math.max(1, hi - lo)) * (H - 2 * P);
-	const d = points.map((p, i) => `${i ? 'L' : 'M'}${X(p.at).toFixed(1)},${Y(p.rating).toFixed(1)}`).join(' ');
+	const d = points
+		.map((p, i) => `${i ? 'L' : 'M'}${X(p.at).toFixed(1)},${Y(p.rating).toFixed(1)}`)
+		.join(' ');
 	const ticks = [lo, (lo + hi) / 2, hi];
 	return (
 		<svg viewBox={`0 0 ${W} ${H}`} className="w-full h-40 text-primary">
@@ -28,7 +34,11 @@ export function RatingChart({ points }: { points: RatingPoint[] }) {
 					</text>
 				</g>
 			))}
-			<path d={`${d} L${X(x1)},${H - P} L${X(x0)},${H - P} Z`} fill="currentColor" fillOpacity="0.12" />
+			<path
+				d={`${d} L${X(x1)},${H - P} L${X(x0)},${H - P} Z`}
+				fill="currentColor"
+				fillOpacity="0.12"
+			/>
 			<path d={d} fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
 			<circle cx={X(x1)} cy={Y(ys[ys.length - 1])} r="3" fill="currentColor" />
 		</svg>

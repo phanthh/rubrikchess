@@ -41,7 +41,10 @@ export const PIECE_RULES: Record<PieceKind, string> = {
 	king: 'One step in any direction, straight or diagonal, across edges too (unless walled). Lose it and you lose.',
 	prince: 'King moves, but only onto cells of its own colour.',
 	princess: 'Queen walk, but only over cells of its own colour.',
-	captain: 'Moves to any empty cell reachable orthogonally over cells of its own colour; also king moves (captures allowed).',
-	cannon: 'Captures or moves to the 4 cells found by rotating its position ±90° about the tangential axes; king moves without capturing.',
-	tesseract: 'King moves; or rotates its own slice of the cube by ±90° about the X, Y or Z axis, carrying every piece on it.',
+	captain:
+		'Moves to any empty cell reachable orthogonally over cells of its own colour; also king moves (captures allowed).',
+	cannon:
+		'Captures or moves to the 4 cells found by rotating its position ±90° about the tangential axes; king moves without capturing.',
+	tesseract:
+		'King moves; or rotates its own slice of the cube by ±90° about the X, Y or Z axis, carrying every piece on it.',
 };

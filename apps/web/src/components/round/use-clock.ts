@@ -46,4 +46,3 @@ export function useClock() {
 
 	return { clock, remaining };
 }
-

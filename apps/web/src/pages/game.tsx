@@ -51,7 +51,8 @@ export function GamePage() {
 			switch (msg.t) {
 				case 'game_state':
 					g.loadOnline(msg);
-					if (msg.chat) setChat(msg.chat.map((m) => ({ user: m.user.name, text: m.text, at: m.at })));
+					if (msg.chat)
+						setChat(msg.chat.map((m) => ({ user: m.user.name, text: m.text, at: m.at })));
 					break;
 				case 'move':
 					g.applyRemoteMove(msg);
@@ -61,7 +62,10 @@ export function GamePage() {
 					g.setEnd(msg);
 					sys(statusLabel(msg.status) ?? 'Game over');
 					// our rating just changed
-					if (g.myColor) getMe().then((me) => useNetStore.setState({ me })).catch(() => undefined);
+					if (g.myColor)
+						getMe()
+							.then((me) => useNetStore.setState({ me }))
+							.catch(() => undefined);
 					break;
 				case 'draw_offer':
 					g.setDrawOffer(msg.by);
@@ -123,7 +127,11 @@ export function GamePage() {
 	const bottom: Color = flipped ? 'black' : 'white';
 	const top: Color = flipped ? 'white' : 'black';
 	const over = status.kind !== 'playing';
-	const banner = over ? statusLabel(status) : myColor === turn ? 'Your move' : `${side(turn)} to move`;
+	const banner = over
+		? statusLabel(status)
+		: myColor === turn
+			? 'Your move'
+			: `${side(turn)} to move`;
 
 	return (
 		<BoardPage
@@ -134,7 +142,8 @@ export function GamePage() {
 						<div className="font-semibold">
 							{clock ? clockLabel(clock) : '—'}{' '}
 							<span className="text-muted-foreground font-normal">
-								· {variantLabel(game().config?.rules.walled ?? false, layoutOf(game().config))} · rated
+								· {variantLabel(game().config?.rules.walled ?? false, layoutOf(game().config))} ·
+								rated
 							</span>
 						</div>
 						<div className="text-xs text-muted-foreground">
@@ -155,7 +164,11 @@ export function GamePage() {
 					<PlayerBar color={top} player={players[top]} ms={noClock ? null : remaining(top)} />
 					<MoveList className="flex-1 min-h-40 lg:min-h-0" />
 					{id && <RoundControls gameId={id} gone={gone} rematchBy={rematchBy} />}
-					<PlayerBar color={bottom} player={players[bottom]} ms={noClock ? null : remaining(bottom)} />
+					<PlayerBar
+						color={bottom}
+						player={players[bottom]}
+						ms={noClock ? null : remaining(bottom)}
+					/>
 				</>
 			}
 			below={id && <Chat gameId={id} lines={chat} watchers={watchers} className="h-56" />}

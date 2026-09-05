@@ -131,8 +131,24 @@ export type ClockState = ClockSpec & {
 };
 export type SeekColor = 'white' | 'black' | 'random';
 export type Layout = 'standard' | 'rubrik';
-export type Seek = { id: string; user: User; clock: ClockSpec; walled: boolean; color?: SeekColor; layout?: Layout };
-export type Challenge = { id: string; user: User; clock: ClockSpec; walled: boolean; color: SeekColor; layout?: Layout; to?: User; setup?: string };
+export type Seek = {
+	id: string;
+	user: User;
+	clock: ClockSpec;
+	walled: boolean;
+	color?: SeekColor;
+	layout?: Layout;
+};
+export type Challenge = {
+	id: string;
+	user: User;
+	clock: ClockSpec;
+	walled: boolean;
+	color: SeekColor;
+	layout?: Layout;
+	to?: User;
+	setup?: string;
+};
 export type Presence = { white: boolean; black: boolean };
 export type LiveGame = {
 	id: string;
@@ -159,7 +175,12 @@ export type Tournament = {
 	created_by: User;
 };
 export type Standing = { user: User; score: number; games: number; wins: number; playing: boolean };
-export type Crosstable = { a_score: number; b_score: number; games: number; recent: { id: string; winner: 'a' | 'b' | null }[] };
+export type Crosstable = {
+	a_score: number;
+	b_score: number;
+	games: number;
+	recent: { id: string; winner: 'a' | 'b' | null }[];
+};
 
 export type GameRow = {
 	id: string;
@@ -180,7 +201,15 @@ export type ClientMsg =
 	| { t: 'seek'; clock: ClockSpec; walled: boolean; color?: SeekColor; layout?: Layout }
 	| { t: 'unseek' }
 	| { t: 'takeback'; game_id: string; offer: boolean }
-	| { t: 'challenge'; clock: ClockSpec; walled: boolean; color: SeekColor; layout?: Layout; to?: string; setup?: string }
+	| {
+			t: 'challenge';
+			clock: ClockSpec;
+			walled: boolean;
+			color: SeekColor;
+			layout?: Layout;
+			to?: string;
+			setup?: string;
+	  }
 	| { t: 'cancel_challenge' }
 	| { t: 'join'; challenge_id: string }
 	| { t: 'claim'; game_id: string }
@@ -214,7 +243,7 @@ export type ServerMsg =
 			watchers?: number;
 			chat?: { user: User; text: string; at: number }[];
 			tournament_id?: string | null;
-		}
+	  }
 	| {
 			t: 'move';
 			game_id: string;
@@ -223,14 +252,14 @@ export type ServerMsg =
 			turn: Color;
 			status: Status;
 			clock: ClockState;
-		}
+	  }
 	| {
 			t: 'game_end';
 			game_id: string;
 			status: Status;
 			white_diff: number | null;
 			black_diff: number | null;
-		}
+	  }
 	| { t: 'draw_offer'; game_id: string; by: Color | null }
 	| { t: 'chat'; game_id: string; user: User; text: string; at: number }
 	| { t: 'rematch_offer'; game_id: string; by: Color | null }

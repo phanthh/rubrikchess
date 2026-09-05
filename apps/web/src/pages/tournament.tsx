@@ -33,7 +33,12 @@ export function TourClock({ t }: { t: Tournament }) {
 export function TournamentPage() {
 	const { id } = useParams();
 	const me = useNetStore((s) => s.me);
-	const [data, setData] = useState<{ tournament: Tournament; standings: Standing[]; games: GameRow[]; joined: boolean } | null>(null);
+	const [data, setData] = useState<{
+		tournament: Tournament;
+		standings: Standing[];
+		games: GameRow[];
+		joined: boolean;
+	} | null>(null);
 	const [joined, setJoined] = useState(false);
 	const [missing, setMissing] = useState(false);
 
@@ -70,7 +75,8 @@ export function TournamentPage() {
 							<div className="mr-auto">
 								<h1 className="text-xl font-bold leading-tight">{t.name}</h1>
 								<div className="text-xs text-muted-foreground">
-									{clockLabel(t.clock)} {speedOf(t.clock)} · {variantLabel(t.walled, t.layout)} · {t.duration_ms / 60000} min arena · by{' '}
+									{clockLabel(t.clock)} {speedOf(t.clock)} · {variantLabel(t.walled, t.layout)} ·{' '}
+									{t.duration_ms / 60000} min arena · by{' '}
 									<Link to={`/u/${t.created_by.name}`}>{t.created_by.name}</Link>
 								</div>
 							</div>
@@ -87,29 +93,46 @@ export function TournamentPage() {
 							)}
 						</section>
 						{joined && t.status === 'created' && (
-							<div className="box p-3 text-sm text-muted-foreground">You are in. Stay on this site — your games will open automatically once it starts.</div>
+							<div className="box p-3 text-sm text-muted-foreground">
+								You are in. Stay on this site — your games will open automatically once it starts.
+							</div>
 						)}
 						{joined && t.status === 'running' && !mine?.playing && (
 							<div className="box p-3 text-sm flex items-center gap-2">
-								<span className="h-2 w-2 rounded-full bg-primary animate-pulse" /> Waiting for an opponent…
+								<span className="h-2 w-2 rounded-full bg-primary animate-pulse" /> Waiting for an
+								opponent…
 							</div>
 						)}
 						<section className="box">
 							<div className="box-title">Standings ({data.standings.length})</div>
-							{data.standings.length === 0 && <div className="p-4 text-sm text-muted-foreground">Nobody has joined yet.</div>}
+							{data.standings.length === 0 && (
+								<div className="p-4 text-sm text-muted-foreground">Nobody has joined yet.</div>
+							)}
 							<table className="w-full text-sm">
 								<tbody>
 									{data.standings.map((s, i) => (
-										<tr key={s.user.id} className={cn('border-t border-border/40 [&>td]:px-3 [&>td]:py-1.5', s.user.id === me?.id && 'bg-primary/10')}>
+										<tr
+											key={s.user.id}
+											className={cn(
+												'border-t border-border/40 [&>td]:px-3 [&>td]:py-1.5',
+												s.user.id === me?.id && 'bg-primary/10',
+											)}
+										>
 											<td className="w-8 text-muted-foreground">
-												{t.status === 'finished' && i === 0 ? <Trophy className="h-4 w-4 text-brag" /> : i + 1}
+												{t.status === 'finished' && i === 0 ? (
+													<Trophy className="h-4 w-4 text-brag" />
+												) : (
+													i + 1
+												)}
 											</td>
 											<td>
 												<Link to={`/u/${s.user.name}`} className="text-foreground font-medium">
 													{s.user.name}
 												</Link>{' '}
 												<span className="text-brag text-xs">{Math.round(s.user.rating)}</span>
-												{s.playing && <span className="ml-2 text-[10px] uppercase text-primary">playing</span>}
+												{s.playing && (
+													<span className="ml-2 text-[10px] uppercase text-primary">playing</span>
+												)}
 											</td>
 											<td className="text-xs text-muted-foreground text-right">
 												{s.wins}W / {s.games}G
@@ -123,7 +146,9 @@ export function TournamentPage() {
 					</div>
 					<section className="box self-start">
 						<div className="box-title">Games</div>
-						{data.games.length === 0 && <div className="p-4 text-sm text-muted-foreground">No games yet.</div>}
+						{data.games.length === 0 && (
+							<div className="p-4 text-sm text-muted-foreground">No games yet.</div>
+						)}
 						{data.games.map((g) => (
 							<GameRowItem key={g.id} g={g} perspective={me?.id} />
 						))}

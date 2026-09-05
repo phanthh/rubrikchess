@@ -4,13 +4,16 @@ import { cn } from '@/utils/ui';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const half = (n: number) => (Number.isInteger(n) ? String(n) : `${Math.floor(n)}½`.replace(/^0½$/, '½'));
+const half = (n: number) =>
+	Number.isInteger(n) ? String(n) : `${Math.floor(n)}½`.replace(/^0½$/, '½');
 
 /** Head-to-head score between the two players, with a strip of recent results (white's view). */
 export function Crosstable({ white, black, gameId }: { white: User; black: User; gameId: string }) {
 	const [data, setData] = useState<TCrosstable | null>(null);
 	useEffect(() => {
-		crosstable(white.id, black.id).then(setData).catch(() => undefined);
+		crosstable(white.id, black.id)
+			.then(setData)
+			.catch(() => undefined);
 	}, [white.id, black.id, gameId]);
 	if (!data || data.games === 0) return null;
 	return (
@@ -31,10 +34,20 @@ export function Crosstable({ white, black, gameId }: { white: User; black: User;
 					<Link
 						key={r.id}
 						to={`/g/${r.id}`}
-						title={r.winner === 'a' ? `${white.name} won` : r.winner === 'b' ? `${black.name} won` : 'draw'}
+						title={
+							r.winner === 'a'
+								? `${white.name} won`
+								: r.winner === 'b'
+									? `${black.name} won`
+									: 'draw'
+						}
 						className={cn(
 							'h-2.5 w-2.5 rounded-sm',
-							r.winner === 'a' ? 'bg-secondary' : r.winner === 'b' ? 'bg-destructive' : 'bg-muted-foreground/50',
+							r.winner === 'a'
+								? 'bg-secondary'
+								: r.winner === 'b'
+									? 'bg-destructive'
+									: 'bg-muted-foreground/50',
 							r.id === gameId && 'ring-1 ring-foreground',
 						)}
 					/>

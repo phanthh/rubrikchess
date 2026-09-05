@@ -8,7 +8,12 @@ export type AiRequest =
 export type Analysis = { move: Move; score: number };
 /** A position where the two-ply best move wins ≥ `gain` centipawns and greedy play would miss it. */
 export type Puzzle = { ply: number; solution: Move; gain: number };
-export type AiResponse = { id: number; move: Move | null; analysis: Analysis | null; puzzles: Puzzle[] };
+export type AiResponse = {
+	id: number;
+	move: Move | null;
+	analysis: Analysis | null;
+	puzzles: Puzzle[];
+};
 
 const ready = init();
 
@@ -34,8 +39,11 @@ self.onmessage = async (e: MessageEvent<AiRequest>) => {
 				const deep = g.analyse(3, seed) as Analysis | null;
 				if (deep && greedy) {
 					const gain = deep.score - base;
-					const same = greedy.move.from === deep.move.from && JSON.stringify(greedy.move) === JSON.stringify(deep.move);
-					if (gain >= 300 && gain < 50_000 && !same) res.puzzles.push({ ply, solution: deep.move, gain });
+					const same =
+						greedy.move.from === deep.move.from &&
+						JSON.stringify(greedy.move) === JSON.stringify(deep.move);
+					if (gain >= 300 && gain < 50_000 && !same)
+						res.puzzles.push({ ply, solution: deep.move, gain });
 				}
 			}
 			g.play(req.moves[ply]);

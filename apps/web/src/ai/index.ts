@@ -34,10 +34,12 @@ export const requestAnalysis = (config: GameConfig, moves: Move[], level: number
 	ask({ kind: 'analyse', config, moves, level }).then((r) => r.analysis);
 
 /** Tactics candidates in a played game. */
-export const scanPuzzles = (config: GameConfig, moves: Move[]) => ask({ kind: 'scan', config, moves }).then((r) => r.puzzles);
+export const scanPuzzles = (config: GameConfig, moves: Move[]) =>
+	ask({ kind: 'scan', config, moves }).then((r) => r.puzzles);
 
 /** Drop answers for moves requested before now (new game / undo). */
 export function cancelAiMoves() {
-	for (const resolve of pending.values()) resolve({ id: 0, move: null, analysis: null, puzzles: [] });
+	for (const resolve of pending.values())
+		resolve({ id: 0, move: null, analysis: null, puzzles: [] });
 	pending.clear();
 }

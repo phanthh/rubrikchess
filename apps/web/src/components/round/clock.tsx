@@ -6,7 +6,17 @@ function pad(n: number) {
 	return String(n).padStart(2, '0');
 }
 
-export function Clock({ ms, running, initial, over }: { ms: number; running: boolean; initial: number; over: boolean }) {
+export function Clock({
+	ms,
+	running,
+	initial,
+	over,
+}: {
+	ms: number;
+	running: boolean;
+	initial: number;
+	over: boolean;
+}) {
 	const tenths = usePrefs((s) => s.clockTenths);
 	const bar = usePrefs((s) => s.clockBar);
 	const emerg = ms < emergMs(initial);
@@ -21,7 +31,9 @@ export function Clock({ ms, running, initial, over }: { ms: number; running: boo
 		<div
 			className={cn(
 				'relative overflow-hidden rounded font-mono text-2xl sm:text-[1.75rem] leading-none px-3 py-2 tabular-nums select-none transition-colors',
-				running ? 'clock-running bg-accent text-accent-foreground' : 'bg-muted/60 text-muted-foreground',
+				running
+					? 'clock-running bg-accent text-accent-foreground'
+					: 'bg-muted/60 text-muted-foreground',
 				running && emerg && 'bg-destructive text-destructive-foreground',
 				over && 'line-through decoration-muted-foreground/60 decoration-1',
 			)}
@@ -38,7 +50,10 @@ export function Clock({ ms, running, initial, over }: { ms: number; running: boo
 			{showTenths && <span className="text-base opacity-70">.{Math.floor((ms % 1000) / 100)}</span>}
 			{bar && initial > 0 && (
 				<div
-					className={cn('absolute left-0 bottom-0 h-0.5 bg-primary/70', emerg && 'bg-destructive-foreground')}
+					className={cn(
+						'absolute left-0 bottom-0 h-0.5 bg-primary/70',
+						emerg && 'bg-destructive-foreground',
+					)}
 					style={{ width: `${Math.min(100, (ms / initial) * 100)}%` }}
 				/>
 			)}

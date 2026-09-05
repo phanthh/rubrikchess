@@ -38,4 +38,3 @@ export function useReplayKeys() {
 		return () => window.removeEventListener('keydown', onKey);
 	}, []);
 }
-

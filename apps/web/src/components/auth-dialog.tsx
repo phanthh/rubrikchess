@@ -37,11 +37,16 @@ export function AuthDialog({ mode, onClose }: { mode: AuthMode | null; onClose: 
 	};
 
 	return (
-		<Dialog open={mode !== null} onClose={onClose} title={isRegister ? 'Create account' : isPassword ? 'Change password' : 'Sign in'}>
+		<Dialog
+			open={mode !== null}
+			onClose={onClose}
+			title={isRegister ? 'Create account' : isPassword ? 'Change password' : 'Sign in'}
+		>
 			<form className="flex flex-col gap-3" onSubmit={submit}>
 				{isRegister && (
 					<p className="text-sm text-muted-foreground">
-						Claims your current anonymous player, rating included. 3–32 chars, letters, digits, _ and -.
+						Claims your current anonymous player, rating included. 3–32 chars, letters, digits, _
+						and -.
 					</p>
 				)}
 				{isPassword ? (

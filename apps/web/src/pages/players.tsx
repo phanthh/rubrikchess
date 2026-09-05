@@ -9,7 +9,9 @@ export function PlayersPage() {
 	const [q, setQ] = useState('');
 	const navigate = useNavigate();
 	useEffect(() => {
-		leaderboard(100).then(setTop).catch(() => undefined);
+		leaderboard(100)
+			.then(setTop)
+			.catch(() => undefined);
 	}, []);
 	return (
 		<Shell>
@@ -20,7 +22,12 @@ export function PlayersPage() {
 					if (q.trim()) navigate(`/u/${encodeURIComponent(q.trim())}`);
 				}}
 			>
-				<input className="field flex-1" placeholder="Find a player by name" value={q} onChange={(e) => setQ(e.target.value)} />
+				<input
+					className="field flex-1"
+					placeholder="Find a player by name"
+					value={q}
+					onChange={(e) => setQ(e.target.value)}
+				/>
 				<button className="field px-3 hover:bg-accent" type="submit">
 					Go
 				</button>
@@ -29,13 +36,17 @@ export function PlayersPage() {
 				<div className="box-title">Leaderboard</div>
 				{top.length === 0 ? (
 					<div className="p-4 text-sm text-muted-foreground">
-						Nobody has played a rated game as a registered player yet. A ? marks a provisional rating.
+						Nobody has played a rated game as a registered player yet. A ? marks a provisional
+						rating.
 					</div>
 				) : (
 					<table className="w-full text-sm">
 						<tbody>
 							{top.map((u, i) => (
-								<tr key={u.id} className="border-t border-border/40 first:border-0 [&>td]:px-3 [&>td]:py-2">
+								<tr
+									key={u.id}
+									className="border-t border-border/40 first:border-0 [&>td]:px-3 [&>td]:py-2"
+								>
 									<td className="w-10 text-muted-foreground">{i + 1}</td>
 									<td>
 										<Link to={`/u/${u.name}`} className="text-foreground font-medium">
@@ -45,7 +56,11 @@ export function PlayersPage() {
 									<td className="text-muted-foreground text-xs">{u.games} games</td>
 									<td className="text-right text-brag font-medium">
 										{Math.round(u.rating)}
-										{u.rd >= 200 && <span className="text-muted-foreground" title="provisional">?</span>}
+										{u.rd >= 200 && (
+											<span className="text-muted-foreground" title="provisional">
+												?
+											</span>
+										)}
 									</td>
 								</tr>
 							))}

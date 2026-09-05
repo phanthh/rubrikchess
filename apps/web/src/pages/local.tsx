@@ -34,7 +34,9 @@ export function LocalPage() {
 
 	// board-editor positions arrive as ?setup=…&walled=1&layout=rubrik
 	const setup = params.get('setup');
-	const start = (opts: { walled?: boolean; layout?: Layout; level?: number; color?: Color } = {}) => {
+	const start = (
+		opts: { walled?: boolean; layout?: Layout; level?: number; color?: Color } = {},
+	) => {
 		const w = opts.walled ?? game().walled;
 		const lay = opts.layout ?? game().layout;
 		const l = opts.level ?? level;
@@ -46,16 +48,22 @@ export function LocalPage() {
 
 	useEffect(() => {
 		if (setup) {
-			game().setSetting({ walled: params.get('walled') === '1', layout: params.get('layout') === 'rubrik' ? 'rubrik' : 'standard' });
+			game().setSetting({
+				walled: params.get('walled') === '1',
+				layout: params.get('layout') === 'rubrik' ? 'rubrik' : 'standard',
+			});
 		}
 		start();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [vsAi, setup]);
 
 	const thinking = !!ai && ai.color === turn && status.kind === 'playing';
 	const banner =
 		statusLabel(status) ??
-		(ai ? (thinking ? 'Computer is thinking…' : 'Your move') : `${turn === 'white' ? 'White' : 'Black'} to move`);
+		(ai
+			? thinking
+				? 'Computer is thinking…'
+				: 'Your move'
+			: `${turn === 'white' ? 'White' : 'Black'} to move`);
 
 	return (
 		<BoardPage
@@ -66,7 +74,8 @@ export function LocalPage() {
 						<div className="font-semibold">{vsAi ? 'Play the computer' : 'Sandbox'}</div>
 						<p className="text-xs text-muted-foreground">
 							{vsAi ? 'A material-counting engine. ' : 'Both sides on one board. '}
-							Click a piece, then a highlighted cell. Arrow keys replay, <kbd className="font-mono">f</kbd> flips.
+							Click a piece, then a highlighted cell. Arrow keys replay,{' '}
+							<kbd className="font-mono">f</kbd> flips.
 						</p>
 						{vsAi && (
 							<>
@@ -93,7 +102,10 @@ export function LocalPage() {
 										{(['white', 'black'] as Color[]).map((c) => (
 											<button
 												key={c}
-												className={cn('px-3 py-1 capitalize', color === c ? 'bg-accent text-foreground' : 'text-muted-foreground')}
+												className={cn(
+													'px-3 py-1 capitalize',
+													color === c ? 'bg-accent text-foreground' : 'text-muted-foreground',
+												)}
 												onClick={() => {
 													setColor(c);
 													start({ color: c });
@@ -129,7 +141,10 @@ export function LocalPage() {
 						</label>
 						<label className="flex items-center justify-between">
 							Cell ids (debug)
-							<Switch checked={debug} onCheckedChange={(checked) => game().setSetting({ debug: checked })} />
+							<Switch
+								checked={debug}
+								onCheckedChange={(checked) => game().setSetting({ debug: checked })}
+							/>
 						</label>
 						<Link to="/editor" className="text-xs">
 							Set up a custom position →
@@ -152,12 +167,7 @@ export function LocalPage() {
 							>
 								Flip
 							</Button>
-							<Button
-								variant="secondary"
-								size="sm"
-								className="flex-1"
-								onClick={() => start()}
-							>
+							<Button variant="secondary" size="sm" className="flex-1" onClick={() => start()}>
 								Restart
 							</Button>
 						</div>

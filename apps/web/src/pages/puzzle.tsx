@@ -39,11 +39,16 @@ export function PuzzlePage() {
 		const games = (await listGames(50)).filter((g) => g.plies >= 8 && g.status.kind !== 'playing');
 		for (const row of games.sort(() => Math.random() - 0.5)) {
 			const detail = await getGame(row.id);
-			const puzzles = (await scanPuzzles(detail.config, detail.moves)).filter((p) => !seen.current.has(`${row.id}:${p.ply}`));
+			const puzzles = (await scanPuzzles(detail.config, detail.moves)).filter(
+				(p) => !seen.current.has(`${row.id}:${p.ply}`),
+			);
 			if (puzzles.length === 0) continue;
 			const puzzle = puzzles[Math.floor(Math.random() * puzzles.length)];
 			seen.current.add(`${row.id}:${puzzle.ply}`);
-			game().loadAnalysis(detail.config, detail.moves.slice(0, puzzle.ply), { white: detail.white, black: detail.black });
+			game().loadAnalysis(detail.config, detail.moves.slice(0, puzzle.ply), {
+				white: detail.white,
+				black: detail.black,
+			});
 			game().setSetting({ flipped: game().turn === 'black' });
 			setTask({ gameId: row.id, puzzle, players: `${detail.white.name} vs ${detail.black.name}` });
 			return;
@@ -77,11 +82,21 @@ export function PuzzlePage() {
 	};
 
 	const side = turn === 'white' ? 'White' : 'Black';
-	const sol = task ? notation(task.puzzle.solution, game().cells[task.puzzle.solution.from]?.piece?.kind) : '';
+	const sol = task
+		? notation(task.puzzle.solution, game().cells[task.puzzle.solution.from]?.piece?.kind)
+		: '';
 
 	return (
 		<BoardPage
-			banner={task ? (verdict === 'solved' ? 'Solved!' : verdict === 'failed' ? 'Not this one' : `${side} to play and win material`) : status}
+			banner={
+				task
+					? verdict === 'solved'
+						? 'Solved!'
+						: verdict === 'failed'
+							? 'Not this one'
+							: `${side} to play and win material`
+					: status
+			}
 			right={
 				<div className="box p-3 text-sm flex flex-col gap-3">
 					<div className="flex items-center justify-between">
@@ -91,15 +106,21 @@ export function PuzzlePage() {
 					{!task && <p className="text-xs text-muted-foreground">{status}</p>}
 					{task && !verdict && (
 						<p className="text-xs text-muted-foreground">
-							Find the best move for {side}. It wins at least a minor piece even against the best reply — a plain capture is not enough.
+							Find the best move for {side}. It wins at least a minor piece even against the best
+							reply — a plain capture is not enough.
 						</p>
 					)}
 					{verdict === 'solved' && (
 						<p className="text-secondary">
-							Correct: <span className="font-mono">{sol}</span> wins {(task!.puzzle.gain / 100).toFixed(0)} points of material.
+							Correct: <span className="font-mono">{sol}</span> wins{' '}
+							{(task!.puzzle.gain / 100).toFixed(0)} points of material.
 						</p>
 					)}
-					{verdict === 'failed' && <p className="text-destructive">That does not win enough. Try again or reveal the answer.</p>}
+					{verdict === 'failed' && (
+						<p className="text-destructive">
+							That does not win enough. Try again or reveal the answer.
+						</p>
+					)}
 					<div className="flex gap-2">
 						{verdict === 'failed' && (
 							<Button size="sm" variant="outline" className="flex-1" onClick={retry}>
@@ -119,7 +140,13 @@ export function PuzzlePage() {
 								Show answer
 							</Button>
 						)}
-						<Button size="sm" variant="secondary" className="flex-1" disabled={!task && status.startsWith('Looking')} onClick={next}>
+						<Button
+							size="sm"
+							variant="secondary"
+							className="flex-1"
+							disabled={!task && status.startsWith('Looking')}
+							onClick={next}
+						>
 							{task ? 'Next puzzle' : 'Search again'}
 						</Button>
 					</div>

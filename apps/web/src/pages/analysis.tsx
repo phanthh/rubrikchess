@@ -45,10 +45,16 @@ export function AnalysisPage() {
 							<Link to={`/g/${id}`}>back to game</Link>
 						</div>
 						<p className="text-xs text-muted-foreground">
-							Step through with the arrow keys. Playing a move from an earlier position discards the moves after it.
+							Step through with the arrow keys. Playing a move from an earlier position discards the
+							moves after it.
 						</p>
 						<div className="flex gap-2">
-							<Button variant="outline" size="sm" className="flex-1" onClick={() => game().setSetting({ flipped: !flipped })}>
+							<Button
+								variant="outline"
+								size="sm"
+								className="flex-1"
+								onClick={() => game().setSetting({ flipped: !flipped })}
+							>
 								Flip
 							</Button>
 							<Button

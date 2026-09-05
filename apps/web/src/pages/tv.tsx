@@ -20,9 +20,13 @@ export function TvPage() {
 			const games = await liveGames().catch(() => [] as LiveGame[]);
 			if (stop) return;
 			setLive(games);
-			const details = await Promise.all(games.slice(0, 12).map((g) => getGame(g.id).catch(() => null)));
+			const details = await Promise.all(
+				games.slice(0, 12).map((g) => getGame(g.id).catch(() => null)),
+			);
 			if (stop) return;
-			setBoards(Object.fromEntries(details.filter((d): d is GameDetail => !!d).map((d) => [d.id, d])));
+			setBoards(
+				Object.fromEntries(details.filter((d): d is GameDetail => !!d).map((d) => [d.id, d])),
+			);
 		};
 		void poll();
 		const t = setInterval(poll, 5000);
@@ -56,9 +60,17 @@ export function TvPage() {
 					const d = boards[g.id];
 					const turn = g.plies % 2 === 0 ? 'white' : 'black';
 					return (
-						<Link key={g.id} to={`/g/${g.id}`} className="box overflow-hidden hover:border-primary/50 hover:no-underline text-foreground">
+						<Link
+							key={g.id}
+							to={`/g/${g.id}`}
+							className="box overflow-hidden hover:border-primary/50 hover:no-underline text-foreground"
+						>
 							<div className="bg-[#101010] p-2 aspect-[4/3] flex items-center justify-center">
-								{d ? <MiniBoard config={d.config} moves={d.moves} className="max-h-full" /> : <span className="text-xs text-muted-foreground">…</span>}
+								{d ? (
+									<MiniBoard config={d.config} moves={d.moves} className="max-h-full" />
+								) : (
+									<span className="text-xs text-muted-foreground">…</span>
+								)}
 							</div>
 							<div className="px-3 py-2 text-sm">
 								<div className="flex items-center gap-1.5 truncate">
@@ -70,7 +82,8 @@ export function TvPage() {
 								</div>
 								<div className="flex items-center text-xs text-muted-foreground">
 									<span className="mr-auto">
-										{clockLabel(g.clock)} · {variantLabel(g.walled ?? false, g.layout)} · ply {g.plies}
+										{clockLabel(g.clock)} · {variantLabel(g.walled ?? false, g.layout)} · ply{' '}
+										{g.plies}
 									</span>
 									<Users className="h-3 w-3 mr-1" />
 									{g.watchers}

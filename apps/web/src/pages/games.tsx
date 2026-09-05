@@ -30,7 +30,6 @@ export function GamesPage() {
 
 	useEffect(() => {
 		void more();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	return (
@@ -40,7 +39,9 @@ export function GamesPage() {
 				{games.map((g) => (
 					<GameRowItem key={g.id} g={g} />
 				))}
-				{games.length === 0 && !busy && <div className="p-4 text-sm text-muted-foreground">No games yet.</div>}
+				{games.length === 0 && !busy && (
+					<div className="p-4 text-sm text-muted-foreground">No games yet.</div>
+				)}
 				{!done && (
 					<div className="p-3 flex justify-center border-t border-border/40">
 						<Button variant="outline" size="sm" disabled={busy} onClick={more}>

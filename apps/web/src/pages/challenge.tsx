@@ -19,12 +19,20 @@ export function ChallengePage() {
 
 	useEffect(() => {
 		if (!id) return;
-		getChallenge(id).then(setC).catch(() => setMissing(true));
+		getChallenge(id)
+			.then(setC)
+			.catch(() => setMissing(true));
 	}, [id]);
 
 	const url = location.href;
 	const own = !!c && !!me && c.user.id === me.id;
-	const yours = c ? (c.color === 'random' ? 'random' : c.color === 'white' ? 'black' : 'white') : '';
+	const yours = c
+		? c.color === 'random'
+			? 'random'
+			: c.color === 'white'
+				? 'black'
+				: 'white'
+		: '';
 
 	return (
 		<Shell>
@@ -42,24 +50,35 @@ export function ChallengePage() {
 							<div className="text-center">
 								<div className="text-3xl font-bold font-mono">{clockLabel(c.clock)}</div>
 								<div className="text-xs text-muted-foreground">
-									{speedOf(c.clock)} · {variantLabel(c.walled, c.layout)}{c.setup ? ' · custom position' : ''} · rated
+									{speedOf(c.clock)} · {variantLabel(c.walled, c.layout)}
+									{c.setup ? ' · custom position' : ''} · rated
 								</div>
 							</div>
 							{own ? (
 								<>
 									<p className="flex items-center gap-2 justify-center text-muted-foreground">
-										<Loader2 className="h-4 w-4 animate-spin" /> Waiting for {c.to ? c.to.name : 'a friend'} to join…
+										<Loader2 className="h-4 w-4 animate-spin" /> Waiting for{' '}
+										{c.to ? c.to.name : 'a friend'} to join…
 									</p>
 									<p className="text-xs text-muted-foreground">
-										{c.to ? `${c.to.name} has been notified; you can also send them this link.` : 'Send this link to anyone. The first to open it plays you.'}
+										{c.to
+											? `${c.to.name} has been notified; you can also send them this link.`
+											: 'Send this link to anyone. The first to open it plays you.'}
 									</p>
 									<div className="flex gap-2">
-										<input className="field flex-1 font-mono text-xs" readOnly value={url} onFocus={(e) => e.target.select()} />
+										<input
+											className="field flex-1 font-mono text-xs"
+											readOnly
+											value={url}
+											onFocus={(e) => e.target.select()}
+										/>
 										<Button
 											variant="outline"
 											size="icon"
 											title="Copy"
-											onClick={() => navigator.clipboard.writeText(url).then(() => toast.success('Link copied'))}
+											onClick={() =>
+												navigator.clipboard.writeText(url).then(() => toast.success('Link copied'))
+											}
 										>
 											<Copy className="h-4 w-4" />
 										</Button>
@@ -77,10 +96,16 @@ export function ChallengePage() {
 							) : (
 								<>
 									<p className="text-center">
-										<b>{c.user.name}</b> <span className="text-brag">{Math.round(c.user.rating)}</span> challenges you.
+										<b>{c.user.name}</b>{' '}
+										<span className="text-brag">{Math.round(c.user.rating)}</span> challenges you.
 										You play {yours}.
 									</p>
-									<Button size="lg" variant="secondary" disabled={!me} onClick={() => id && send({ t: 'join', challenge_id: id })}>
+									<Button
+										size="lg"
+										variant="secondary"
+										disabled={!me}
+										onClick={() => id && send({ t: 'join', challenge_id: id })}
+									>
 										Accept
 									</Button>
 									<Link to="/" className="text-center text-xs">

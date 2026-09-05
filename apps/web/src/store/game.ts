@@ -200,7 +200,11 @@ interface IGameStore {
 	/** Ask the engine to move if it is its turn (local mode only). */
 	pokeAi: () => void;
 	/** Local board loaded from a finished/ongoing game's moves; branch anywhere. */
-	loadAnalysis: (config: GameConfig, moves: Move[], players: { white: User | null; black: User | null }) => void;
+	loadAnalysis: (
+		config: GameConfig,
+		moves: Move[],
+		players: { white: User | null; black: User | null },
+	) => void;
 	select: (id: CellId | null) => void;
 	play: (move: Move) => void;
 	undo: () => void;
@@ -211,7 +215,19 @@ interface IGameStore {
 	setDrawOffer: (by: Color | null) => void;
 	setSetting: (
 		patch: Partial<
-			Pick<IGameStore, 'walled' | 'layout' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers' | 'clock' | 'pendingMove'>
+			Pick<
+				IGameStore,
+				| 'walled'
+				| 'layout'
+				| 'debug'
+				| 'lowPerf'
+				| 'flipped'
+				| 'takebackOffer'
+				| 'presence'
+				| 'watchers'
+				| 'clock'
+				| 'pendingMove'
+			>
 		>,
 	) => void;
 }
@@ -289,7 +305,15 @@ export const useGameStore = create(
 
 		pokeAi: () => {
 			const { ai, engine, mode, turn, status, animating } = get();
-			if (!ai || !engine || mode !== 'local' || turn !== ai.color || status.kind !== 'playing' || animating) return;
+			if (
+				!ai ||
+				!engine ||
+				mode !== 'local' ||
+				turn !== ai.color ||
+				status.kind !== 'playing' ||
+				animating
+			)
+				return;
 			const asked = engine;
 			const ply = engine.historyLen();
 			const t0 = Date.now();
@@ -300,7 +324,8 @@ export const useGameStore = create(
 				setTimeout(
 					() => {
 						const g2 = get();
-						if (g2.engine === asked && g2.engine.historyLen() === ply && !g2.animating) g2.play(move);
+						if (g2.engine === asked && g2.engine.historyLen() === ply && !g2.animating)
+							g2.play(move);
 					},
 					Math.max(0, 400 - (Date.now() - t0)),
 				);
@@ -370,7 +395,8 @@ export const useGameStore = create(
 			cancelAiMoves();
 			engine.undo();
 			// against the engine, take back the whole exchange so it is our move again
-			if (ai && engine.historyLen() > 0 && (engine.state() as GameState).turn === ai.color) engine.undo();
+			if (ai && engine.historyLen() > 0 && (engine.state() as GameState).turn === ai.color)
+				engine.undo();
 			set({ selected: null, cursor: engine.historyLen() });
 			get().render();
 		},
@@ -544,7 +570,9 @@ function runMove(move: Move, done: () => void) {
 }
 
 usePrefs.subscribe(
-	(s, prev) => (s.showThreats !== prev.showThreats || s.highlightLastMove !== prev.highlightLastMove) && game().render(),
+	(s, prev) =>
+		(s.showThreats !== prev.showThreats || s.highlightLastMove !== prev.highlightLastMove) &&
+		game().render(),
 );
 
 // Debug handle: `__game.getState()` in devtools.

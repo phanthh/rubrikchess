@@ -42,7 +42,10 @@ export function PrefsDialog({ open, onClose }: { open: boolean; onClose: () => v
 				</select>
 			</Row>
 			<Row label="Highlight last move">
-				<Switch checked={p.highlightLastMove} onCheckedChange={(highlightLastMove) => p.set({ highlightLastMove })} />
+				<Switch
+					checked={p.highlightLastMove}
+					onCheckedChange={(highlightLastMove) => p.set({ highlightLastMove })}
+				/>
 			</Row>
 			<Row label="Sound">
 				<Switch
@@ -76,7 +79,10 @@ export function PrefsDialog({ open, onClose }: { open: boolean; onClose: () => v
 				<Switch checked={p.confirmMove} onCheckedChange={(confirmMove) => p.set({ confirmMove })} />
 			</Row>
 			<Row label="Confirm resign / draw">
-				<Switch checked={p.confirmResign} onCheckedChange={(confirmResign) => p.set({ confirmResign })} />
+				<Switch
+					checked={p.confirmResign}
+					onCheckedChange={(confirmResign) => p.set({ confirmResign })}
+				/>
 			</Row>
 			<Row label="Clock tenths">
 				<select

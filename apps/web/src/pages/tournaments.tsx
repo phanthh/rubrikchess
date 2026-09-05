@@ -11,11 +11,16 @@ import { Link } from 'react-router-dom';
 import { Trophy } from 'lucide-react';
 
 export function TourList({ items, empty }: { items: Tournament[]; empty: string }) {
-	if (items.length === 0) return <div className="px-3 py-3 text-sm text-muted-foreground">{empty}</div>;
+	if (items.length === 0)
+		return <div className="px-3 py-3 text-sm text-muted-foreground">{empty}</div>;
 	return (
 		<>
 			{items.map((t) => (
-				<Link key={t.id} to={`/tournament/${t.id}`} className="flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent/50 hover:no-underline">
+				<Link
+					key={t.id}
+					to={`/tournament/${t.id}`}
+					className="flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent/50 hover:no-underline"
+				>
 					<Trophy className="h-4 w-4 text-brag shrink-0" />
 					<div className="min-w-0 flex-1">
 						<div className="truncate font-medium">{t.name}</div>
@@ -33,10 +38,17 @@ export function TourList({ items, empty }: { items: Tournament[]; empty: string 
 }
 
 export function TournamentsPage() {
-	const [data, setData] = useState<{ upcoming: Tournament[]; running: Tournament[]; finished: Tournament[] } | null>(null);
+	const [data, setData] = useState<{
+		upcoming: Tournament[];
+		running: Tournament[];
+		finished: Tournament[];
+	} | null>(null);
 	const [create, setCreate] = useState(false);
 	useEffect(() => {
-		const load = () => listTournaments().then(setData).catch(() => undefined);
+		const load = () =>
+			listTournaments()
+				.then(setData)
+				.catch(() => undefined);
 		load();
 		// join/leave storms: coalesce reloads
 		let t = 0;

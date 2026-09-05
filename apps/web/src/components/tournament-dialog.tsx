@@ -45,18 +45,38 @@ export function TournamentDialog({ open, onClose }: { open: boolean; onClose: ()
 		}
 	};
 
-	const range = (label: string, value: string, i: number, set: (n: number) => void, max: number) => (
+	const range = (
+		label: string,
+		value: string,
+		i: number,
+		set: (n: number) => void,
+		max: number,
+	) => (
 		<label className="text-sm flex flex-col gap-1">
 			<span className="flex justify-between">
 				{label} <b>{value}</b>
 			</span>
-			<input type="range" min={0} max={max} value={i} onChange={(e) => set(Number(e.target.value))} className="accent-primary" />
+			<input
+				type="range"
+				min={0}
+				max={max}
+				value={i}
+				onChange={(e) => set(Number(e.target.value))}
+				className="accent-primary"
+			/>
 		</label>
 	);
 
 	return (
 		<Dialog open={open} onClose={onClose} title="New arena tournament">
-			<input className="field" placeholder="Tournament name" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} autoFocus />
+			<input
+				className="field"
+				placeholder="Tournament name"
+				value={name}
+				maxLength={40}
+				onChange={(e) => setName(e.target.value)}
+				autoFocus
+			/>
 			<div className="text-center">
 				<div className="text-2xl font-bold font-mono">{clockLabel(clock)}</div>
 				<div className="text-xs text-muted-foreground">{speedOf(clock)} arena</div>
@@ -69,12 +89,22 @@ export function TournamentDialog({ open, onClose }: { open: boolean; onClose: ()
 				Walled variant <Switch checked={walled} onCheckedChange={setWalled} />
 			</label>
 			<label className="text-sm flex items-center justify-between">
-				Rubrik colours <Switch checked={layout === 'rubrik'} onCheckedChange={(v) => setLayout(v ? 'rubrik' : 'standard')} />
+				Rubrik colours{' '}
+				<Switch
+					checked={layout === 'rubrik'}
+					onCheckedChange={(v) => setLayout(v ? 'rubrik' : 'standard')}
+				/>
 			</label>
 			<p className="text-xs text-muted-foreground">
-				Arena: join any time, you are paired automatically as soon as you are free. Win 2 · draw 1 · loss 0.
+				Arena: join any time, you are paired automatically as soon as you are free. Win 2 · draw 1 ·
+				loss 0.
 			</p>
-			<Button size="lg" variant="secondary" disabled={name.trim().length < 3 || busy} onClick={submit}>
+			<Button
+				size="lg"
+				variant="secondary"
+				disabled={name.trim().length < 3 || busy}
+				onClick={submit}
+			>
 				Create tournament
 			</Button>
 		</Dialog>

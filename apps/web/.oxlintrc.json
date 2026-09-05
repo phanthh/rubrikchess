@@ -1,0 +1,26 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["react", "typescript", "oxc", "import"],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "warn"
+	},
+	"rules": {
+		"react-hooks/rules-of-hooks": "error",
+		"react-hooks/exhaustive-deps": "warn",
+		"no-unused-vars": "error",
+		"react/react-in-jsx-scope": "off",
+		"react/set-state-in-effect": "off",
+		"react/purity": "off",
+		"react/exhaustive-effect-dependencies": "off",
+		"no-shadow": "off",
+		"no-underscore-dangle": "off",
+		"import/no-unassigned-import": "off"
+	},
+	"ignorePatterns": ["dist", "e2e", "node_modules"],
+	"settings": {
+		"react": {
+			"version": "18.3.1"
+		}
+	}
+}

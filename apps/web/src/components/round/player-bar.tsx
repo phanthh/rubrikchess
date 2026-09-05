@@ -51,7 +51,9 @@ export function PlayerBar({
 				</div>
 				{!over && (
 					<div className="text-[11px] text-muted-foreground flex items-center gap-1">
-						<span className={cn('h-1.5 w-1.5 rounded-full', online ? 'bg-secondary' : 'bg-destructive')} />
+						<span
+							className={cn('h-1.5 w-1.5 rounded-full', online ? 'bg-secondary' : 'bg-destructive')}
+						/>
 						{online ? (toMove ? 'thinking…' : 'online') : 'disconnected'}
 					</div>
 				)}

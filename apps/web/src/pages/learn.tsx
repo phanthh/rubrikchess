@@ -8,7 +8,19 @@ import { cn } from '@/utils/ui';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const KINDS: PieceKind[] = ['pawn', 'knight', 'bishop', 'rook', 'queen', 'king', 'prince', 'princess', 'captain', 'cannon', 'tesseract'];
+const KINDS: PieceKind[] = [
+	'pawn',
+	'knight',
+	'bishop',
+	'rook',
+	'queen',
+	'king',
+	'prince',
+	'princess',
+	'captain',
+	'cannon',
+	'tesseract',
+];
 
 /** Front face (F, +Z) near its top-right edge, so most pieces show an edge crossing. */
 const SHOWCASE = 2 * 64 + 5 * 8 + 5;
@@ -45,7 +57,8 @@ export function LearnPage() {
 					<div className="box p-3 text-sm flex flex-col gap-2">
 						<div className="font-semibold">Learn the pieces</div>
 						<p className="text-xs text-muted-foreground">
-							Green cells are where the {PIECE_NAMES[kind].toLowerCase()} may go; red is a capture. Play the move and click the piece again to keep exploring
+							Green cells are where the {PIECE_NAMES[kind].toLowerCase()} may go; red is a capture.
+							Play the move and click the piece again to keep exploring
 							{selected === null && ' (click it to re-select)'}.
 						</p>
 						<div className="grid grid-cols-4 gap-1">
@@ -66,10 +79,16 @@ export function LearnPage() {
 						<p className="text-sm">{PIECE_RULES[kind]}</p>
 						<label className="flex items-center justify-between text-xs text-muted-foreground">
 							Walled variant (no edge crossing)
-							<input type="checkbox" checked={walled} onChange={(e) => setWalled(e.target.checked)} className="accent-primary" />
+							<input
+								type="checkbox"
+								checked={walled}
+								onChange={(e) => setWalled(e.target.checked)}
+								className="accent-primary"
+							/>
 						</label>
 						<div className="text-xs text-muted-foreground">
-							Ready? <Link to="/local?ai=2">Play the computer</Link> or <Link to="/">find an opponent</Link>.
+							Ready? <Link to="/local?ai=2">Play the computer</Link> or{' '}
+							<Link to="/">find an opponent</Link>.
 						</div>
 					</div>
 				</>

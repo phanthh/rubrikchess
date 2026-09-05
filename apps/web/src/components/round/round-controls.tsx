@@ -46,11 +46,19 @@ function IconBtn({
 function Question({ text, onYes, onNo }: { text: string; onYes: () => void; onNo: () => void }) {
 	return (
 		<div className="flex items-center gap-1 px-2 py-1.5 bg-primary/10 text-sm">
-			<button className="p-1.5 rounded hover:bg-secondary/30 text-secondary" onClick={onYes} title="Accept">
+			<button
+				className="p-1.5 rounded hover:bg-secondary/30 text-secondary"
+				onClick={onYes}
+				title="Accept"
+			>
 				<Check className="h-4 w-4" />
 			</button>
 			<span className="flex-1 text-center">{text}</span>
-			<button className="p-1.5 rounded hover:bg-destructive/30 text-destructive" onClick={onNo} title="Decline">
+			<button
+				className="p-1.5 rounded hover:bg-destructive/30 text-destructive"
+				onClick={onNo}
+				title="Decline"
+			>
 				<X className="h-4 w-4" />
 			</button>
 		</div>
@@ -92,7 +100,19 @@ export function RoundControls({
 	gone: Color | null;
 	rematchBy: Color | null;
 }) {
-	const { status, myColor, drawOffer, takebackOffer, history, diffs, flipped, clock, tournamentId, pendingMove, cells } = useGameStore(
+	const {
+		status,
+		myColor,
+		drawOffer,
+		takebackOffer,
+		history,
+		diffs,
+		flipped,
+		clock,
+		tournamentId,
+		pendingMove,
+		cells,
+	} = useGameStore(
 		useShallow((s) => ({
 			status: s.status,
 			myColor: s.myColor,
@@ -125,7 +145,9 @@ export function RoundControls({
 	const share = (
 		<IconBtn
 			title="Copy game link"
-			onClick={() => navigator.clipboard.writeText(location.href).then(() => toast.success('Link copied'))}
+			onClick={() =>
+				navigator.clipboard.writeText(location.href).then(() => toast.success('Link copied'))
+			}
 		>
 			<Link2 className="h-4 w-4" />
 		</IconBtn>
@@ -149,11 +171,19 @@ export function RoundControls({
 							myColor && won && won !== myColor && 'text-destructive',
 						)}
 					>
-						{won ? (myColor ? (won === myColor ? 'You won' : 'You lost') : `${won === 'white' ? 'White' : 'Black'} wins`) : 'Draw'}
+						{won
+							? myColor
+								? won === myColor
+									? 'You won'
+									: 'You lost'
+								: `${won === 'white' ? 'White' : 'Black'} wins`
+							: 'Draw'}
 					</div>
 					<div className="text-xs text-muted-foreground">{statusLabel(status)}</div>
 					{myDiff !== null && myDiff !== undefined && (
-						<div className={cn('text-sm mt-1', myDiff >= 0 ? 'text-secondary' : 'text-destructive')}>
+						<div
+							className={cn('text-sm mt-1', myDiff >= 0 ? 'text-secondary' : 'text-destructive')}
+						>
 							{myDiff >= 0 ? '+' : '−'}
 							{Math.abs(myDiff)} rating
 						</div>
@@ -233,7 +263,10 @@ export function RoundControls({
 			{drawOffer === myColor && (
 				<div className="px-2 py-1.5 text-xs text-center text-muted-foreground">
 					Draw offered ·{' '}
-					<button className="underline" onClick={() => send({ t: 'draw', game_id: gameId, offer: false })}>
+					<button
+						className="underline"
+						onClick={() => send({ t: 'draw', game_id: gameId, offer: false })}
+					>
 						withdraw
 					</button>
 				</div>
@@ -241,7 +274,10 @@ export function RoundControls({
 			{takebackOffer === myColor && (
 				<div className="px-2 py-1.5 text-xs text-center text-muted-foreground">
 					Takeback requested ·{' '}
-					<button className="underline" onClick={() => send({ t: 'takeback', game_id: gameId, offer: false })}>
+					<button
+						className="underline"
+						onClick={() => send({ t: 'takeback', game_id: gameId, offer: false })}
+					>
 						withdraw
 					</button>
 				</div>
@@ -249,7 +285,11 @@ export function RoundControls({
 			{gone === opp && (
 				<div className="px-2 py-2 flex flex-col gap-1.5 bg-destructive/10 text-sm text-center">
 					<span>Your opponent left the game.</span>
-					<Button size="sm" variant="destructive" onClick={() => send({ t: 'claim', game_id: gameId })}>
+					<Button
+						size="sm"
+						variant="destructive"
+						onClick={() => send({ t: 'claim', game_id: gameId })}
+					>
 						Claim victory
 					</Button>
 				</div>
@@ -289,12 +329,18 @@ export function RoundControls({
 							<X className="h-4 w-4" />
 						</IconBtn>
 					) : (
-						<IconBtn title="Resign" onClick={() => (prefs().confirmResign ? setConfirm('resign') : act('resign'))}>
+						<IconBtn
+							title="Resign"
+							onClick={() => (prefs().confirmResign ? setConfirm('resign') : act('resign'))}
+						>
 							<Flag className="h-4 w-4" />
 						</IconBtn>
 					)}
 					{clock && !unlimited(clock) && (
-						<IconBtn title="Give your opponent 15 seconds" onClick={() => send({ t: 'moretime', game_id: gameId })}>
+						<IconBtn
+							title="Give your opponent 15 seconds"
+							onClick={() => send({ t: 'moretime', game_id: gameId })}
+						>
 							<span className="flex items-center text-xs font-semibold">
 								<Plus className="h-3 w-3" />
 								15s

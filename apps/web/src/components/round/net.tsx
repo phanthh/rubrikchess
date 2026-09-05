@@ -16,7 +16,14 @@ import { memo } from 'react';
  * Each face lists its normal, its screen-right and screen-up vectors (world axes, before flip),
  * and its column/row in the net grid.
  */
-const FACES: { n: [number, number, number]; r: [number, number, number]; u: [number, number, number]; col: number; row: number; label: string }[] = [
+const FACES: {
+	n: [number, number, number];
+	r: [number, number, number];
+	u: [number, number, number];
+	col: number;
+	row: number;
+	label: string;
+}[] = [
 	{ n: [0, 1, 0], r: [1, 0, 0], u: [0, 0, -1], col: 1, row: 0, label: 'U' },
 	{ n: [-1, 0, 0], r: [0, 0, 1], u: [0, 1, 0], col: 0, row: 1, label: 'L' },
 	{ n: [0, 0, 1], r: [1, 0, 0], u: [0, 1, 0], col: 1, row: 1, label: 'F' },
@@ -31,11 +38,14 @@ const S = 10; // cell size in viewBox units
 const GAP = 3;
 const FACE = 8 * S;
 
-const dot = (a: [number, number, number], b: [number, number, number]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const dot = (a: [number, number, number], b: [number, number, number]) =>
+	a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
 function place(cell: NetCell, flipped: boolean): { x: number; y: number } | null {
 	// black's view = scene rotated 180° about Z
-	const p: [number, number, number] = flipped ? [-cell.pos.x, -cell.pos.y, cell.pos.z] : [cell.pos.x, cell.pos.y, cell.pos.z];
+	const p: [number, number, number] = flipped
+		? [-cell.pos.x, -cell.pos.y, cell.pos.z]
+		: [cell.pos.x, cell.pos.y, cell.pos.z];
 	const face = FACES.find((f) => dot(f.n, p) === HALF);
 	if (!face) return null;
 	const c = (dot(face.r, p) + HALF - STEP / 2) / STEP;
@@ -76,7 +86,11 @@ export const Net = memo(function Net({
 	const H = 3 * FACE + 2 * GAP;
 
 	return (
-		<svg viewBox={`0 0 ${W} ${H}`} className={cn('w-full h-auto select-none', className)} aria-label="Unfolded board">
+		<svg
+			viewBox={`0 0 ${W} ${H}`}
+			className={cn('w-full h-auto select-none', className)}
+			aria-label="Unfolded board"
+		>
 			{FACES.map((f) => (
 				<text
 					key={f.label}
@@ -110,10 +124,26 @@ export const Net = memo(function Net({
 										}
 									: undefined
 						}
-						className={onCell || (interactive && (cell.move || cell.piece)) ? 'cursor-pointer' : undefined}
+						className={
+							onCell || (interactive && (cell.move || cell.piece)) ? 'cursor-pointer' : undefined
+						}
 					>
-						<rect width={S} height={S} fill={colors[cell.color]} stroke="#000" strokeOpacity={0.25} strokeWidth={0.3} />
-						{hl && <rect width={S} height={S} fill={hl} fillOpacity={cell.state === 'lastmove' ? 0.5 : 0.65} />}
+						<rect
+							width={S}
+							height={S}
+							fill={colors[cell.color]}
+							stroke="#000"
+							strokeOpacity={0.25}
+							strokeWidth={0.3}
+						/>
+						{hl && (
+							<rect
+								width={S}
+								height={S}
+								fill={hl}
+								fillOpacity={cell.state === 'lastmove' ? 0.5 : 0.65}
+							/>
+						)}
 						{cell.piece && (
 							<text
 								x={S / 2}

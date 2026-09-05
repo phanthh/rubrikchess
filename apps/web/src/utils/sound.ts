@@ -93,7 +93,9 @@ export function play(name: SoundName) {
 			tone(ctx, out, 880, t + 0.14, 0.08, 'square', 0.12);
 			break;
 		case 'end':
-			[523.25, 659.25, 783.99].forEach((f, i) => tone(ctx, out, f, t + i * 0.06, 0.7, 'triangle', 0.22));
+			[523.25, 659.25, 783.99].forEach((f, i) =>
+				tone(ctx, out, f, t + i * 0.06, 0.7, 'triangle', 0.22),
+			);
 			break;
 		case 'notify':
 			tone(ctx, out, 660, t, 0.12, 'sine', 0.3);

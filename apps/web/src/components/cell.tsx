@@ -35,7 +35,9 @@ export const Cell = memo(({ cell, onPick }: CellProps) => {
 		if (!mesh?.parent) return;
 		// lookAt wants world coords; the board group may be flipped for black
 		mesh.parent.updateWorldMatrix(true, false);
-		mesh.lookAt(mesh.parent.localToWorld(cell.pos.clone().add(cell.side.clone().multiplyScalar(MAX_INT))));
+		mesh.lookAt(
+			mesh.parent.localToWorld(cell.pos.clone().add(cell.side.clone().multiplyScalar(MAX_INT))),
+		);
 	}, [cell.side, cell.pos, flipped]);
 
 	useLayoutEffect(() => {
