@@ -16,7 +16,7 @@ use tokio::task::JoinHandle;
 use crate::db;
 use crate::db::User;
 use crate::lobby::{Challenge, ClockSpec, Layout, Seek, SeekColor, CHALLENGE_TTL_MS};
-use crate::room::{arm_timeout, evict_when_idle, persist, Clock, Room};
+use crate::room::{arm_first_move_expiry, arm_timeout, evict_when_idle, persist, Clock, Room};
 use crate::{now_ms, rand_id, AppState};
 
 /// A player fully disconnected for this long can be claimed against.
@@ -114,9 +114,19 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
     let (mut sink, mut stream) = socket.split();
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<String>();
 
+    // Periodic pings keep idle sockets alive through proxies (nginx drops after 60s by default).
     let writer = tokio::spawn(async move {
-        while let Some(m) = out_rx.recv().await {
-            if sink.send(Message::Text(m.into())).await.is_err() {
+        let mut ping = tokio::time::interval(std::time::Duration::from_secs(25));
+        ping.tick().await;
+        loop {
+            let msg = tokio::select! {
+                m = out_rx.recv() => match m {
+                    Some(m) => Message::Text(m.into()),
+                    None => break,
+                },
+                _ = ping.tick() => Message::Ping(Vec::new().into()),
+            };
+            if sink.send(msg).await.is_err() {
                 break;
             }
         }
@@ -764,5 +774,6 @@ fn create_game(
     let msg = json!({"t": "game_start", "game_id": id});
     state.send_to_user(&white.id, &msg);
     state.send_to_user(&black.id, &msg);
-    arm_timeout(state.clone(), room);
+    arm_timeout(state.clone(), room.clone());
+    arm_first_move_expiry(state.clone(), room);
 }

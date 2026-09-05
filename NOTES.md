@@ -225,3 +225,5 @@ GET /api/crosstable?a=<user_id>&b=<user_id>  → {a_score: f64, b_score: f64, ga
 Variant = `{walled: bool, layout: "standard"|"rubrik"}`. `rubrik` = 6 distinct face colours `[0,1,2,3,4,5]` (core `LAYOUT_RUBRIK`); affects Prince/Princess/Captain (same-colour rules).
 - seek / challenge / rematch carry `layout` (default "standard"); quick pairing matches on walled+layout too. `Seek`, `Challenge`, GameRow/LiveGame expose `layout`.
 - Chat history: room keeps last 50 chat lines in memory; `game_state` gains `chat: [{user, text, at}]` (not persisted across restarts).
+
+First-move expiry: a timed game whose first ply is not played within `clamp(2×inc + initial/5, 20s, 60s)` is aborted (`Draw{Abandoned}`, unrated). WS server sends a Ping frame every 25s of idle output.

@@ -444,9 +444,47 @@ pub fn arm_timeout(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
     });
 }
 
+/// Grace for the first move: `2 × increment + 20% of initial`, clamped to 20s..60s. A game
+/// whose first ply is never played is aborted (unrated) rather than lost on time.
+pub fn first_move_grace_ms(clock: &Clock) -> u64 {
+    (2 * clock.increment_ms + clock.initial_ms / 5).clamp(20_000, 60_000) as u64
+}
+
+pub fn arm_first_move_expiry(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
+    let delay = {
+        let r = room.lock();
+        if r.clock.unlimited() {
+            return;
+        }
+        first_move_grace_ms(&r.clock)
+    };
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+        let mut r = room.lock();
+        if r.game.status != Status::Playing || !r.game.history.is_empty() {
+            return;
+        }
+        r.end(
+            &state,
+            Status::Draw {
+                reason: EndReason::Abandoned,
+            },
+        );
+        persist(&state, &r);
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn first_move_grace_is_clamped() {
+        let spec = |i, inc| Clock::new(ClockSpec { initial_ms: i, increment_ms: inc }, 0);
+        assert_eq!(first_move_grace_ms(&spec(60_000, 0)), 20_000); // 1+0 → floor
+        assert_eq!(first_move_grace_ms(&spec(300_000, 3_000)), 60_000); // 5+3 → 66s clamped
+        assert_eq!(first_move_grace_ms(&spec(120_000, 5_000)), 34_000); // 2+5 → 10s + 24s
+    }
     use rubrik_core::GameConfig;
 
     fn test_room(id: &str) -> Arc<Mutex<Room>> {
