@@ -3,7 +3,7 @@ import { Shell } from '@/components/shell';
 import { Button } from '@/components/ui/button';
 import { getTournament } from '@/net/api';
 import { onServerMsg, send, useNetStore } from '@/net/ws';
-import { variantLabel } from '@/store/game';
+import { variantLabel } from '@/utils/variant';
 import { GameRow, Standing, Tournament } from '@/types';
 import { clockLabel, speedOf } from '@/utils/clock';
 import { cn } from '@/utils/ui';

@@ -30,3 +30,11 @@ export function implyPathPoint(cell: TCell): TPathPoint {
 		zPos: cell.pos.clone().add(cell.side.clone().multiplyScalar(Z_GS)),
 	};
 }
+
+export const AXES: Record<'x' | 'y' | 'z', Vector3> = {
+	x: vec(1, 0, 0),
+	y: vec(0, 1, 0),
+	z: vec(0, 0, 1),
+};
+
+export const MAX_INT = 99999;

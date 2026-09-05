@@ -17,13 +17,14 @@ import {
 	V3,
 	ClockState,
 } from '@/types';
-import { AXES } from '@/utils/consts';
+import { AXES } from '@/utils/funcs';
 import { CUBOIDS } from '@/utils/cuboids';
 import { clamp, vec, vkey } from '@/utils/funcs';
 import { notation } from '@/utils/notation';
 import { stepCurves } from '@/utils/path';
 import { play as playSound } from '@/utils/sound';
 import { prefs, usePrefs } from './prefs';
+import { LAYOUTS } from '@/utils/variant';
 import { WasmGame } from 'rubrik-wasm';
 import { toast } from 'sonner';
 import { Vector3 } from 'three';
@@ -43,18 +44,6 @@ export function baseConfig(): GameConfig {
 		g.free();
 	}
 	return structuredClone(defaultConfig);
-}
-
-export const LAYOUTS: Record<Layout, number[]> = { standard: [0, 0, 1, 1, 0, 1], rubrik: [0, 1, 2, 3, 4, 5] };
-
-export function layoutOf(config: GameConfig | null | undefined): Layout {
-	return config && config.layout.some((c, i) => c !== LAYOUTS.standard[i]) ? 'rubrik' : 'standard';
-}
-
-/** Human label for a game's rules, e.g. "walled · rubrik" or "standard". */
-export function variantLabel(walled: boolean, layout: Layout = 'standard') {
-	const parts = [walled && 'walled', layout === 'rubrik' && 'rubrik'].filter(Boolean);
-	return parts.length ? parts.join(' · ') : 'standard';
 }
 
 export function localConfig(walled: boolean, layout: Layout = 'standard'): GameConfig {
@@ -200,8 +189,6 @@ interface IGameStore {
 	tournamentId: string | null;
 	/** Online move waiting for the player's confirmation (prefs.confirmMove). */
 	pendingMove: Move | null;
-	/** Hide everything but the board (key `z`). */
-	zen: boolean;
 	// settings
 	walled: boolean;
 	layout: Layout;
@@ -224,7 +211,7 @@ interface IGameStore {
 	setDrawOffer: (by: Color | null) => void;
 	setSetting: (
 		patch: Partial<
-			Pick<IGameStore, 'walled' | 'layout' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers' | 'zen' | 'clock' | 'pendingMove'>
+			Pick<IGameStore, 'walled' | 'layout' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers' | 'clock' | 'pendingMove'>
 		>,
 	) => void;
 }
@@ -258,7 +245,6 @@ export const useGameStore = create(
 		ai: null,
 		tournamentId: null,
 		pendingMove: null,
-		zen: false,
 		walled: false,
 		layout: 'standard',
 		debug: false,

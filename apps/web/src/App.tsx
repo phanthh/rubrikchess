@@ -1,16 +1,12 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import { onServerMsg, send } from './net/ws';
 import { toast } from 'sonner';
 import { clockLabel } from './utils/clock';
-import { AnalysisPage } from './pages/analysis';
 import { ChallengePage } from './pages/challenge';
-import { EditorPage } from './pages/editor';
-import { GamePage } from './pages/game';
 import { GamesPage } from './pages/games';
 import { LobbyPage } from './pages/lobby';
-import { LocalPage } from './pages/local';
 import { PlayersPage } from './pages/players';
 import { TournamentPage } from './pages/tournament';
 import { TournamentsPage } from './pages/tournaments';
@@ -18,6 +14,14 @@ import { TvPage } from './pages/tv';
 import { UserPage } from './pages/user';
 import { notify } from './utils/notify';
 import { play } from './utils/sound';
+
+// The 3D pages pull in three.js + the engine store; keep them out of the lobby bundle.
+const GamePage = lazy(() => import('./pages/game').then((m) => ({ default: m.GamePage })));
+const LocalPage = lazy(() => import('./pages/local').then((m) => ({ default: m.LocalPage })));
+const AnalysisPage = lazy(() =>
+	import('./pages/analysis').then((m) => ({ default: m.AnalysisPage })),
+);
+const EditorPage = lazy(() => import('./pages/editor').then((m) => ({ default: m.EditorPage })));
 
 /** Games and challenges can start from any page, so these listeners are global. */
 function ServerNav() {
@@ -51,20 +55,22 @@ export default function App() {
 	return (
 		<BrowserRouter>
 			<ServerNav />
-			<Routes>
-				<Route path="/" element={<LobbyPage />} />
-				<Route path="/local" element={<LocalPage />} />
-				<Route path="/editor" element={<EditorPage />} />
-				<Route path="/tv" element={<TvPage />} />
-				<Route path="/games" element={<GamesPage />} />
-				<Route path="/tournaments" element={<TournamentsPage />} />
-				<Route path="/tournament/:id" element={<TournamentPage />} />
-				<Route path="/players" element={<PlayersPage />} />
-				<Route path="/c/:id" element={<ChallengePage />} />
-				<Route path="/g/:id" element={<GamePage />} />
-				<Route path="/analysis/:id" element={<AnalysisPage />} />
-				<Route path="/u/:name" element={<UserPage />} />
-			</Routes>
+			<Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading…</div>}>
+				<Routes>
+					<Route path="/" element={<LobbyPage />} />
+					<Route path="/local" element={<LocalPage />} />
+					<Route path="/editor" element={<EditorPage />} />
+					<Route path="/tv" element={<TvPage />} />
+					<Route path="/games" element={<GamesPage />} />
+					<Route path="/tournaments" element={<TournamentsPage />} />
+					<Route path="/tournament/:id" element={<TournamentPage />} />
+					<Route path="/players" element={<PlayersPage />} />
+					<Route path="/c/:id" element={<ChallengePage />} />
+					<Route path="/g/:id" element={<GamePage />} />
+					<Route path="/analysis/:id" element={<AnalysisPage />} />
+					<Route path="/u/:name" element={<UserPage />} />
+				</Routes>
+			</Suspense>
 			<Toaster closeButton richColors theme="dark" />
 		</BrowserRouter>
 	);

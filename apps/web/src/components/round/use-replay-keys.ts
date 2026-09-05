@@ -1,4 +1,5 @@
 import { game } from '@/store/game';
+import { useUi } from '@/store/ui';
 import { useEffect } from 'react';
 
 /** Arrow keys walk the move list; `f` flips the board. */
@@ -26,7 +27,7 @@ export function useReplayKeys() {
 					g.setSetting({ flipped: !g.flipped });
 					break;
 				case 'z':
-					g.setSetting({ zen: !g.zen });
+					useUi.getState().toggleZen();
 					break;
 				default:
 					return;

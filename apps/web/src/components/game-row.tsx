@@ -1,5 +1,5 @@
 import { RatingDiff } from '@/components/rating-diff';
-import { variantLabel } from '@/store/game';
+import { variantLabel } from '@/utils/variant';
 import { GameRow } from '@/types';
 import { clockLabel, timeAgo } from '@/utils/clock';
 import { cn, statusLabel } from '@/utils/ui';

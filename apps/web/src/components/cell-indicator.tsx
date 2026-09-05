@@ -1,7 +1,7 @@
 import { C_S } from '@/settings';
 import { useGameStore } from '@/store/game';
 import { TCell } from '@/types';
-import { MAX_INT } from '@/utils/consts';
+import { MAX_INT } from '@/utils/funcs';
 import { vec } from '@/utils/funcs';
 import { useInteractiveMesh } from '@/utils/hooks';
 import { memo } from 'react';

@@ -3,6 +3,7 @@ import { Net } from '@/components/round/net';
 import { Shell } from '@/components/shell';
 import { game, useGameStore } from '@/store/game';
 import { usePrefs } from '@/store/prefs';
+import { useUi } from '@/store/ui';
 import { cn } from '@/utils/ui';
 import { Box, Focus, LayoutGrid } from 'lucide-react';
 import { RESET_CAMERA_EVENT } from '@/components/controls';
@@ -22,7 +23,7 @@ const KEYS: [string, string][] = [
  * Below `lg` it stacks and scrolls. Zen (key `z`) hides both columns.
  */
 export function BoardPage({ banner, left, right, below }: { banner: ReactNode; left?: ReactNode; right: ReactNode; below?: ReactNode }) {
-	const zen = useGameStore((s) => s.zen);
+	const zen = useUi((s) => s.zen);
 	const cursor = useGameStore((s) => s.cursor);
 	const plies = useGameStore((s) => s.history.length);
 	const view2d = usePrefs((s) => s.view2d);

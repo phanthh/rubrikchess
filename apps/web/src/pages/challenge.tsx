@@ -2,7 +2,7 @@ import { Shell } from '@/components/shell';
 import { Button } from '@/components/ui/button';
 import { getChallenge } from '@/net/api';
 import { send, useNetStore } from '@/net/ws';
-import { variantLabel } from '@/store/game';
+import { variantLabel } from '@/utils/variant';
 import { Challenge } from '@/types';
 import { clockLabel, speedOf } from '@/utils/clock';
 import { Copy, Loader2 } from 'lucide-react';

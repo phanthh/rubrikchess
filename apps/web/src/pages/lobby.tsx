@@ -4,7 +4,7 @@ import { Shell } from '@/components/shell';
 import { Button } from '@/components/ui/button';
 import { leaderboard, listGames, liveGames } from '@/net/api';
 import { send, useNetStore } from '@/net/ws';
-import { variantLabel } from '@/store/game';
+import { variantLabel } from '@/utils/variant';
 import { GameRow, LiveGame, Seek, Tournament, User } from '@/types';
 import { TourList } from './tournaments';
 import { listTournaments } from '@/net/api';

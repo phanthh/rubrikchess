@@ -1,6 +1,4 @@
-import { Vector3 } from 'three';
 import { PieceKind } from '@/types';
-import { vec } from './funcs';
 
 /** Light/dark face colours per board theme; indices 2..5 (rubrik layout) are fixed. */
 export const BOARD_THEMES = {
@@ -47,11 +45,3 @@ export const PIECE_RULES: Record<PieceKind, string> = {
 	cannon: 'Captures or moves to the 4 cells found by rotating its position ±90° about the tangential axes; king moves without capturing.',
 	tesseract: 'King moves; or rotates its own slice of the cube by ±90° about the X, Y or Z axis, carrying every piece on it.',
 };
-
-export const AXES: Record<'x' | 'y' | 'z', Vector3> = {
-	x: vec(1, 0, 0),
-	y: vec(0, 1, 0),
-	z: vec(0, 0, 1),
-};
-
-export const MAX_INT = 99999;

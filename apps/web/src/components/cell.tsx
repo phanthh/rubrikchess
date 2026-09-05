@@ -1,6 +1,7 @@
 import { useAnimationStore } from '@/store/animation';
 import { useGameStore } from '@/store/game';
-import { MAX_INT, palette } from '@/utils/consts';
+import { palette } from '@/utils/consts';
+import { MAX_INT } from '@/utils/funcs';
 import { usePrefs } from '@/store/prefs';
 import { usePreventPropagation } from '@/utils/hooks';
 import { ThreeEvent } from '@react-three/fiber';

@@ -5,7 +5,7 @@ import { RulesButton } from '@/components/rules-panel';
 import { Tooltip } from '@/components/tooltip';
 import { logout, setName } from '@/net/api';
 import { connect, useNetStore } from '@/net/ws';
-import { useGameStore } from '@/store/game';
+import { useUi } from '@/store/ui';
 import { cn } from '@/utils/ui';
 import { ChevronDown, Settings } from 'lucide-react';
 import { ReactNode, useEffect, useRef, useState } from 'react';
@@ -30,7 +30,7 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 	const [menu, setMenu] = useState(false);
 	const menuRef = useRef<HTMLDivElement>(null);
 
-	const zen = useGameStore((s) => s.zen);
+	const zen = useUi((s) => s.zen);
 	useEffect(connect, []);
 
 	useEffect(() => {
