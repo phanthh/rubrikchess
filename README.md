@@ -40,4 +40,4 @@ Browser flows (need playwright + chromium, dev stack running): `PW=<playwright/i
 
 `docker build -t rubrikchess . && docker run -p 3000:3000 -v rubrik-data:/data rubrikchess`
 
-Env: `PORT`, `DATABASE_PATH`, `WEB_DIST`, `SECURE_COOKIES=1` (behind TLS).
+Env: `PORT`, `DATABASE_PATH`, `WEB_DIST`, `SECURE_COOKIES=1` (behind TLS), `TRUST_PROXY=1` (client IP from `X-Forwarded-For`, for per-IP rate limits behind a proxy).
