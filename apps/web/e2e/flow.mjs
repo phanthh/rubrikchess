@@ -85,6 +85,10 @@ await S.goto(BASE);
 await S.waitForTimeout(800);
 await shot(S, 'lobby-live');
 
+// move times trail present in the move list (title = seconds spent)
+const timed = await W.locator('button[title$="s"]', { hasText: /^N/ }).count();
+assert(timed >= 6, `move time bars in move list (${timed})`);
+
 // history navigation
 await W.keyboard.press('ArrowLeft');
 await W.waitForTimeout(300);
