@@ -407,7 +407,8 @@ fn handle(
                 }
                 persist(state, &r);
             }
-            arm_timeout(state.clone(), room);
+            arm_timeout(state.clone(), room.clone());
+            arm_first_move_expiry(state.clone(), room);
         }
         ClientMsg::Resign { game_id } => {
             let Some(room) = room_of(state, &game_id) else {

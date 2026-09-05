@@ -82,7 +82,7 @@ impl AppState {
     /// Drop bookkeeping nobody can read any more: long-gone users and spent
     /// rate-limit windows. Called periodically; both maps are driven by
     /// anonymous clients and would grow without bound otherwise.
-    pub fn sweep(&self) {
+    pub fn sweep(self: &Arc<Self>) {
         let now = now_ms();
         self.gone
             .lock()
@@ -93,6 +93,23 @@ impl AppState {
             }
             !recent.is_empty()
         });
+        // Correspondence games nobody touches any more.
+        let rooms: Vec<_> = self.rooms.lock().values().cloned().collect();
+        for room in rooms {
+            let mut r = room.lock();
+            if r.game.status == rubrik_core::Status::Playing
+                && r.clock.unlimited()
+                && now - r.clock.at > room::IDLE_UNLIMITED_MS
+            {
+                r.end(
+                    self,
+                    rubrik_core::Status::Draw {
+                        reason: rubrik_core::EndReason::Abandoned,
+                    },
+                );
+                room::persist(self, &r);
+            }
+        }
     }
 
     pub fn broadcast_lobby(&self) {
@@ -644,7 +661,7 @@ mod tests {
 
     #[test]
     fn sweep_drops_stale_bookkeeping() {
-        let state = AppState::new(":memory:");
+        let state = Arc::new(AppState::new(":memory:"));
         let now = now_ms();
         {
             let mut gone = state.gone.lock();

@@ -464,18 +464,20 @@ pub fn first_move_grace_ms(clock: &Clock) -> u64 {
     (2 * clock.increment_ms + clock.initial_ms / 5).clamp(20_000, 60_000) as u64
 }
 
+/// Armed at game start and again after white's first move: each side gets the grace for
+/// its opening move; a no-show aborts the game. No-op once both have moved.
 pub fn arm_first_move_expiry(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
-    let delay = {
+    let (ply, delay) = {
         let r = room.lock();
-        if r.clock.unlimited() {
+        if r.clock.unlimited() || r.game.history.len() >= 2 {
             return;
         }
-        first_move_grace_ms(&r.clock)
+        (r.game.history.len(), first_move_grace_ms(&r.clock))
     };
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
         let mut r = room.lock();
-        if r.game.status != Status::Playing || !r.game.history.is_empty() {
+        if r.game.status != Status::Playing || r.game.history.len() != ply {
             return;
         }
         r.end(
@@ -487,6 +489,9 @@ pub fn arm_first_move_expiry(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
         persist(&state, &r);
     });
 }
+
+/// Unlimited games with no move for this long are abandoned by the sweep.
+pub const IDLE_UNLIMITED_MS: i64 = 14 * 24 * 60 * 60 * 1000;
 
 #[cfg(test)]
 mod tests {
