@@ -71,7 +71,7 @@ Move = {kind:"step", from, path: CellId[], capture: bool}
      | {kind:"rotate", from, axis:"x"|"y"|"z", sign: 1|-1}
 Status = {kind:"playing"} | {kind:"won", winner: Color, reason} | {kind:"draw", reason}
    reason = "kingcaptured"|"resign"|"timeout"|"agreement"|"abandoned"
-GameConfig = {layout: number[6], setup: string, rules: {walled: bool}}
+GameConfig = {layout: number[6], setup: string, rules: {walled: bool}}   // setup: 16 rows (faces 0,3) or 48 rows (all faces), '-' empty, upper=white
 Game = {config, board: {cells: Cell[384], pos_index}, turn: Color, status, history: Move[]}
 ```
 WasmGame (JS class): `new WasmGame(config?)`, `WasmGame.fromState(game)`, `WasmGame.replay(config, moves)`,

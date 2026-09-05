@@ -6,9 +6,10 @@ import { game, localConfig, useGameStore } from '@/store/game';
 import { statusLabel } from '@/utils/ui';
 import { AI_LEVELS } from '@/ai';
 import { Color, Layout } from '@/types';
+import { decodeSetup } from '@/utils/setup';
 import { cn } from '@/utils/ui';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 
 /** `/local` = sandbox; `/local?ai=3&color=white` = play the engine (level 1..4) as white. */
@@ -31,18 +32,25 @@ export function LocalPage() {
 	const [color, setColor] = useState<Color>(params.get('color') === 'black' ? 'black' : 'white');
 	const vsAi = params.has('ai');
 
+	// board-editor positions arrive as ?setup=…&walled=1&layout=rubrik
+	const setup = params.get('setup');
 	const start = (opts: { walled?: boolean; layout?: Layout; level?: number; color?: Color } = {}) => {
 		const w = opts.walled ?? game().walled;
 		const lay = opts.layout ?? game().layout;
 		const l = opts.level ?? level;
 		const c = opts.color ?? color;
-		game().newLocal(localConfig(w, lay), vsAi ? { color: c === 'white' ? 'black' : 'white', level: l } : null);
+		const config = localConfig(w, lay);
+		if (setup) config.setup = decodeSetup(setup);
+		game().newLocal(config, vsAi ? { color: c === 'white' ? 'black' : 'white', level: l } : null);
 	};
 
 	useEffect(() => {
+		if (setup) {
+			game().setSetting({ walled: params.get('walled') === '1', layout: params.get('layout') === 'rubrik' ? 'rubrik' : 'standard' });
+		}
 		start();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [vsAi]);
+	}, [vsAi, setup]);
 
 	const thinking = !!ai && ai.color === turn && status.kind === 'playing';
 	const banner =
@@ -123,6 +131,9 @@ export function LocalPage() {
 							Cell ids (debug)
 							<Switch checked={debug} onCheckedChange={(checked) => game().setSetting({ debug: checked })} />
 						</label>
+						<Link to="/editor" className="text-xs">
+							Set up a custom position →
+						</Link>
 						<div className="flex gap-2">
 							<Button
 								variant="outline"

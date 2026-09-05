@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { clockLabel } from './utils/clock';
 import { AnalysisPage } from './pages/analysis';
 import { ChallengePage } from './pages/challenge';
+import { EditorPage } from './pages/editor';
 import { GamePage } from './pages/game';
 import { GamesPage } from './pages/games';
 import { LobbyPage } from './pages/lobby';
@@ -53,6 +54,7 @@ export default function App() {
 			<Routes>
 				<Route path="/" element={<LobbyPage />} />
 				<Route path="/local" element={<LocalPage />} />
+				<Route path="/editor" element={<EditorPage />} />
 				<Route path="/tv" element={<TvPage />} />
 				<Route path="/games" element={<GamesPage />} />
 				<Route path="/tournaments" element={<TournamentsPage />} />

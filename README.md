@@ -5,7 +5,7 @@ Chess, but on a Rubik's cube. 8×8×6 board, 11 piece types, slice rotations. Mu
 Features: quick pairing + custom seeks (time incl. unlimited/correspondence, walled + rubrik-colour variants, colour), challenge-a-friend links,
 arena tournaments, server clocks w/ low-time cues, takeback / draw / resign / abort / +15s, rematch, chat w/ history, spectating + watcher count, TV,
 opponent-gone claim, first-move expiry, accounts + Glicko-2, profiles w/ rating chart, head-to-head crosstable, leaderboard, games archive,
-analysis board with branching, play vs computer (4 levels, in a worker), 3D cube or unfolded 2D net, move list w/ keyboard nav, zen mode,
+analysis board with branching + engine eval, board editor (custom positions), play vs computer (4 levels, in a worker), 3D cube or unfolded 2D net, move list w/ keyboard nav, zen mode,
 board colour themes, sounds, desktop notifications, mobile layout.
 
 <img width="675" height="620" alt="image" src="https://github.com/user-attachments/assets/8a7c89d3-fe77-4aee-8776-239829117095" />
@@ -31,7 +31,7 @@ pnpm dev                            # :5173, proxies /api and /ws → :3000
 ```
 
 Tests: `cargo test --workspace` (engine unit tests + server ws integration test). `pnpm typecheck`, `pnpm lint`.
-Browser flows (need playwright + chromium, dev stack running): `PW=<playwright/index.mjs> CHROME=<chrome> node apps/web/e2e/flow.mjs` (and `e2e/tournament.mjs`).
+Browser flows (need playwright + chromium, dev stack running): `PW=<playwright/index.mjs> CHROME=<chrome> node apps/web/e2e/flow.mjs` (also `e2e/tournament.mjs`, `e2e/editor.mjs`).
 
 ## Deploy
 

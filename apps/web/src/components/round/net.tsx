@@ -33,7 +33,7 @@ const FACE = 8 * S;
 
 const dot = (a: [number, number, number], b: [number, number, number]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
-function place(cell: TCell, flipped: boolean): { x: number; y: number } | null {
+function place(cell: NetCell, flipped: boolean): { x: number; y: number } | null {
 	// black's view = scene rotated 180° about Z
 	const p: [number, number, number] = flipped ? [-cell.pos.x, -cell.pos.y, cell.pos.z] : [cell.pos.x, cell.pos.y, cell.pos.z];
 	const face = FACES.find((f) => dot(f.n, p) === HALF);
@@ -52,9 +52,24 @@ const STATE_FILL: Partial<Record<TCell['state'], string>> = {
 	lastmove: '#ccaa22',
 };
 
-export const Net = memo(function Net({ interactive, className }: { interactive?: boolean; className?: string }) {
-	const cells = useGameStore((s) => s.cells);
+export type NetCell = Pick<TCell, 'id' | 'pos' | 'color' | 'piece' | 'state' | 'move'>;
+
+export const Net = memo(function Net({
+	interactive,
+	className,
+	cells: given,
+	onCell,
+}: {
+	interactive?: boolean;
+	className?: string;
+	/** Render these instead of the game store's cells (board editor). */
+	cells?: NetCell[];
+	/** Editor click handler; replaces the select/play behaviour. */
+	onCell?: (id: number) => void;
+}) {
+	const storeCells = useGameStore((s) => s.cells);
 	const flipped = useGameStore((s) => s.flipped);
+	const cells = given ?? storeCells;
 	const theme = usePrefs((s) => s.boardTheme);
 	const colors = palette(theme);
 	const W = 4 * FACE + 3 * GAP;
@@ -85,15 +100,17 @@ export const Net = memo(function Net({ interactive, className }: { interactive?:
 						key={cell.id}
 						transform={`translate(${at.x} ${at.y})`}
 						onClick={
-							interactive
-								? (e) => {
-										e.stopPropagation();
-										if (cell.move) game().play(cell.move);
-										else game().select(cell.state === 'active' ? null : cell.id);
-									}
-								: undefined
+							onCell
+								? () => onCell(cell.id)
+								: interactive
+									? (e) => {
+											e.stopPropagation();
+											if (cell.move) game().play(cell.move);
+											else game().select(cell.state === 'active' ? null : cell.id);
+										}
+									: undefined
 						}
-						className={interactive && (cell.move || cell.piece) ? 'cursor-pointer' : undefined}
+						className={onCell || (interactive && (cell.move || cell.piece)) ? 'cursor-pointer' : undefined}
 					>
 						<rect width={S} height={S} fill={colors[cell.color]} stroke="#000" strokeOpacity={0.25} strokeWidth={0.3} />
 						{hl && <rect width={S} height={S} fill={hl} fillOpacity={cell.state === 'lastmove' ? 0.5 : 0.65} />}

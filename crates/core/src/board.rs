@@ -175,14 +175,20 @@ impl Board {
         }
     }
 
-    /// Place pieces from a setup string: 8 rows for face 0 (white, +Y) then 8
-    /// rows for face 3 (black, -Y). Uppercase = white, `-` = empty.
+    /// Place pieces from a setup string. Short form: 8 rows for face 0 (white, +Y)
+    /// then 8 rows for face 3 (black, -Y). Long form (48 rows): 8 rows per face in
+    /// face order. Uppercase = white, `-` = empty.
     pub fn setup(&mut self, setup: &str) {
         let rows: Vec<&str> = setup.split_whitespace().collect();
         for cell in &mut self.cells {
             cell.piece = None;
         }
-        for (face, row_off) in [(0usize, 0usize), (3, B_D as usize)] {
+        let faces: Vec<(usize, usize)> = if rows.len() >= 6 * B_D as usize {
+            (0..6).map(|f| (f, f * B_D as usize)).collect()
+        } else {
+            vec![(0, 0), (3, B_D as usize)]
+        };
+        for (face, row_off) in faces {
             for i in 0..B_D as usize {
                 let row = rows.get(row_off + i).copied().unwrap_or("");
                 for (j, ch) in row.chars().take(B_D as usize).enumerate() {
@@ -258,6 +264,25 @@ impl Board {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn long_setup_places_on_every_face() {
+        let mut b = Board::new(LAYOUT_STANDARD);
+        let mut rows = vec!["--------".to_string(); 48];
+        rows[0] = "K-------".into(); // face 0, i0 j0
+        rows[8 * 2 + 3] = "---q----".into(); // face 2, i3 j3
+        b.setup(&rows.join("\n"));
+        assert_eq!(
+            b.cell(0).piece.map(|p| (p.kind, p.color)),
+            Some((PieceKind::King, Color::White))
+        );
+        let id = 2 * 64 + 3 * 8 + 3;
+        assert_eq!(
+            b.cell(id).piece.map(|p| (p.kind, p.color)),
+            Some((PieceKind::Queen, Color::Black))
+        );
+        assert_eq!(b.cells.iter().filter(|c| c.piece.is_some()).count(), 2);
+    }
 
     #[test]
     fn all_cells_indexed_uniquely() {
