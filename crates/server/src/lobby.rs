@@ -93,6 +93,9 @@ pub struct Challenge {
     pub walled: bool,
     pub layout: Layout,
     pub color: SeekColor,
+    /// Direct challenge: only this user may join.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to: Option<User>,
     #[serde(skip)]
     pub created_at: i64,
 }

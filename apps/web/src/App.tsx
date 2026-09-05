@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
-import { onServerMsg } from './net/ws';
+import { onServerMsg, send } from './net/ws';
+import { toast } from 'sonner';
+import { clockLabel } from './utils/clock';
 import { AnalysisPage } from './pages/analysis';
 import { ChallengePage } from './pages/challenge';
 import { GamePage } from './pages/game';
@@ -28,6 +30,15 @@ function ServerNav() {
 					navigate(`/g/${msg.game_id}`);
 				} else if (msg.t === 'challenge') {
 					navigate(`/c/${msg.challenge.id}`);
+				} else if (msg.t === 'challenge_in') {
+					const c = msg.challenge;
+					play('notify');
+					notify('Challenge', `${c.user.name} challenges you (${clockLabel(c.clock)})`);
+					toast(`${c.user.name} challenges you · ${clockLabel(c.clock)}`, {
+						duration: 60_000,
+						action: { label: 'Accept', onClick: () => send({ t: 'join', challenge_id: c.id }) },
+						cancel: { label: 'Ignore', onClick: () => undefined },
+					});
 				}
 			}),
 		[navigate],

@@ -48,9 +48,11 @@ export function ChallengePage() {
 							{own ? (
 								<>
 									<p className="flex items-center gap-2 justify-center text-muted-foreground">
-										<Loader2 className="h-4 w-4 animate-spin" /> Waiting for a friend to join…
+										<Loader2 className="h-4 w-4 animate-spin" /> Waiting for {c.to ? c.to.name : 'a friend'} to join…
 									</p>
-									<p className="text-xs text-muted-foreground">Send this link to anyone. The first to open it plays you.</p>
+									<p className="text-xs text-muted-foreground">
+										{c.to ? `${c.to.name} has been notified; you can also send them this link.` : 'Send this link to anyone. The first to open it plays you.'}
+									</p>
 									<div className="flex gap-2">
 										<input className="field flex-1 font-mono text-xs" readOnly value={url} onFocus={(e) => e.target.select()} />
 										<Button

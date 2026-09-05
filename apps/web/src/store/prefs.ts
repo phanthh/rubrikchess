@@ -9,6 +9,8 @@ interface IPrefs {
 	volume: number; // 0..1
 	animate: boolean;
 	confirmResign: boolean;
+	/** Ask before sending a move (touch-screen safety). */
+	confirmMove: boolean;
 	clockTenths: ClockTenths;
 	clockBar: boolean;
 	showThreats: boolean;
@@ -27,6 +29,7 @@ export const usePrefs = create<IPrefs>()(
 			volume: 0.7,
 			animate: true,
 			confirmResign: true,
+			confirmMove: false,
 			clockTenths: 'lowtime',
 			clockBar: true,
 			showThreats: true,

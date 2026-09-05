@@ -72,6 +72,9 @@ export function PrefsDialog({ open, onClose }: { open: boolean; onClose: () => v
 			<Row label="Show threats to your king">
 				<Switch checked={p.showThreats} onCheckedChange={(showThreats) => p.set({ showThreats })} />
 			</Row>
+			<Row label="Confirm moves before sending">
+				<Switch checked={p.confirmMove} onCheckedChange={(confirmMove) => p.set({ confirmMove })} />
+			</Row>
 			<Row label="Confirm resign / draw">
 				<Switch checked={p.confirmResign} onCheckedChange={(confirmResign) => p.set({ confirmResign })} />
 			</Row>

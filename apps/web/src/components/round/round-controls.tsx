@@ -4,7 +4,7 @@ import { game, useGameStore } from '@/store/game';
 import { prefs } from '@/store/prefs';
 import { Color } from '@/types';
 import { unlimited } from '@/utils/clock';
-import { moveText } from '@/utils/notation';
+import { moveText, notation } from '@/utils/notation';
 import { cn, statusLabel } from '@/utils/ui';
 import { Check, Download, Flag, Plus, RefreshCw, Undo2, X } from 'lucide-react';
 import { ReactNode, useState } from 'react';
@@ -91,7 +91,7 @@ export function RoundControls({
 	gone: Color | null;
 	rematchBy: Color | null;
 }) {
-	const { status, myColor, drawOffer, takebackOffer, history, diffs, flipped, clock, tournamentId } = useGameStore(
+	const { status, myColor, drawOffer, takebackOffer, history, diffs, flipped, clock, tournamentId, pendingMove, cells } = useGameStore(
 		useShallow((s) => ({
 			status: s.status,
 			myColor: s.myColor,
@@ -102,6 +102,8 @@ export function RoundControls({
 			flipped: s.flipped,
 			clock: s.clock,
 			tournamentId: s.tournamentId,
+			pendingMove: s.pendingMove,
+			cells: s.cells,
 		})),
 	);
 	const [confirm, setConfirm] = useState<Confirm>(null);
@@ -240,6 +242,13 @@ export function RoundControls({
 						Claim victory
 					</Button>
 				</div>
+			)}
+			{pendingMove && (
+				<Question
+					text={`Play ${notation(pendingMove, cells[pendingMove.from]?.piece?.kind)}?`}
+					onYes={() => game().play(pendingMove)}
+					onNo={() => game().select(null)}
+				/>
 			)}
 			{confirm ? (
 				<Question

@@ -24,11 +24,12 @@ export function SetupDialog({ mode, onClose }: { mode: SetupMode | null; onClose
 	const [ii, setIi] = useState(3); // 3 s
 	const [walled, setWalled] = useState(false);
 	const [layout, setLayout] = useState<Layout>('standard');
+	const [to, setTo] = useState('');
 	const [color, setColor] = useState<SeekColor>('random');
 	const clock = { initial_ms: MINUTES[mi] * 60_000, increment_ms: INCREMENTS[ii] * 1000 };
 
 	const submit = () => {
-		if (mode === 'friend') send({ t: 'challenge', clock, walled, color, layout });
+		if (mode === 'friend') send({ t: 'challenge', clock, walled, color, layout, to: to.trim() || undefined });
 		else send({ t: 'seek', clock, walled, color, layout });
 		onClose();
 	};
@@ -42,6 +43,14 @@ export function SetupDialog({ mode, onClose }: { mode: SetupMode | null; onClose
 					{unlimited(clock) && ' · no clock, play whenever'}
 				</div>
 			</div>
+			{mode === 'friend' && (
+				<label className="text-sm flex flex-col gap-1">
+					<span>
+						Opponent <span className="text-xs text-muted-foreground">(username; leave empty for a shareable link)</span>
+					</span>
+					<input className="field" value={to} onChange={(e) => setTo(e.target.value)} placeholder="anyone with the link" autoComplete="off" />
+				</label>
+			)}
 			<label className="text-sm flex flex-col gap-1">
 				<span className="flex justify-between">
 					Minutes per side <b>{MINUTES[mi]}</b>
@@ -108,7 +117,7 @@ export function SetupDialog({ mode, onClose }: { mode: SetupMode | null; onClose
 				</div>
 			</div>
 			<Button size="lg" variant="secondary" onClick={submit}>
-				{mode === 'friend' ? 'Create challenge link' : 'Create game'}
+				{mode === 'friend' ? (to.trim() ? `Challenge ${to.trim()}` : 'Create challenge link') : 'Create game'}
 			</Button>
 		</Dialog>
 	);

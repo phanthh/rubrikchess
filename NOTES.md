@@ -177,7 +177,7 @@ client→server
                                          undo at least one ply, then until it is the *requester's* turn (1 or 2 plies),
                                          clock: running = new turn, at = now, times unchanged.
                                          Server broadcasts full `game_state` (clients reload). Any move clears pending takeback offer.
-  {t:"challenge", clock, walled, color}  creates in-memory challenge {id (8 chars), user, clock, walled, color, created_at}; expires after 1h; one per user (replaces).
+  {t:"challenge", clock, walled, color, to?: username}  creates in-memory challenge (with `to`: direct — only that user may join; they receive {t:"challenge_in", challenge}) {id (8 chars), user, clock, walled, color, created_at}; expires after 1h; one per user (replaces).
                                          reply {t:"challenge", challenge: Challenge}
   {t:"cancel_challenge"}
   {t:"join", challenge_id}               other user joins → game created (creator gets `color`, random resolved) → game_start to both. Error if missing/own.

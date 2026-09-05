@@ -80,6 +80,9 @@ enum ClientMsg {
         layout: Layout,
         #[serde(default)]
         color: SeekColor,
+        /// Username of a specific opponent (direct challenge).
+        #[serde(default)]
+        to: Option<String>,
     },
     CancelChallenge,
     Join {
@@ -563,6 +566,7 @@ fn handle(
             walled,
             layout,
             color,
+            to,
         } => {
             if !clock.valid() {
                 err(out, "invalid clock");
@@ -572,6 +576,20 @@ fn handle(
                 err(out, "slow down");
                 return;
             }
+            let to = match to.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                None => None,
+                Some(name) => match db::user_by_name(&state.db.lock(), name) {
+                    Some(u) if u.id != user.id => Some(u),
+                    Some(_) => {
+                        err(out, "you cannot challenge yourself");
+                        return;
+                    }
+                    None => {
+                        err(out, "no such player");
+                        return;
+                    }
+                },
+            };
             let challenge = Challenge {
                 id: rand_id(8),
                 user: user.clone(),
@@ -579,8 +597,15 @@ fn handle(
                 walled,
                 layout,
                 color,
+                to,
                 created_at: now_ms(),
             };
+            if let Some(target) = &challenge.to {
+                state.send_to_user(
+                    &target.id,
+                    &json!({"t": "challenge_in", "challenge": challenge}),
+                );
+            }
             {
                 let mut challenges = state.challenges.lock();
                 let now = now_ms();
@@ -606,6 +631,7 @@ fn handle(
                 let mut challenges = state.challenges.lock();
                 match challenges.get(&challenge_id) {
                     Some(c) if c.user.id == user.id => None,
+                    Some(c) if c.to.as_ref().is_some_and(|t| t.id != user.id) => None,
                     Some(c) if now_ms() - c.created_at >= CHALLENGE_TTL_MS => None,
                     Some(_) => challenges.remove(&challenge_id),
                     None => None,

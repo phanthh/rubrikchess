@@ -198,6 +198,8 @@ interface IGameStore {
 	/** Local game against the engine: which colour it plays and how deep it looks. */
 	ai: { color: Color; level: number } | null;
 	tournamentId: string | null;
+	/** Online move waiting for the player's confirmation (prefs.confirmMove). */
+	pendingMove: Move | null;
 	/** Hide everything but the board (key `z`). */
 	zen: boolean;
 	// settings
@@ -222,7 +224,7 @@ interface IGameStore {
 	setDrawOffer: (by: Color | null) => void;
 	setSetting: (
 		patch: Partial<
-			Pick<IGameStore, 'walled' | 'layout' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers' | 'zen' | 'clock'>
+			Pick<IGameStore, 'walled' | 'layout' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers' | 'zen' | 'clock' | 'pendingMove'>
 		>,
 	) => void;
 }
@@ -255,6 +257,7 @@ export const useGameStore = create(
 		flipped: false,
 		ai: null,
 		tournamentId: null,
+		pendingMove: null,
 		zen: false,
 		walled: false,
 		layout: 'standard',
@@ -334,7 +337,7 @@ export const useGameStore = create(
 				if (mode === 'online' && myColor !== turn) return;
 				if (mode === 'local' && get().ai?.color === turn) return;
 			}
-			set({ selected: id });
+			set({ selected: id, pendingMove: null });
 			get().render();
 		},
 
@@ -344,8 +347,12 @@ export const useGameStore = create(
 
 			if (mode === 'online') {
 				if (!gameId) return;
+				if (prefs().confirmMove && get().pendingMove !== move) {
+					set({ pendingMove: move });
+					return;
+				}
 				send({ t: 'move', game_id: gameId, move });
-				set({ selected: null });
+				set({ selected: null, pendingMove: null });
 				get().render();
 				return;
 			}
@@ -449,6 +456,7 @@ export const useGameStore = create(
 					clock: msg.clock,
 					drawOffer: null,
 					takebackOffer: null,
+					pendingMove: null,
 					cursor: live ? engine.historyLen() : cursor,
 					endStatus: msg.status.kind === 'playing' ? null : msg.status,
 				});

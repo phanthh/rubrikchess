@@ -132,7 +132,7 @@ export type ClockState = ClockSpec & {
 export type SeekColor = 'white' | 'black' | 'random';
 export type Layout = 'standard' | 'rubrik';
 export type Seek = { id: string; user: User; clock: ClockSpec; walled: boolean; color?: SeekColor; layout?: Layout };
-export type Challenge = { id: string; user: User; clock: ClockSpec; walled: boolean; color: SeekColor; layout?: Layout };
+export type Challenge = { id: string; user: User; clock: ClockSpec; walled: boolean; color: SeekColor; layout?: Layout; to?: User };
 export type Presence = { white: boolean; black: boolean };
 export type LiveGame = {
 	id: string;
@@ -178,7 +178,7 @@ export type ClientMsg =
 	| { t: 'seek'; clock: ClockSpec; walled: boolean; color?: SeekColor; layout?: Layout }
 	| { t: 'unseek' }
 	| { t: 'takeback'; game_id: string; offer: boolean }
-	| { t: 'challenge'; clock: ClockSpec; walled: boolean; color: SeekColor; layout?: Layout }
+	| { t: 'challenge'; clock: ClockSpec; walled: boolean; color: SeekColor; layout?: Layout; to?: string }
 	| { t: 'cancel_challenge' }
 	| { t: 'join'; challenge_id: string }
 	| { t: 'claim'; game_id: string }
@@ -234,6 +234,7 @@ export type ServerMsg =
 	| { t: 'rematch_offer'; game_id: string; by: Color | null }
 	| { t: 'takeback_offer'; game_id: string; by: Color | null }
 	| { t: 'challenge'; challenge: Challenge }
+	| { t: 'challenge_in'; challenge: Challenge }
 	| { t: 'watchers'; game_id: string; n: number }
 	| { t: 'presence'; game_id: string; white: boolean; black: boolean }
 	| { t: 'gone'; game_id: string; color: Color }

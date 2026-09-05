@@ -230,6 +230,40 @@ assert(ic.clock.initial_ms === 0 && ic.clock.increment_ms === 0, 'unlimited game
 assert((await I.locator('.clock-running').count()) === 0, 'no clock widgets shown');
 await shot(I, 'game-unlimited');
 
+// direct challenge by username → toast on the target, accept from the toast
+const J = await ctx();
+const K = await ctx();
+await J.goto(BASE);
+await K.goto(BASE);
+await J.waitForTimeout(800);
+const kName = await K.evaluate(() => document.querySelector('header button span')?.textContent);
+await J.getByRole('button', { name: 'Play with a friend' }).click();
+await J.getByPlaceholder('anyone with the link').fill(kName);
+await J.getByRole('button', { name: `Challenge ${kName}` }).click();
+await J.waitForURL(/\/c\//, { timeout: 5000 });
+await J.waitForTimeout(600);
+await shot(J, 'challenge-direct');
+assert((await J.getByText(`Waiting for ${kName} to join`).count()) === 1, 'owner sees targeted challenge');
+await K.getByRole('button', { name: 'Accept' }).click();
+await K.waitForURL(/\/g\//, { timeout: 5000 });
+await J.waitForURL(/\/g\//, { timeout: 5000 });
+assert(true, 'direct challenge accepted from toast');
+
+// confirm-move preference: first click stages, ✓ sends
+await J.waitForTimeout(1000);
+const jw = (await state(J)).myColor === 'white' ? J : K;
+await jw.getByTitle('Preferences').click();
+await jw.locator('label', { hasText: 'Confirm moves before sending' }).locator('button').click();
+await jw.keyboard.press('Escape');
+await jw.waitForTimeout(300);
+await playAny(jw);
+await jw.waitForTimeout(400);
+await shot(jw, 'confirm-move');
+assert((await state(jw)).plies === 0 && (await jw.getByText(/^Play /).count()) === 1, 'move staged, not sent');
+await jw.getByTitle('Accept').click();
+await jw.waitForTimeout(600);
+assert((await state(jw)).plies === 1, 'confirmed move sent');
+
 // prefs + profile + players pages
 await S.goto(BASE + '/u/' + encodeURIComponent((await W.evaluate(() => window.__game.getState().players.white.name))));
 await S.waitForTimeout(800);
