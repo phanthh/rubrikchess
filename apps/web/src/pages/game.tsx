@@ -11,6 +11,7 @@ import { game, layoutOf, useGameStore, variantLabel } from '@/store/game';
 import { Color } from '@/types';
 import { notify } from '@/utils/notify';
 import { play } from '@/utils/sound';
+import { clockLabel, unlimited } from '@/utils/clock';
 import { statusLabel } from '@/utils/ui';
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -114,6 +115,7 @@ export function GamePage() {
 		};
 	}, [status, myColor, turn, players]);
 
+	const noClock = !clock || unlimited(clock);
 	const bottom: Color = flipped ? 'black' : 'white';
 	const top: Color = flipped ? 'white' : 'black';
 	const over = status.kind !== 'playing';
@@ -126,7 +128,7 @@ export function GamePage() {
 				<>
 					<div className="box p-3 text-sm flex flex-col gap-1">
 						<div className="font-semibold">
-							{clock ? `${clock.initial_ms / 60000}+${clock.increment_ms / 1000}` : '—'}{' '}
+							{clock ? clockLabel(clock) : '—'}{' '}
 							<span className="text-muted-foreground font-normal">
 								· {variantLabel(game().config?.rules.walled ?? false, layoutOf(game().config))} · rated
 							</span>
@@ -146,10 +148,10 @@ export function GamePage() {
 			}
 			right={
 				<>
-					<PlayerBar color={top} player={players[top]} ms={remaining(top)} />
+					<PlayerBar color={top} player={players[top]} ms={noClock ? null : remaining(top)} />
 					<MoveList className="flex-1 min-h-40 lg:min-h-0" />
 					{id && <RoundControls gameId={id} gone={gone} rematchBy={rematchBy} />}
-					<PlayerBar color={bottom} player={players[bottom]} ms={remaining(bottom)} />
+					<PlayerBar color={bottom} player={players[bottom]} ms={noClock ? null : remaining(bottom)} />
 				</>
 			}
 			below={id && <Chat gameId={id} lines={chat} watchers={watchers} className="h-56" />}

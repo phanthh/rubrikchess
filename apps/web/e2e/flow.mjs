@@ -208,6 +208,28 @@ await G.waitForTimeout(1200);
 assert((await G.getByText('hello history').count()) > 0, 'late spectator gets chat history');
 await shot(G, 'game-rubrik');
 
+// unlimited (correspondence) game: slider to 0 minutes, 0 increment
+const H = await ctx();
+await H.goto(BASE);
+await H.waitForTimeout(600);
+await H.getByRole('button', { name: 'Create a game' }).click();
+const sliders = H.locator('input[type=range]');
+await sliders.nth(0).fill('0');
+await sliders.nth(1).fill('0');
+assert((await H.getByText('Correspondence').count()) === 1, 'setup shows correspondence');
+await H.getByRole('button', { name: 'Create game' }).click();
+await H.waitForTimeout(500);
+const I = await ctx();
+await I.goto(BASE);
+await I.waitForTimeout(600);
+await I.locator('table tbody tr', { hasText: '∞' }).click();
+await I.waitForURL(/\/g\//, { timeout: 5000 });
+await I.waitForTimeout(1200);
+const ic = await state(I);
+assert(ic.clock.initial_ms === 0 && ic.clock.increment_ms === 0, 'unlimited game started');
+assert((await I.locator('.clock-running').count()) === 0, 'no clock widgets shown');
+await shot(I, 'game-unlimited');
+
 // prefs + profile + players pages
 await S.goto(BASE + '/u/' + encodeURIComponent((await W.evaluate(() => window.__game.getState().players.white.name))));
 await S.waitForTimeout(800);

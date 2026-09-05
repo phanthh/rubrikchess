@@ -3,14 +3,14 @@ import { Dialog } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { send } from '@/net/ws';
 import { Layout, SeekColor } from '@/types';
-import { clockLabel, speedOf } from '@/utils/clock';
+import { clockLabel, speedOf, unlimited } from '@/utils/clock';
 import { cn } from '@/utils/ui';
 import { useState } from 'react';
 
 export type SetupMode = 'seek' | 'friend';
 
 /** Non-linear minute steps, like lichess' time slider. */
-const MINUTES = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30, 45, 60, 90, 120, 180];
+const MINUTES = [0, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30, 45, 60, 90, 120, 180];
 const INCREMENTS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30, 45, 60, 90, 120, 180];
 
 const COLORS: [SeekColor, string][] = [
@@ -20,13 +20,12 @@ const COLORS: [SeekColor, string][] = [
 ];
 
 export function SetupDialog({ mode, onClose }: { mode: SetupMode | null; onClose: () => void }) {
-	const [mi, setMi] = useState(8); // 5 min
+	const [mi, setMi] = useState(9); // 5 min
 	const [ii, setIi] = useState(3); // 3 s
 	const [walled, setWalled] = useState(false);
 	const [layout, setLayout] = useState<Layout>('standard');
 	const [color, setColor] = useState<SeekColor>('random');
 	const clock = { initial_ms: MINUTES[mi] * 60_000, increment_ms: INCREMENTS[ii] * 1000 };
-	const valid = clock.initial_ms > 0 || clock.increment_ms > 0;
 
 	const submit = () => {
 		if (mode === 'friend') send({ t: 'challenge', clock, walled, color, layout });
@@ -38,7 +37,10 @@ export function SetupDialog({ mode, onClose }: { mode: SetupMode | null; onClose
 		<Dialog open={mode !== null} onClose={onClose} title={mode === 'friend' ? 'Play with a friend' : 'Create a game'}>
 			<div className="text-center">
 				<div className="text-3xl font-bold font-mono">{clockLabel(clock)}</div>
-				<div className="text-xs text-muted-foreground">{speedOf(clock)}</div>
+				<div className="text-xs text-muted-foreground">
+					{speedOf(clock)}
+					{unlimited(clock) && ' · no clock, play whenever'}
+				</div>
 			</div>
 			<label className="text-sm flex flex-col gap-1">
 				<span className="flex justify-between">
@@ -105,7 +107,7 @@ export function SetupDialog({ mode, onClose }: { mode: SetupMode | null; onClose
 					))}
 				</div>
 			</div>
-			<Button size="lg" variant="secondary" disabled={!valid} onClick={submit}>
+			<Button size="lg" variant="secondary" onClick={submit}>
 				{mode === 'friend' ? 'Create challenge link' : 'Create game'}
 			</Button>
 		</Dialog>

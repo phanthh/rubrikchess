@@ -20,7 +20,7 @@ export function useClock() {
 	useEffect(() => {
 		received.current = Date.now();
 		tick((n) => n + 1);
-		if (!clock?.running) return;
+		if (!clock?.running || (clock.initial_ms === 0 && clock.increment_ms === 0)) return;
 		const t = setInterval(() => tick((n) => n + 1), 100);
 		return () => clearInterval(t);
 	}, [clock]);
@@ -33,7 +33,7 @@ export function useClock() {
 
 	useEffect(() => {
 		if (!clock || !myColor) return;
-		if (clock.running !== myColor) return;
+		if (clock.running !== myColor || (clock.initial_ms === 0 && clock.increment_ms === 0)) return;
 		const left = remaining(myColor);
 		if (left === null) return;
 		if (left > emergMs(clock.initial_ms)) {

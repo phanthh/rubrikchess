@@ -3,6 +3,7 @@ import { send } from '@/net/ws';
 import { game, useGameStore } from '@/store/game';
 import { prefs } from '@/store/prefs';
 import { Color } from '@/types';
+import { unlimited } from '@/utils/clock';
 import { moveText } from '@/utils/notation';
 import { cn, statusLabel } from '@/utils/ui';
 import { Check, Download, Flag, Plus, RefreshCw, Undo2, X } from 'lucide-react';
@@ -90,7 +91,7 @@ export function RoundControls({
 	gone: Color | null;
 	rematchBy: Color | null;
 }) {
-	const { status, myColor, drawOffer, takebackOffer, history, diffs, flipped } = useGameStore(
+	const { status, myColor, drawOffer, takebackOffer, history, diffs, flipped, clock } = useGameStore(
 		useShallow((s) => ({
 			status: s.status,
 			myColor: s.myColor,
@@ -99,6 +100,7 @@ export function RoundControls({
 			history: s.history,
 			diffs: s.diffs,
 			flipped: s.flipped,
+			clock: s.clock,
 		})),
 	);
 	const [confirm, setConfirm] = useState<Confirm>(null);
@@ -263,12 +265,14 @@ export function RoundControls({
 							<Flag className="h-4 w-4" />
 						</IconBtn>
 					)}
-					<IconBtn title="Give your opponent 15 seconds" onClick={() => send({ t: 'moretime', game_id: gameId })}>
-						<span className="flex items-center text-xs font-semibold">
-							<Plus className="h-3 w-3" />
-							15s
-						</span>
-					</IconBtn>
+					{clock && !unlimited(clock) && (
+						<IconBtn title="Give your opponent 15 seconds" onClick={() => send({ t: 'moretime', game_id: gameId })}>
+							<span className="flex items-center text-xs font-semibold">
+								<Plus className="h-3 w-3" />
+								15s
+							</span>
+						</IconBtn>
+					)}
 					{flip}
 					{download}
 				</div>

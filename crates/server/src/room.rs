@@ -84,6 +84,10 @@ impl Clock {
         self.set(color, self.base(color) + ms);
     }
 
+    pub fn unlimited(&self) -> bool {
+        self.initial_ms == 0 && self.increment_ms == 0
+    }
+
     fn stop(&mut self, now: i64) {
         if let Some(c) = self.running {
             let left = self.remaining(c, now).max(0);
@@ -409,7 +413,7 @@ pub fn evict_when_idle(state: Arc<AppState>, room: &mut Room) {
 pub fn arm_timeout(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
     let (ply, at, color, delay) = {
         let r = room.lock();
-        if r.game.status != Status::Playing {
+        if r.game.status != Status::Playing || r.clock.unlimited() {
             return;
         }
         let Some(color) = r.clock.running else { return };

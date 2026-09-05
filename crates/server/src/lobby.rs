@@ -11,10 +11,13 @@ pub struct ClockSpec {
 
 impl ClockSpec {
     /// Sane bounds: up to 3h base, 3min increment, not both zero.
+    /// Both zero = unlimited (correspondence): no flag fall.
     pub fn valid(&self) -> bool {
-        (0..=180 * 60_000).contains(&self.initial_ms)
-            && (0..=180_000).contains(&self.increment_ms)
-            && (self.initial_ms > 0 || self.increment_ms > 0)
+        (0..=180 * 60_000).contains(&self.initial_ms) && (0..=180_000).contains(&self.increment_ms)
+    }
+
+    pub fn unlimited(&self) -> bool {
+        self.initial_ms == 0 && self.increment_ms == 0
     }
 }
 

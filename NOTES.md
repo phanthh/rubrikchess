@@ -165,7 +165,7 @@ A user's lobby seek is dropped when their *last* socket closes, not on every tab
 
 ## Phase 5: pairing, takeback, challenges, tv, presence, rating history
 
-Seek validation (server): `0 <= initial_ms <= 180*60_000`, `0 <= increment_ms <= 180_000`, not both zero → else `error`.
+Seek validation (server): `0 <= initial_ms <= 180*60_000`, `0 <= increment_ms <= 180_000` → else `error`. Both zero = **unlimited** (correspondence): clock still reports `running`, but no flag-fall timer is armed.
 Seek gains `color: "white"|"black"|"random"` (default random). **Quick pairing**: on `seek`, if lobby has a seek by another user with equal clock+walled and compatible colour (random matches anything; white matches black/random) → start game immediately (seeker's colour honoured, else random), no lobby entry. Otherwise seek is added as before. `accept` also honours the seek's colour.
 
 Chat rate limit moves to `AppState` (per user+room, not per connection).

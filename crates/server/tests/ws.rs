@@ -455,10 +455,10 @@ async fn quick_pairing_and_tv() {
         .to_string();
     wait_for(&mut b, "hello").await;
 
-    // an unplayable clock is rejected
+    // an out-of-range clock is rejected (0+0 is unlimited and allowed)
     send(
         &mut a,
-        json!({"t":"seek","clock":{"initial_ms":0,"increment_ms":0}}),
+        json!({"t":"seek","clock":{"initial_ms":-1,"increment_ms":0}}),
     )
     .await;
     wait_for(&mut a, "error").await;
