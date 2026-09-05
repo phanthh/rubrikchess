@@ -2,7 +2,7 @@ import type { GameConfig, GameState, Move } from '@/types';
 import type { AiRequest, AiResponse, Analysis, Puzzle } from './ai.worker';
 
 export type { Analysis, Puzzle };
-export const AI_LEVELS = ['Random', 'Greedy', 'Two-ply', 'Three-ply'] as const;
+export const AI_LEVELS = ['Beginner', 'Easy', 'Medium', 'Hard'] as const;
 
 let worker: Worker | null = null;
 let seq = 0;
