@@ -480,7 +480,15 @@ mod tests {
 
     #[test]
     fn first_move_grace_is_clamped() {
-        let spec = |i, inc| Clock::new(ClockSpec { initial_ms: i, increment_ms: inc }, 0);
+        let spec = |i, inc| {
+            Clock::new(
+                ClockSpec {
+                    initial_ms: i,
+                    increment_ms: inc,
+                },
+                0,
+            )
+        };
         assert_eq!(first_move_grace_ms(&spec(60_000, 0)), 20_000); // 1+0 → floor
         assert_eq!(first_move_grace_ms(&spec(300_000, 3_000)), 60_000); // 5+3 → 66s clamped
         assert_eq!(first_move_grace_ms(&spec(120_000, 5_000)), 34_000); // 2+5 → 10s + 24s

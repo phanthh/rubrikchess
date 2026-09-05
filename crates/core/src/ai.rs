@@ -20,21 +20,36 @@ pub fn value(kind: PieceKind) -> i32 {
     }
 }
 
-/// Material balance from `color`'s point of view.
+/// Material balance from `color`'s point of view, plus a small "pressure" term so that,
+/// with nothing to capture, pieces drift towards the enemy king instead of shuffling.
 fn material(game: &Game, color: Color) -> i32 {
-    game.board
-        .cells
-        .iter()
-        .filter_map(|c| c.piece)
-        .filter(|p| p.kind != PieceKind::King)
-        .map(|p| {
-            if p.color == color {
-                value(p.kind)
-            } else {
-                -value(p.kind)
-            }
-        })
-        .sum()
+    let king = |c: Color| {
+        game.board
+            .cells
+            .iter()
+            .find(|cell| {
+                cell.piece
+                    .is_some_and(|p| p.kind == PieceKind::King && p.color == c)
+            })
+            .map(|cell| cell.pos)
+    };
+    let kings = (king(color.other()), king(color));
+    let mut score = 0;
+    for cell in &game.board.cells {
+        let Some(p) = cell.piece else { continue };
+        if p.kind == PieceKind::King {
+            continue;
+        }
+        let sign = if p.color == color { 1 } else { -1 };
+        score += sign * value(p.kind);
+        // ponytail: manhattan distance ignores the cube's faces; good enough as a tie-breaker
+        let target = if p.color == color { kings.0 } else { kings.1 };
+        if let Some(k) = target {
+            let d = (cell.pos.x - k.x).abs() + (cell.pos.y - k.y).abs() + (cell.pos.z - k.z).abs();
+            score += sign * (96 - d.min(96)) / 16; // 0..6 centipawns
+        }
+    }
+    score
 }
 
 /// Static gain of `mv` for the side to move: value of the captured piece.
@@ -160,6 +175,20 @@ mod tests {
             let mut g2 = g.clone();
             g2.play(mv).expect("legal");
         }
+    }
+
+    #[test]
+    fn two_ply_beats_random_over_a_short_game() {
+        let mut g = Game::new(GameConfig::default());
+        for ply in 0..40 {
+            let level = if g.turn == Color::White { 3 } else { 1 };
+            let Some(mv) = best_move(&g, level, ply) else { break };
+            g.play(mv).unwrap();
+            if g.status != Status::Playing {
+                break;
+            }
+        }
+        assert!(material(&g, Color::White) > 0, "search should out-material random play");
     }
 
     #[test]
