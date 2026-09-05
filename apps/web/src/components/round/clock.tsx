@@ -22,7 +22,8 @@ export function Clock({
 	const emerg = ms < emergMs(initial);
 	const showTenths = tenths === 'always' || (tenths === 'lowtime' && ms < 10_000);
 	const total = Math.floor(ms / 1000);
-	const h = Math.floor(total / 3600);
+	const days = Math.floor(total / 86_400);
+	const h = Math.floor((total % 86_400) / 3600);
 	const m = Math.floor((total % 3600) / 60);
 	const s = total % 60;
 	const sep = <span className="sep">:</span>;
@@ -38,15 +39,25 @@ export function Clock({
 				over && 'line-through decoration-muted-foreground/60 decoration-1',
 			)}
 		>
-			{h > 0 && (
+			{days > 0 ? (
+				<span className="text-xl">
+					{days}d {h}h
+				</span>
+			) : (
+				h > 0 && (
+					<>
+						{h}
+						{sep}
+					</>
+				)
+			)}
+			{days === 0 && (
 				<>
-					{h}
+					{h > 0 ? pad(m) : m}
 					{sep}
+					{pad(s)}
 				</>
 			)}
-			{h > 0 ? pad(m) : m}
-			{sep}
-			{pad(s)}
 			{showTenths && <span className="text-base opacity-70">.{Math.floor((ms % 1000) / 100)}</span>}
 			{bar && initial > 0 && (
 				<div

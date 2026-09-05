@@ -2,7 +2,7 @@
 
 Chess, but on a Rubik's cube. 8×8×6 board, 11 piece types, slice rotations. Multiplayer platform à la lichess.
 
-Features: quick pairing + custom seeks (time incl. unlimited/correspondence, walled + rubrik-colour variants, colour), challenge-a-friend links,
+Features: quick pairing + custom seeks (time incl. days-per-move correspondence and unlimited, walled + rubrik-colour variants, colour), challenge-a-friend links,
 arena tournaments, server clocks w/ low-time cues, takeback / draw / resign / abort / +15s, rematch, chat w/ history, spectating + watcher count, TV,
 opponent-gone claim, first-move expiry, accounts + Glicko-2, profiles w/ rating chart, head-to-head crosstable, leaderboard, games archive,
 analysis board with branching, engine eval + full-game computer analysis (eval graph, blunder marks), board editor (custom positions, also for friend challenges), interactive piece tutorial, tactics puzzles mined from played games, play vs computer (4 levels, in a worker), 3D cube or unfolded 2D net, move list w/ keyboard nav, zen mode,

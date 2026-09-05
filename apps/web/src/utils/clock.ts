@@ -2,9 +2,14 @@ import { ClockSpec } from '@/types';
 
 /** Lichess speed buckets on estimated game length (initial + 40 × increment). */
 export const unlimited = (c: ClockSpec) => c.initial_ms === 0 && c.increment_ms === 0;
+const DAY = 86_400_000;
+/** Days-per-move correspondence clock (initial == increment == N days). */
+export const daysPerMove = (c: ClockSpec) =>
+	c.initial_ms >= DAY && c.initial_ms === c.increment_ms ? c.initial_ms / DAY : 0;
 
 export function speedOf({ initial_ms, increment_ms }: ClockSpec) {
-	if (unlimited({ initial_ms, increment_ms })) return 'Correspondence';
+	if (unlimited({ initial_ms, increment_ms }) || daysPerMove({ initial_ms, increment_ms }))
+		return 'Correspondence';
 	const total = initial_ms / 1000 + (40 * increment_ms) / 1000;
 	if (total < 30) return 'UltraBullet';
 	if (total < 180) return 'Bullet';
@@ -15,6 +20,8 @@ export function speedOf({ initial_ms, increment_ms }: ClockSpec) {
 
 export function clockLabel({ initial_ms, increment_ms }: ClockSpec) {
 	if (unlimited({ initial_ms, increment_ms })) return '∞';
+	const days = daysPerMove({ initial_ms, increment_ms });
+	if (days) return `${days}d`;
 	const min = initial_ms / 60000;
 	const m = min >= 1 || min === 0 ? String(Math.round(min * 10) / 10) : `${initial_ms / 1000}s`;
 	return `${m}+${Math.round(increment_ms / 1000)}`;

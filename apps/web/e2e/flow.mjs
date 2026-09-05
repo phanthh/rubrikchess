@@ -226,8 +226,8 @@ await H.goto(BASE);
 await H.waitForTimeout(600);
 await H.getByRole('button', { name: 'Create a game' }).click();
 const sliders = H.locator('input[type=range]');
-await sliders.nth(0).fill('0');
-await sliders.nth(1).fill('0');
+await sliders.nth(1).fill('0'); // minutes (slider 0 is days-per-move)
+await sliders.nth(2).fill('0'); // increment
 assert((await H.getByText('Correspondence').count()) === 1, 'setup shows correspondence');
 await H.getByRole('button', { name: 'Create game' }).click();
 await H.waitForTimeout(500);
@@ -275,6 +275,26 @@ assert((await state(jw)).plies === 0 && (await jw.getByText(/^Play /).count()) =
 await jw.getByTitle('Accept').click();
 await jw.waitForTimeout(600);
 assert((await state(jw)).plies === 1, 'confirmed move sent');
+
+// days-per-move correspondence game
+const M = await ctx();
+await M.goto(BASE);
+await M.waitForTimeout(600);
+await M.getByRole('button', { name: 'Create a game' }).click();
+await M.locator('input[type=range]').nth(0).fill('3'); // 3 days
+assert((await M.getByText('3d').count()) >= 1, 'setup shows days per move');
+await M.getByRole('button', { name: 'Create game' }).click();
+await M.waitForTimeout(500);
+const N = await ctx();
+await N.goto(BASE);
+await N.waitForTimeout(600);
+await N.locator('table tbody tr', { hasText: '3d' }).click();
+await N.waitForURL(/\/g\//, { timeout: 5000 });
+await N.waitForTimeout(1200);
+const nc = (await state(N)).clock;
+assert(nc.initial_ms === 3 * 86_400_000 && nc.increment_ms === nc.initial_ms, 'correspondence clock 3 days/move');
+assert((await N.getByText(/\dd /).count()) >= 1, 'clock shows days');
+await shot(N, 'game-correspondence');
 
 // prefs + profile + players pages
 await S.goto(BASE + '/u/' + encodeURIComponent((await W.evaluate(() => window.__game.getState().players.white.name))));

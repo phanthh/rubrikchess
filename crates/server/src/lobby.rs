@@ -12,8 +12,15 @@ pub struct ClockSpec {
 impl ClockSpec {
     /// Sane bounds: up to 3h base, 3min increment, not both zero.
     /// Both zero = unlimited (correspondence): no flag fall.
+    /// Live clocks up to 3h+3min; correspondence up to 14 days per side and per move.
     pub fn valid(&self) -> bool {
-        (0..=180 * 60_000).contains(&self.initial_ms) && (0..=180_000).contains(&self.increment_ms)
+        const DAY: i64 = 86_400_000;
+        let live = (0..=180 * 60_000).contains(&self.initial_ms)
+            && (0..=180_000).contains(&self.increment_ms);
+        let daily = self.initial_ms % DAY == 0
+            && self.initial_ms == self.increment_ms
+            && (DAY..=14 * DAY).contains(&self.initial_ms);
+        live || daily
     }
 
     pub fn unlimited(&self) -> bool {

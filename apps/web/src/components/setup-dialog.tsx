@@ -38,8 +38,12 @@ export function SetupDialog({
 	const [walled, setWalled] = useState(position?.walled ?? false);
 	const [layout, setLayout] = useState<Layout>(position?.layout ?? 'standard');
 	const [to, setTo] = useState(opponent ?? '');
+	const [days, setDays] = useState(0); // 0 = live clock
+	const DAYS = [0, 1, 2, 3, 5, 7, 14];
 	const [color, setColor] = useState<SeekColor>('random');
-	const clock = { initial_ms: MINUTES[mi] * 60_000, increment_ms: INCREMENTS[ii] * 1000 };
+	const clock = days
+		? { initial_ms: days * 86_400_000, increment_ms: days * 86_400_000 }
+		: { initial_ms: MINUTES[mi] * 60_000, increment_ms: INCREMENTS[ii] * 1000 };
 
 	const submit = () => {
 		if (mode === 'friend')
@@ -91,30 +95,47 @@ export function SetupDialog({
 			)}
 			<label className="text-sm flex flex-col gap-1">
 				<span className="flex justify-between">
-					Minutes per side <b>{MINUTES[mi]}</b>
+					Days per move <b>{days ? days : 'live clock'}</b>
 				</span>
 				<input
 					type="range"
 					min={0}
-					max={MINUTES.length - 1}
-					value={mi}
-					onChange={(e) => setMi(Number(e.target.value))}
+					max={DAYS.length - 1}
+					value={DAYS.indexOf(days)}
+					onChange={(e) => setDays(DAYS[Number(e.target.value)])}
 					className="accent-primary"
 				/>
 			</label>
-			<label className="text-sm flex flex-col gap-1">
-				<span className="flex justify-between">
-					Increment in seconds <b>{INCREMENTS[ii]}</b>
-				</span>
-				<input
-					type="range"
-					min={0}
-					max={INCREMENTS.length - 1}
-					value={ii}
-					onChange={(e) => setIi(Number(e.target.value))}
-					className="accent-primary"
-				/>
-			</label>
+			{!days && (
+				<>
+					<label className="text-sm flex flex-col gap-1">
+						<span className="flex justify-between">
+							Minutes per side <b>{MINUTES[mi]}</b>
+						</span>
+						<input
+							type="range"
+							min={0}
+							max={MINUTES.length - 1}
+							value={mi}
+							onChange={(e) => setMi(Number(e.target.value))}
+							className="accent-primary"
+						/>
+					</label>
+					<label className="text-sm flex flex-col gap-1">
+						<span className="flex justify-between">
+							Increment in seconds <b>{INCREMENTS[ii]}</b>
+						</span>
+						<input
+							type="range"
+							min={0}
+							max={INCREMENTS.length - 1}
+							value={ii}
+							onChange={(e) => setIi(Number(e.target.value))}
+							className="accent-primary"
+						/>
+					</label>
+				</>
+			)}
 			<label className="text-sm flex items-center justify-between">
 				<span>
 					Walled variant
