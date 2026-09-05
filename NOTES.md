@@ -154,3 +154,39 @@ server→client
   {t:"rematch_offer", game_id, by: Color|null}         broadcast; null = withdrawn
 ```
 Rate limit: chat max 5 msgs / 5s per user per room (drop silently beyond).
+
+## Phase 5: pairing, takeback, challenges, tv, presence, rating history
+
+Seek validation (server): `0 <= initial_ms <= 180*60_000`, `0 <= increment_ms <= 180_000`, not both zero → else `error`.
+Seek gains `color: "white"|"black"|"random"` (default random). **Quick pairing**: on `seek`, if lobby has a seek by another user with equal clock+walled and compatible colour (random matches anything; white matches black/random) → start game immediately (seeker's colour honoured, else random), no lobby entry. Otherwise seek is added as before. `accept` also honours the seek's colour.
+
+Chat rate limit moves to `AppState` (per user+room, not per connection).
+
+WS additions:
+```
+client→server
+  {t:"takeback", game_id, offer: bool}   players only, game playing, history non-empty. Accept (offer:true when opponent has pending offer) →
+                                         undo until it is the *requester's* turn (1 or 2 plies), clock: running = new turn, at = now, times unchanged.
+                                         Server broadcasts full `game_state` (clients reload). Any move clears pending takeback offer.
+  {t:"challenge", clock, walled, color}  creates in-memory challenge {id (8 chars), user, clock, walled, color, created_at}; expires after 1h; one per user (replaces).
+                                         reply {t:"challenge", challenge: Challenge}
+  {t:"cancel_challenge"}
+  {t:"join", challenge_id}               other user joins → game created (creator gets `color`, random resolved) → game_start to both. Error if missing/own.
+  {t:"claim", game_id}                   opponent has been fully disconnected (no ws conns) >= 60s while game playing → claimer wins Won{Abandoned}.
+                                         Won{Abandoned} IS rated (Draw{Abandoned} from restart is not). Error otherwise.
+server→client
+  {t:"takeback_offer", game_id, by: Color|null}
+  {t:"challenge", challenge: Challenge}                      Challenge = {id, user: User, clock, walled, color}
+  {t:"watchers", game_id, n}                                 broadcast on change (n = subscribed connections incl. players)
+  {t:"presence", game_id, white: bool, black: bool}          broadcast when a player's connection count goes 0↔>0 (also included in game_state)
+  game_state gains: watchers: n, presence: {white, black}, takeback_offer: Color|null
+```
+Presence: server tracks per room via `AppState.conns` (user has ≥1 socket). On a player's last socket closing, spawn 60s timer; if still gone and game playing → broadcast `{t:"gone", game_id, color}` so opponent UI can show "claim victory". `claim` re-checks (gone ≥60s) server-side.
+
+HTTP additions:
+```
+GET /api/tv                          → [{id, white: User, black: User, clock: ClockSpec, plies, watchers, created_at}]  live rooms with status playing, sorted by watchers desc, then max rating desc
+GET /api/challenges/:id              → Challenge (404 if missing/expired)
+GET /api/games?limit=20&before=<created_at>   pagination cursor; index games(created_at), games(white), games(black)
+GET /api/users/:name                 → gains `history: [{at, rating}]` (last 100, asc) from table rating_history(user_id, game_id, at, rating) written in rate(); plus `user.wins` now serialized
+```
