@@ -442,11 +442,17 @@ const errs = [];
 lp.on('pageerror', (e) => errs.push(e.message));
 await lp.goto(BASE + '/local');
 await lp.waitForTimeout(1500);
-await lp.mouse.move(447, 330);
-await lp.waitForTimeout(300);
-await lp.mouse.move(449, 332);
-await lp.waitForTimeout(1300);
-assert((await lp.locator('.tooltip').textContent())?.startsWith('Knight'), 'piece tooltip with rule');
+// camera framing depends on viewport/aspect: probe a few spots where a knight sits
+let tip = '';
+for (const [x, y] of [[549, 350], [447, 330], [320, 235]]) {
+	await lp.mouse.move(x - 2, y - 2);
+	await lp.waitForTimeout(300);
+	await lp.mouse.move(x, y);
+	await lp.waitForTimeout(1200);
+	tip = (await lp.locator('.tooltip').textContent()) ?? '';
+	if (tip.startsWith('Knight')) break;
+}
+assert(tip.startsWith('Knight'), 'piece tooltip with rule');
 await lp.mouse.click(449, 332);
 await lp.waitForTimeout(500);
 assert((await lp.evaluate(() => window.__game.getState().selected)) !== null, '3D click selects a piece');
