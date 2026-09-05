@@ -369,6 +369,23 @@ await U.waitForTimeout(1200);
 assert((await U.locator('section', { hasText: 'Friends' }).getByText(kName).count()) >= 1, 'lobby friends box lists them');
 await shot(U, 'lobby-friends');
 
+// private messages: U messages K from the profile; K gets a toast + inbox badge; thread persists
+await U.goto(BASE + '/u/' + encodeURIComponent(kName));
+await U.waitForTimeout(600);
+await U.getByRole('link', { name: 'Message' }).click();
+await U.waitForURL(/\/inbox\//, { timeout: 5000 });
+await U.getByPlaceholder(`Message ${kName}…`).fill('hello there');
+await U.getByPlaceholder(`Message ${kName}…`).press('Enter');
+await K.waitForTimeout(800);
+assert((await K.getByText(/hello there/).count()) >= 1, 'recipient gets a message toast');
+assert((await K.getByTitle(/unread message/).count()) === 1, 'inbox badge shows unread');
+await K.goto(BASE + '/inbox');
+await K.waitForTimeout(800);
+await K.getByRole('link', { name: /hello there/ }).click();
+await K.waitForTimeout(800);
+assert((await K.locator('div[title]', { hasText: 'hello there' }).count()) === 1, 'thread shows the message');
+await shot(K, 'inbox');
+
 // 3D picking + tooltip (regression: a stray global `stop` once broke every hover)
 const L = await b.newContext({ viewport: { width: 1200, height: 800 } });
 const lp = await L.newPage();

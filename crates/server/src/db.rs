@@ -175,6 +175,16 @@ pub fn open(path: &str) -> Connection {
            created_at INTEGER NOT NULL,
            PRIMARY KEY (user_id, target_id)
          );
+         CREATE TABLE IF NOT EXISTS messages(
+           id INTEGER PRIMARY KEY,
+           from_id TEXT NOT NULL,
+           to_id TEXT NOT NULL,
+           text TEXT NOT NULL,
+           at INTEGER NOT NULL,
+           read INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS messages_to ON messages(to_id, at);
+         CREATE INDEX IF NOT EXISTS messages_from ON messages(from_id, at);
          CREATE INDEX IF NOT EXISTS follows_target ON follows(target_id);
          CREATE INDEX IF NOT EXISTS games_created_at ON games(created_at);
          CREATE INDEX IF NOT EXISTS games_white ON games(white);
@@ -522,6 +532,97 @@ pub fn following(conn: &Connection, user_id: &str) -> Vec<User> {
         .filter_map(|r| r.ok())
         .collect();
     users.into_iter().map(|u| with_perfs(conn, u)).collect()
+}
+
+/// One private message; `from`/`to` are user ids.
+#[derive(Debug, Serialize)]
+pub struct Message {
+    pub id: i64,
+    pub from: String,
+    pub to: String,
+    pub text: String,
+    pub at: i64,
+}
+
+fn message_from_row(r: &Row) -> rusqlite::Result<Message> {
+    Ok(Message {
+        id: r.get(0)?,
+        from: r.get(1)?,
+        to: r.get(2)?,
+        text: r.get(3)?,
+        at: r.get(4)?,
+    })
+}
+
+pub fn send_message(conn: &Connection, from: &str, to: &str, text: &str, at: i64) -> Message {
+    conn.execute(
+        "INSERT INTO messages(from_id, to_id, text, at, read) VALUES (?1, ?2, ?3, ?4, 0)",
+        params![from, to, text, at],
+    )
+    .expect("insert message");
+    Message {
+        id: conn.last_insert_rowid(),
+        from: from.to_string(),
+        to: to.to_string(),
+        text: text.to_string(),
+        at,
+    }
+}
+
+/// Latest message per counterpart, newest first, with the unread count from them.
+pub fn conversations(conn: &Connection, user_id: &str) -> Vec<serde_json::Value> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT m.id, m.from_id, m.to_id, m.text, m.at, g.other,
+                    (SELECT COUNT(*) FROM messages u
+                     WHERE u.from_id = g.other AND u.to_id = ?1 AND u.read = 0)
+             FROM (SELECT CASE WHEN from_id = ?1 THEN to_id ELSE from_id END AS other,
+                          MAX(id) AS last_id
+                   FROM messages WHERE from_id = ?1 OR to_id = ?1
+                   GROUP BY other) g
+             JOIN messages m ON m.id = g.last_id
+             ORDER BY m.at DESC LIMIT 50",
+        )
+        .expect("prepare conversations");
+    let rows: Vec<(Message, String, i64)> = stmt
+        .query_map(params![user_id], |r| {
+            Ok((message_from_row(r)?, r.get(5)?, r.get(6)?))
+        })
+        .expect("conversations")
+        .filter_map(|r| r.ok())
+        .collect();
+    rows.into_iter()
+        .filter_map(|(last, other, unread)| {
+            let user = user(conn, &other)?;
+            Some(serde_json::json!({"user": user, "last": last, "unread": unread}))
+        })
+        .collect()
+}
+
+/// Last 100 messages between two users, oldest first.
+pub fn conversation(conn: &Connection, a: &str, b: &str) -> Vec<Message> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, from_id, to_id, text, at FROM messages
+             WHERE (from_id = ?1 AND to_id = ?2) OR (from_id = ?2 AND to_id = ?1)
+             ORDER BY at DESC, id DESC LIMIT 100",
+        )
+        .expect("prepare conversation");
+    let mut rows: Vec<Message> = stmt
+        .query_map(params![a, b], message_from_row)
+        .expect("conversation")
+        .filter_map(|r| r.ok())
+        .collect();
+    rows.reverse();
+    rows
+}
+
+pub fn mark_read(conn: &Connection, to_id: &str, from_id: &str) {
+    conn.execute(
+        "UPDATE messages SET read = 1 WHERE to_id = ?1 AND from_id = ?2 AND read = 0",
+        params![to_id, from_id],
+    )
+    .expect("mark read");
 }
 
 pub fn set_game_diffs(conn: &Connection, game_id: &str, white: i64, black: i64) {

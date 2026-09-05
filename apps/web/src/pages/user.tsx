@@ -2,7 +2,7 @@ import { GameRowItem } from '@/components/game-row';
 import { RatingChart } from '@/components/rating-chart';
 import { Shell } from '@/components/shell';
 import { follow, getUser, TourResult, unfollow } from '@/net/api';
-import { Trophy, UserMinus, UserPlus } from 'lucide-react';
+import { Mail, Trophy, UserMinus, UserPlus } from 'lucide-react';
 import { GameRow, RatingPoint, User } from '@/types';
 import { useEffect, useState } from 'react';
 import { SetupDialog } from '@/components/setup-dialog';
@@ -61,6 +61,11 @@ export function UserPage() {
 								<>
 									<Button variant="secondary" size="sm" onClick={() => setChallenge(true)}>
 										<Swords className="h-4 w-4 mr-1.5" /> Challenge
+									</Button>
+									<Button variant="outline" size="sm" asChild>
+										<Link to={`/inbox/${u.name}`} className="hover:no-underline text-foreground">
+											<Mail className="h-4 w-4 mr-1.5" /> Message
+										</Link>
 									</Button>
 									<Button
 										variant="outline"

@@ -489,6 +489,69 @@ async fn get_friends(State(state): State<Arc<AppState>>, headers: HeaderMap) -> 
     Json(friends).into_response()
 }
 
+#[derive(Deserialize)]
+struct TextBody {
+    text: String,
+}
+
+async fn post_message(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+    Json(body): Json<TextBody>,
+) -> Response {
+    let Some(me) = current_user(&state, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    let text = body.text.trim().to_string();
+    if !(1..=500).contains(&text.chars().count()) {
+        return error(StatusCode::BAD_REQUEST, "invalid text");
+    }
+    if !state.allow(&me.id, "message", 20, 600_000) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
+    }
+    let conn = state.db.lock();
+    let Some(target) = db::user_by_name(&conn, &name) else {
+        return error(StatusCode::NOT_FOUND, "not found");
+    };
+    if target.id == me.id {
+        return error(StatusCode::BAD_REQUEST, "cannot message yourself");
+    }
+    let message = db::send_message(&conn, &me.id, &target.id, &text, now_ms());
+    drop(conn);
+    state.send_to_user(
+        &target.id,
+        &json!({"t": "pm", "message": message, "from": me}),
+    );
+    Json(json!(message)).into_response()
+}
+
+/// The session's conversations, newest first.
+async fn get_messages(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    let Some(me) = current_user(&state, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    Json(db::conversations(&state.db.lock(), &me.id)).into_response()
+}
+
+/// One conversation, oldest first; reading it clears the unread count.
+async fn get_conversation(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Response {
+    let Some(me) = current_user(&state, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    let conn = state.db.lock();
+    let Some(other) = db::user_by_name(&conn, &name) else {
+        return error(StatusCode::NOT_FOUND, "not found");
+    };
+    let messages = db::conversation(&conn, &me.id, &other.id);
+    db::mark_read(&conn, &me.id, &other.id);
+    Json(messages).into_response()
+}
+
 async fn get_leaderboard(
     State(state): State<Arc<AppState>>,
     Query(q): Query<LeaderQuery>,
@@ -809,6 +872,11 @@ pub fn router(state: Arc<AppState>) -> Router {
             post(post_follow).delete(delete_follow),
         )
         .route("/api/friends", get(get_friends))
+        .route("/api/messages", get(get_messages))
+        .route(
+            "/api/messages/{name}",
+            get(get_conversation).post(post_message),
+        )
         .route("/api/leaderboard", get(get_leaderboard))
         .route("/api/games", get(get_games))
         .route("/api/tv", get(get_tv))

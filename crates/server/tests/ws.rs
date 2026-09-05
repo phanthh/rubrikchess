@@ -1344,3 +1344,91 @@ async fn per_speed_ratings() {
         .expect("json");
     assert!(empty.as_array().expect("array").is_empty());
 }
+
+/// A messages B: B's socket gets `pm`, the conversation lists A as unread,
+/// and reading it returns the text and clears the unread count.
+#[tokio::test]
+async fn private_messages() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let http = reqwest::Client::new();
+
+    let (mut a, a_sid) = connect_sid(server.port).await;
+    let (mut b, b_sid) = connect_sid(server.port).await;
+    let a_hello = wait_for(&mut a, "hello").await;
+    let b_hello = wait_for(&mut b, "hello").await;
+    let a_name = a_hello["me"]["name"].as_str().expect("name").to_string();
+    let b_name = b_hello["me"]["name"].as_str().expect("name").to_string();
+
+    let sent: Value = http
+        .post(format!("{base}/api/messages/{b_name}"))
+        .header("cookie", &a_sid)
+        .json(&json!({"text": "good game"}))
+        .send()
+        .await
+        .expect("post message")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(sent["text"], "good game");
+
+    let pm = wait_for(&mut b, "pm").await;
+    assert_eq!(pm["message"]["text"], "good game");
+    assert_eq!(pm["from"]["name"], a_name.as_str());
+
+    let convs: Value = http
+        .get(format!("{base}/api/messages"))
+        .header("cookie", &b_sid)
+        .send()
+        .await
+        .expect("conversations")
+        .json()
+        .await
+        .expect("json");
+    let convs = convs.as_array().expect("array");
+    assert_eq!(convs.len(), 1);
+    assert_eq!(convs[0]["user"]["name"], a_name.as_str());
+    assert_eq!(convs[0]["last"]["text"], "good game");
+    assert_eq!(convs[0]["unread"], json!(1));
+
+    let thread: Value = http
+        .get(format!("{base}/api/messages/{a_name}"))
+        .header("cookie", &b_sid)
+        .send()
+        .await
+        .expect("conversation")
+        .json()
+        .await
+        .expect("json");
+    let thread = thread.as_array().expect("array");
+    assert_eq!(thread.len(), 1);
+    assert_eq!(thread[0]["text"], "good game");
+
+    let convs: Value = http
+        .get(format!("{base}/api/messages"))
+        .header("cookie", &b_sid)
+        .send()
+        .await
+        .expect("conversations")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(convs[0]["unread"], json!(0));
+
+    // messaging yourself is refused; no session at all is a 401
+    let res = http
+        .post(format!("{base}/api/messages/{b_name}"))
+        .header("cookie", &b_sid)
+        .json(&json!({"text": "hi me"}))
+        .send()
+        .await
+        .expect("self message");
+    assert_eq!(res.status(), reqwest::StatusCode::BAD_REQUEST);
+    let res = http
+        .post(format!("{base}/api/messages/{b_name}"))
+        .json(&json!({"text": "hi"}))
+        .send()
+        .await
+        .expect("anon message");
+    assert_eq!(res.status(), reqwest::StatusCode::UNAUTHORIZED);
+}

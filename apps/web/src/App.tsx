@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { clockLabel } from './utils/clock';
 import { ChallengePage } from './pages/challenge';
 import { GamesPage } from './pages/games';
+import { InboxPage } from './pages/inbox';
 import { LobbyPage } from './pages/lobby';
 import { PlayersPage } from './pages/players';
 import { TournamentPage } from './pages/tournament';
@@ -37,6 +38,14 @@ function ServerNav() {
 					navigate(`/g/${msg.game_id}`);
 				} else if (msg.t === 'challenge') {
 					navigate(`/c/${msg.challenge.id}`);
+				} else if (msg.t === 'pm') {
+					if (!location.pathname.startsWith(`/inbox/${msg.from.name}`)) {
+						play('notify');
+						notify(`Message from ${msg.from.name}`, msg.message.text);
+						toast(`${msg.from.name}: ${msg.message.text.slice(0, 80)}`, {
+							action: { label: 'Reply', onClick: () => navigate(`/inbox/${msg.from.name}`) },
+						});
+					}
 				} else if (msg.t === 'challenge_in') {
 					const c = msg.challenge;
 					play('notify');
@@ -66,6 +75,8 @@ export default function App() {
 					<Route path="/puzzle" element={<PuzzlePage />} />
 					<Route path="/tv" element={<TvPage />} />
 					<Route path="/games" element={<GamesPage />} />
+					<Route path="/inbox" element={<InboxPage />} />
+					<Route path="/inbox/:name" element={<InboxPage />} />
 					<Route path="/tournaments" element={<TournamentsPage />} />
 					<Route path="/tournament/:id" element={<TournamentPage />} />
 					<Route path="/players" element={<PlayersPage />} />

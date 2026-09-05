@@ -169,6 +169,7 @@ export type LiveGame = {
 	created_at: number;
 };
 export type RatingPoint = { at: number; rating: number };
+export type Message = { id: number; from: string; to: string; text: string; at: number };
 export type Tournament = {
 	id: string;
 	name: string;
@@ -283,4 +284,5 @@ export type ServerMsg =
 	| { t: 'clock'; game_id: string; clock: ClockState }
 	| { t: 'tour'; tournament: Tournament; joined?: boolean }
 	| { t: 'tour_chat'; id: string; user: User; text: string; at: number }
+	| { t: 'pm'; message: Message; from: User }
 	| { t: 'error'; msg: string };

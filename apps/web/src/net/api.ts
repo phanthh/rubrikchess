@@ -8,6 +8,7 @@ import {
 	GameConfig,
 	GameRow,
 	LiveGame,
+	Message,
 	Move,
 	RatingPoint,
 	Status,
@@ -134,3 +135,9 @@ export const follow = (name: string) =>
 	post<{ following: boolean }>(`/follow/${encodeURIComponent(name)}`, {});
 export const unfollow = (name: string) =>
 	req<{ following: boolean }>(`/follow/${encodeURIComponent(name)}`, { method: 'DELETE' });
+
+export type Conversation = { user: User; last: Message; unread: number };
+export const conversations = () => req<Conversation[]>('/messages');
+export const thread = (name: string) => req<Message[]>(`/messages/${encodeURIComponent(name)}`);
+export const sendMessage = (name: string, text: string) =>
+	post<Message>(`/messages/${encodeURIComponent(name)}`, { text });

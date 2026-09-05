@@ -3,11 +3,11 @@ import { applyAuth } from '@/net/auth';
 import { PrefsDialog } from '@/components/prefs-dialog';
 import { RulesButton } from '@/components/rules-panel';
 import { Tooltip } from '@/components/tooltip';
-import { logout, myGames, setName } from '@/net/api';
-import { connect, useNetStore } from '@/net/ws';
+import { conversations, logout, myGames, setName } from '@/net/api';
+import { connect, onServerMsg, useNetStore } from '@/net/ws';
 import { useUi } from '@/store/ui';
 import { cn } from '@/utils/ui';
-import { ChevronDown, Settings, Swords } from 'lucide-react';
+import { ChevronDown, Mail, Settings, Swords } from 'lucide-react';
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -34,6 +34,7 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 
 	const zen = useUi((s) => s.zen);
 	const [myTurn, setMyTurn] = useState<{ id: string; opponent: string }[]>([]);
+	const [unread, setUnread] = useState(0);
 	useEffect(connect, []);
 
 	// Games waiting on me (correspondence inbox).
@@ -49,9 +50,23 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 				)
 				.catch(() => undefined);
 		};
+		const pollMail = () =>
+			!document.hidden &&
+			conversations()
+				.then((cs) => setUnread(cs.reduce((n, c) => n + c.unread, 0)))
+				.catch(() => undefined);
 		poll();
+		pollMail();
 		const t = setInterval(poll, 20_000);
-		return () => clearInterval(t);
+		const t2 = setInterval(pollMail, 30_000);
+		const unsub = onServerMsg((m) => m.t === 'pm' && pollMail());
+		window.addEventListener('rubrik:mail-read', pollMail);
+		return () => {
+			clearInterval(t);
+			clearInterval(t2);
+			unsub();
+			window.removeEventListener('rubrik:mail-read', pollMail);
+		};
 	}, [me]);
 
 	useEffect(() => {
@@ -116,6 +131,18 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 							{myTurn.length}
 						</Link>
 					)}
+					<Link
+						to="/inbox"
+						title={unread ? `${unread} unread messages` : 'Inbox'}
+						className="relative p-2 rounded text-muted-foreground hover:text-foreground hover:bg-accent"
+					>
+						<Mail className="h-4 w-4" />
+						{unread > 0 && (
+							<span className="absolute -top-0.5 -right-0.5 rounded-full bg-primary text-primary-foreground text-[10px] leading-4 min-w-4 text-center px-1">
+								{unread}
+							</span>
+						)}
+					</Link>
 					{connected && online > 0 && (
 						<span className="hidden sm:inline text-xs text-muted-foreground mr-1">
 							{online} online
