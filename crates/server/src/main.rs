@@ -38,8 +38,8 @@ pub struct AppState {
     pub gone: Mutex<HashMap<String, i64>>,
     /// Open challenge links, one per user.
     pub challenges: Mutex<HashMap<String, Challenge>>,
-    /// Chat rate limit: recent message times per (user, room).
-    pub chats: Mutex<HashMap<(String, String), VecDeque<i64>>>,
+    /// Sliding-window rate limits: recent event times per (user, key).
+    pub limits: Mutex<HashMap<(String, String), VecDeque<i64>>>,
     pub lobby_tx: broadcast::Sender<String>,
 }
 
@@ -52,9 +52,26 @@ impl AppState {
             conns: Mutex::new(HashMap::new()),
             gone: Mutex::new(HashMap::new()),
             challenges: Mutex::new(HashMap::new()),
-            chats: Mutex::new(HashMap::new()),
+            limits: Mutex::new(HashMap::new()),
             lobby_tx: broadcast::channel(64).0,
         }
+    }
+
+    /// Allow at most `max` events per `window_ms` for (user, key); counts across all tabs.
+    pub fn allow(&self, user_id: &str, key: &str, max: usize, window_ms: i64) -> bool {
+        let now = now_ms();
+        let mut limits = self.limits.lock();
+        let recent = limits
+            .entry((user_id.to_string(), key.to_string()))
+            .or_default();
+        while recent.front().is_some_and(|t| now - t >= window_ms) {
+            recent.pop_front();
+        }
+        if recent.len() >= max {
+            return false;
+        }
+        recent.push_back(now);
+        true
     }
 
     pub fn broadcast_lobby(&self) {

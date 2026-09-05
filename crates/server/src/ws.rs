@@ -270,6 +270,10 @@ fn handle(
                 err(out, "invalid clock");
                 return;
             }
+            if !state.allow(&user.id, "seek", 10, 10_000) {
+                err(out, "slow down");
+                return;
+            }
             let seek = Seek {
                 id: rand_id(8),
                 user: user.clone(),
@@ -349,6 +353,10 @@ fn handle(
             }
         }
         ClientMsg::Move { game_id, mv } => {
+            if !state.allow(&user.id, "move", 30, 5000) {
+                err(out, "slow down");
+                return;
+            }
             let Some(room) = room_of(state, &game_id) else {
                 err(out, "no such game");
                 return;
@@ -420,17 +428,8 @@ fn handle(
                 return;
             };
             let now = now_ms();
-            {
-                // Rate limit per user + room, across all their tabs.
-                let mut chats = state.chats.lock();
-                let recent = chats.entry((user.id.clone(), game_id.clone())).or_default();
-                while recent.front().is_some_and(|t| now - t >= 5000) {
-                    recent.pop_front();
-                }
-                if recent.len() >= 5 {
-                    return; // rate limited: drop silently
-                }
-                recent.push_back(now);
+            if !state.allow(&user.id, &format!("chat:{game_id}"), 5, 5000) {
+                return; // rate limited: drop silently
             }
             room.lock().broadcast(json!({
                 "t": "chat",
@@ -516,6 +515,10 @@ fn handle(
         } => {
             if !clock.valid() {
                 err(out, "invalid clock");
+                return;
+            }
+            if !state.allow(&user.id, "seek", 10, 10_000) {
+                err(out, "slow down");
                 return;
             }
             let challenge = Challenge {

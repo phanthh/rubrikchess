@@ -151,7 +151,7 @@ server→client
   {t:"chat", game_id, user: User, text, at: unix_ms}   broadcast to room; not persisted
   {t:"rematch_offer", game_id, by: Color|null}         broadcast; null = withdrawn
 ```
-Rate limit: chat max 5 msgs / 5s per user per room (drop silently beyond).
+Rate limits (per user, all tabs): chat 5 / 5s per room (dropped silently); seek+challenge 10 / 10s and move 30 / 5s (→ `error "slow down"`).
 
 ## Phase 5: pairing, takeback, challenges, tv, presence, rating history
 
