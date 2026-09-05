@@ -302,3 +302,12 @@ Other behaviour changes:
 
 ## Phase 10: move times
 Room keeps `times: Vec<i64>` = remaining ms of the mover *after* each ply (post-increment; unlimited clocks → 0). Persisted in `games.times` (JSON), included in `game_state` and `GET /api/games/:id` as `times`. Takeback truncates it with the history.
+
+## Phase 11: follow / friends
+Table `follows(user_id, target_id, created_at, PRIMARY KEY(user_id, target_id))`. Any session may follow (anon included); self-follow rejected.
+```
+POST   /api/follow/:name        → {following: true}    (404 unknown user, 400 self)
+DELETE /api/follow/:name        → {following: false}
+GET    /api/friends             → [{user: User, online: bool, playing: game_id|null}]   users I follow; playing = a live game they are in
+GET    /api/users/:name         → gains `following: bool` (current session follows them), `followers: n`
+```
