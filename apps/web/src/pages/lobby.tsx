@@ -193,7 +193,14 @@ export function LobbyPage() {
 						)}
 					</Box>
 
-					<Box title="Recent games">
+					<Box
+						title="Recent games"
+						action={
+							<Link to="/games" className="text-xs normal-case tracking-normal font-normal">
+								All
+							</Link>
+						}
+					>
 						{games.length === 0 ? <Empty>No games yet.</Empty> : games.map((g) => <GameRowItem key={g.id} g={g} />)}
 					</Box>
 				</div>

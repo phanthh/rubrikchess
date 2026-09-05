@@ -5,6 +5,7 @@ import { onServerMsg } from './net/ws';
 import { AnalysisPage } from './pages/analysis';
 import { ChallengePage } from './pages/challenge';
 import { GamePage } from './pages/game';
+import { GamesPage } from './pages/games';
 import { LobbyPage } from './pages/lobby';
 import { LocalPage } from './pages/local';
 import { PlayersPage } from './pages/players';
@@ -40,6 +41,7 @@ export default function App() {
 				<Route path="/" element={<LobbyPage />} />
 				<Route path="/local" element={<LocalPage />} />
 				<Route path="/tv" element={<TvPage />} />
+				<Route path="/games" element={<GamesPage />} />
 				<Route path="/players" element={<PlayersPage />} />
 				<Route path="/c/:id" element={<ChallengePage />} />
 				<Route path="/g/:id" element={<GamePage />} />
