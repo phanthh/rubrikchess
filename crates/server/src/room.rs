@@ -381,7 +381,11 @@ impl Room {
         let perf = crate::lobby::perf_of(&self.clock.spec());
         let wp = db::perf(&conn, &white.id, perf);
         let bp = db::perf(&conn, &black.id, perf);
-        let (wpr, bpr) = rating::update(&wp.glicko(), &bp.glicko(), score);
+        let stale_perf = |u: &db::User, p: &db::PerfRow| {
+            let since = db::last_perf_at(&conn, &u.id, perf).map_or(0, |last| at - last);
+            rating::inflate(&p.glicko(), since)
+        };
+        let (wpr, bpr) = rating::update(&stale_perf(&white, &wp), &stale_perf(&black, &bp), score);
         let rows = [
             (
                 &mut white,

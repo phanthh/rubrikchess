@@ -474,6 +474,16 @@ pub fn set_rating(conn: &Connection, id: &str, rating: &Rating, games: i64, wins
 }
 
 /// When the user last played a rated game; `None` until they play one.
+/// When this user last had a game scored for `perf` (from the rating history).
+pub fn last_perf_at(conn: &Connection, id: &str, perf: &str) -> Option<i64> {
+    conn.query_row(
+        "SELECT MAX(at) FROM rating_history WHERE user_id = ?1 AND perf = ?2 AND game_id != ''",
+        params![id, perf],
+        |r| r.get::<_, Option<i64>>(0),
+    )
+    .expect("query last_perf_at")
+}
+
 pub fn last_rated_at(conn: &Connection, id: &str) -> Option<i64> {
     conn.query_row(
         "SELECT last_rated_at FROM users WHERE id = ?1",
