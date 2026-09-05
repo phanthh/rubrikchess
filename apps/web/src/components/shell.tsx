@@ -162,6 +162,14 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 										<MenuItem
 											onClick={() => {
 												setMenu(false);
+												setAuthMode('password');
+											}}
+										>
+											Change password
+										</MenuItem>
+										<MenuItem
+											onClick={() => {
+												setMenu(false);
 												applyAuth(logout).catch((e) => toast.error(String(e)));
 											}}
 										>

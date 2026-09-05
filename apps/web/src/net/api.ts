@@ -34,6 +34,8 @@ export const login = (name: string, password: string) => post<User>('/login', { 
 
 export const logout = () => post<User>('/logout', {});
 
+export const changePassword = (old: string, next: string) => post<User>('/password', { old, new: next });
+
 export const getUser = (name: string) =>
 	req<{ user: User; games: GameRow[]; history?: RatingPoint[]; online?: boolean }>(`/users/${encodeURIComponent(name)}`);
 

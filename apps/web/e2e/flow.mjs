@@ -288,6 +288,42 @@ await S.goto(gameUrl);
 await S.waitForTimeout(1500);
 await shot(S, 'game-mobile');
 
+// accounts: register → change password → sign out → sign in
+const U = await ctx();
+await U.goto(BASE);
+await U.waitForTimeout(800);
+const uname = 'e2e_' + Math.random().toString(36).slice(2, 8);
+await U.locator('header button', { hasText: /Anon-/ }).click();
+await U.getByRole('button', { name: 'Register' }).click();
+await U.getByPlaceholder('username').fill(uname);
+await U.getByPlaceholder('password', { exact: true }).fill('secret1');
+await U.getByRole('button', { name: 'Register' }).click();
+await U.waitForTimeout(1200);
+assert((await U.locator('header button', { hasText: uname }).count()) === 1, 'registered and shown in header');
+await U.locator('header button', { hasText: uname }).click();
+await U.getByRole('button', { name: 'Change password' }).click();
+await U.getByPlaceholder('current password').fill('secret1');
+await U.getByPlaceholder('new password (6+ chars)').fill('secret2');
+await U.getByRole('button', { name: 'Change password' }).click();
+await U.waitForTimeout(600);
+assert((await U.getByText('Password changed').count()) === 1, 'password changed');
+await U.locator('header button', { hasText: uname }).click();
+await U.getByRole('button', { name: 'Sign out' }).click();
+await U.waitForTimeout(1200);
+assert((await U.locator('header button', { hasText: /Anon-/ }).count()) === 1, 'signed out to a fresh anon');
+await U.locator('header button', { hasText: /Anon-/ }).click();
+await U.getByRole('button', { name: 'Sign in' }).click();
+await U.getByPlaceholder('username').fill(uname);
+await U.getByPlaceholder('password', { exact: true }).fill('secret2');
+await U.getByRole('button', { name: 'Sign in' }).click();
+await U.waitForTimeout(1200);
+assert((await U.locator('header button', { hasText: uname }).count()) === 1, 'signed in with the new password');
+await U.goto(BASE + '/players');
+await U.getByPlaceholder('Find a player by name').fill(uname);
+await U.getByRole('button', { name: 'Go' }).click();
+await U.waitForURL(new RegExp('/u/' + uname), { timeout: 5000 });
+assert(true, 'player search navigates to profile');
+
 // 3D picking + tooltip (regression: a stray global `stop` once broke every hover)
 const L = await b.newContext({ viewport: { width: 1200, height: 800 } });
 const lp = await L.newPage();

@@ -2,15 +2,29 @@ import { Shell } from '@/components/shell';
 import { leaderboard } from '@/net/api';
 import { User } from '@/types';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export function PlayersPage() {
 	const [top, setTop] = useState<User[]>([]);
+	const [q, setQ] = useState('');
+	const navigate = useNavigate();
 	useEffect(() => {
 		leaderboard(100).then(setTop).catch(() => undefined);
 	}, []);
 	return (
 		<Shell>
+			<form
+				className="max-w-2xl mx-auto mb-4 flex gap-2"
+				onSubmit={(e) => {
+					e.preventDefault();
+					if (q.trim()) navigate(`/u/${encodeURIComponent(q.trim())}`);
+				}}
+			>
+				<input className="field flex-1" placeholder="Find a player by name" value={q} onChange={(e) => setQ(e.target.value)} />
+				<button className="field px-3 hover:bg-accent" type="submit">
+					Go
+				</button>
+			</form>
 			<div className="box max-w-2xl mx-auto">
 				<div className="box-title">Leaderboard</div>
 				{top.length === 0 ? (

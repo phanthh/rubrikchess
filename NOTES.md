@@ -140,6 +140,7 @@ POST /api/me {name}                   → User          (rename; name unique, 3.
 POST /api/register {name, password}   → User          (claims current anon user; 409 if name taken / already registered)
 POST /api/login {name, password}      → User          (new session bound to that user; 401 on fail)
 POST /api/logout                      → User          (new anon user + session)
+POST /api/password {old, new}         → User          (registered only; 401 on wrong old password; 5 / 10 min)
 GET  /api/users/:name                 → {user: User, games: GameRow[]}   (404)
 GET  /api/leaderboard?limit=20        → User[]  (registered users only, sorted by rating, rd < 200)
 GET  /api/games, /api/games/:id       → GameRow = {id, white: User, black: User, status, clock, created_at, plies, white_diff, black_diff}

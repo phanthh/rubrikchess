@@ -274,6 +274,14 @@ pub fn register_user(conn: &Connection, id: &str, name: &str, password_hash: &st
     .expect("register user");
 }
 
+pub fn set_password(conn: &Connection, id: &str, password_hash: &str) {
+    conn.execute(
+        "UPDATE users SET password_hash = ?1 WHERE id = ?2",
+        params![password_hash, id],
+    )
+    .expect("set password");
+}
+
 pub fn password_hash(conn: &Connection, id: &str) -> Option<String> {
     conn.query_row(
         "SELECT password_hash FROM users WHERE id = ?1",

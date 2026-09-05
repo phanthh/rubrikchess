@@ -305,6 +305,41 @@ async fn post_register(
     Json(json!(user)).into_response()
 }
 
+#[derive(Deserialize)]
+struct PasswordBody {
+    old: String,
+    new: String,
+}
+
+async fn post_password(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<PasswordBody>,
+) -> Response {
+    let Some(user) = current_user(&state, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    if !user.registered {
+        return error(StatusCode::BAD_REQUEST, "not registered");
+    }
+    if body.new.chars().count() < 6 {
+        return error(StatusCode::BAD_REQUEST, "password too short");
+    }
+    if !state.allow(&user.id, "password", 5, 600_000) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
+    }
+    let conn = state.db.lock();
+    let ok = db::password_hash(&conn, &user.id).is_some_and(|h| verify_password(&body.old, &h));
+    if !ok {
+        return error(StatusCode::UNAUTHORIZED, "wrong password");
+    }
+    let Some(hash) = hash_password(&body.new) else {
+        return error(StatusCode::INTERNAL_SERVER_ERROR, "hash failed");
+    };
+    db::set_password(&conn, &user.id, &hash);
+    Json(json!(user)).into_response()
+}
+
 async fn post_login(State(state): State<Arc<AppState>>, Json(body): Json<CredsBody>) -> Response {
     let conn = state.db.lock();
     let user = db::user_by_name(&conn, body.name.trim());
@@ -613,6 +648,7 @@ pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/api/me", get(get_me).post(post_me))
         .route("/api/register", post(post_register))
+        .route("/api/password", post(post_password))
         .route("/api/login", post(post_login))
         .route("/api/logout", post(post_logout))
         .route("/api/users/{name}", get(get_user))
