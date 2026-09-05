@@ -121,7 +121,14 @@ impl Game {
                 _ => false,
             })
             .ok_or(PlayError::Illegal)?;
+        self.apply(matched);
+        Ok(())
+    }
 
+    /// Apply an already-validated move (one produced by `legal_moves`/`all_moves`).
+    pub fn apply(&mut self, matched: Move) {
+        let from = matched.from();
+        let piece = self.board.cell(from).piece.expect("validated move");
         match &matched {
             Move::Step { path, .. } => {
                 let to = *path.last().unwrap();
@@ -144,7 +151,6 @@ impl Game {
         }
         self.history.push(matched);
         self.turn = self.turn.other();
-        Ok(())
     }
 
     /// Undo last move by replaying history. ponytail: O(n) replay, fine at 384 cells.

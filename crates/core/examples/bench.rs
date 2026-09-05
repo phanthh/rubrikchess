@@ -12,4 +12,13 @@ fn main() {
         t.elapsed() / n,
         total / n as usize
     );
+    for level in 2..=4 {
+        let t = std::time::Instant::now();
+        let mv = best_move(&g, level, 1);
+        println!(
+            "best_move level {level}: {:?} → {:?}",
+            t.elapsed(),
+            mv.map(|m| m.from())
+        );
+    }
 }

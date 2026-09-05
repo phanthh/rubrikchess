@@ -71,6 +71,12 @@ impl WasmGame {
         self.0.undo()
     }
 
+    /// Computer move for the side to move; `level` 1..=4. Null when the game is over.
+    #[wasm_bindgen(js_name = bestMove)]
+    pub fn best_move(&self, level: u8, seed: u32) -> Result<JsValue, JsValue> {
+        js(&best_move(&self.0, level, seed as u64))
+    }
+
     #[wasm_bindgen(js_name = historyLen)]
     pub fn history_len(&self) -> usize {
         self.0.history.len()

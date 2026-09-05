@@ -118,8 +118,8 @@ export function LobbyPage() {
 							Play with a friend
 						</Button>
 						<Button variant="outline" size="lg" className="flex-1" asChild>
-							<Link to="/local" className="text-foreground hover:no-underline">
-								Sandbox
+							<Link to="/local?ai=3" className="text-foreground hover:no-underline">
+								Play with the computer
 							</Link>
 						</Button>
 					</div>

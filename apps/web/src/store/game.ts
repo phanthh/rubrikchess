@@ -29,6 +29,7 @@ import { Vector3 } from 'three';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { startAnimation } from './animation';
+import { cancelAiMoves, requestAiMove } from '@/ai';
 
 type Threat = [CellId, CellId[]];
 
@@ -174,13 +175,17 @@ interface IGameStore {
 	watchers: number;
 	/** Board orientation; defaults to own colour online. */
 	flipped: boolean;
+	/** Local game against the engine: which colour it plays and how deep it looks. */
+	ai: { color: Color; level: number } | null;
 	// settings
 	walled: boolean;
 	debug: boolean;
 	lowPerf: boolean;
 	// actions
 	render: () => void;
-	newLocal: (config?: GameConfig) => void;
+	newLocal: (config?: GameConfig, ai?: { color: Color; level: number } | null) => void;
+	/** Ask the engine to move if it is its turn (local mode only). */
+	pokeAi: () => void;
 	select: (id: CellId | null) => void;
 	play: (move: Move) => void;
 	undo: () => void;
@@ -222,6 +227,7 @@ export const useGameStore = create(
 		presence: { white: true, black: true },
 		watchers: 0,
 		flipped: false,
+		ai: null,
 		walled: false,
 		debug: false,
 		lowPerf: false,
@@ -255,10 +261,12 @@ export const useGameStore = create(
 			});
 		},
 
-		newLocal: (config) => {
+		newLocal: (config, ai = null) => {
 			get().engine?.free();
+			cancelAiMoves();
 			set({
 				engine: new WasmGame(config ?? localConfig(get().walled)),
+				ai,
 				mode: 'local',
 				gameId: null,
 				myColor: null,
@@ -267,7 +275,7 @@ export const useGameStore = create(
 				clock: null,
 				drawOffer: null,
 				takebackOffer: null,
-				flipped: false,
+				flipped: ai?.color === 'white',
 				cursor: 0,
 				sans: [],
 				selected: null,
@@ -276,6 +284,21 @@ export const useGameStore = create(
 				endStatus: null,
 			});
 			get().render();
+			get().pokeAi();
+		},
+
+		pokeAi: () => {
+			const { ai, engine, mode, turn, status, animating } = get();
+			if (!ai || !engine || mode !== 'local' || turn !== ai.color || status.kind !== 'playing' || animating) return;
+			const asked = engine;
+			const ply = engine.historyLen();
+			const t0 = Date.now();
+			void requestAiMove(engine.state() as GameState, ai.level).then((move) => {
+				const g = get();
+				if (!move || g.engine !== asked || g.engine.historyLen() !== ply || g.animating) return;
+				// feel: never answer instantly
+				setTimeout(() => get().engine === asked && get().play(move), Math.max(0, 400 - (Date.now() - t0)));
+			});
 		},
 
 		select: (id) => {
@@ -286,6 +309,7 @@ export const useGameStore = create(
 				const piece = cells[id]?.piece;
 				if (!piece || piece.color !== turn) return;
 				if (mode === 'online' && myColor !== turn) return;
+				if (mode === 'local' && get().ai?.color === turn) return;
 			}
 			set({ selected: id });
 			get().render();
@@ -312,13 +336,17 @@ export const useGameStore = create(
 				}
 				set({ animating: false, selected: null, cursor: engine.historyLen() });
 				get().render();
+				get().pokeAi();
 			});
 		},
 
 		undo: () => {
-			const { engine, mode, animating } = get();
+			const { engine, mode, animating, ai } = get();
 			if (!engine || mode !== 'local' || animating) return;
+			cancelAiMoves();
 			engine.undo();
+			// against the engine, take back the whole exchange so it is our move again
+			if (ai && engine.historyLen() > 0 && (engine.state() as GameState).turn === ai.color) engine.undo();
 			set({ selected: null, cursor: engine.historyLen() });
 			get().render();
 		},
