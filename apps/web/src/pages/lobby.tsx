@@ -7,7 +7,7 @@ import { send, useNetStore } from '@/net/ws';
 import { variantLabel } from '@/utils/variant';
 import { GameRow, LiveGame, Seek, Tournament, User } from '@/types';
 import { TourList } from './tournaments';
-import { Friend, friends, listTournaments } from '@/net/api';
+import { bot, Friend, friends, listTournaments } from '@/net/api';
 import { onServerMsg } from '@/net/ws';
 import { clockLabel, perfOf, speedOf } from '@/utils/clock';
 import { requestNotifyPermission } from '@/utils/notify';
@@ -64,6 +64,7 @@ export function LobbyPage() {
 	const [challengeTo, setChallengeTo] = useState<string | null>(null);
 	const [tours, setTours] = useState<Tournament[]>([]);
 	const [pals, setPals] = useState<Friend[]>([]);
+	const [botUser, setBotUser] = useState<User | null>(null);
 
 	useEffect(() => {
 		const refresh = () => {
@@ -87,6 +88,9 @@ export function LobbyPage() {
 				.then((d) => setTours([...d.running, ...d.upcoming]))
 				.catch(() => undefined);
 		loadTours();
+		bot()
+			.then(setBotUser)
+			.catch(() => undefined);
 		let debounce = 0;
 		const unsub = onServerMsg((m) => {
 			if (m.t !== 'tour') return;
@@ -202,6 +206,18 @@ export function LobbyPage() {
 								Play with the computer
 							</Link>
 						</Button>
+						{botUser && (
+							<Button
+								variant="outline"
+								size="lg"
+								className="flex-1"
+								title="A rated online game against the server bot"
+								onClick={() => setChallengeTo(botUser.name)}
+							>
+								Play the bot{' '}
+								<span className="text-brag text-xs ml-1.5">{Math.round(botUser.rating)}</span>
+							</Button>
+						)}
 					</div>
 
 					<Box title={`Open seeks (${seeks.length})`}>

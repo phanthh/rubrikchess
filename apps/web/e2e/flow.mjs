@@ -309,6 +309,25 @@ await S.getByRole('button', { name: 'blitz' }).click();
 await S.waitForTimeout(600);
 assert(true, 'leaderboard perf tab');
 
+// play the bot: lobby button → challenge dialog prefilled → game starts, bot answers our move
+const R = await ctx();
+await R.goto(BASE);
+await R.waitForTimeout(800);
+await R.getByRole('button', { name: /Play the bot/ }).click();
+await R.getByRole('button', { name: 'White' }).click();
+await R.getByRole('button', { name: /Challenge Rubrik/ }).click();
+await R.waitForURL(/\/g\//, { timeout: 5000 });
+await R.waitForTimeout(1000);
+assert((await state(R)).myColor === 'white', 'bot game started as white');
+await playAny(R);
+await R.waitForFunction(() => window.__game.getState().history.length === 2, null, { timeout: 8000 });
+assert(true, 'bot replied');
+await R.getByTitle('Offer a draw').click();
+await R.getByTitle('Accept').click();
+await R.waitForTimeout(800);
+assert((await state(R)).drawOffer === null, 'bot declines draws');
+await shot(R, 'game-bot');
+
 // prefs + profile + players pages
 await S.goto(BASE + '/u/' + encodeURIComponent((await W.evaluate(() => window.__game.getState().players.white.name))));
 await S.waitForTimeout(800);

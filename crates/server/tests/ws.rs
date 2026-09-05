@@ -1488,7 +1488,9 @@ async fn blocks_gate_contact() {
     assert_eq!(e["msg"], "no such player");
     let res = tokio::time::timeout(
         std::time::Duration::from_secs(3),
-        http.get(format!("{base}/api/me")).header("cookie", &a_sid).send(),
+        http.get(format!("{base}/api/me"))
+            .header("cookie", &a_sid)
+            .send(),
     )
     .await
     .expect("server responsive")
@@ -1509,4 +1511,50 @@ async fn blocks_gate_contact() {
         .await
         .expect("post message");
     assert_eq!(res.status(), 200);
+}
+
+/// Challenging the system user pairs immediately and the bot answers on its own.
+#[tokio::test]
+async fn play_the_bot() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let bot: Value = reqwest::get(format!("{base}/api/bot"))
+        .await
+        .expect("bot")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(bot["name"], "Rubrik");
+
+    let mut a = connect(server.port).await;
+    let a_id = hello_id(&mut a).await;
+    send(
+        &mut a,
+        json!({"t":"challenge","clock":{"initial_ms":60000,"increment_ms":0},
+               "to":"Rubrik","color":"white"}),
+    )
+    .await;
+    let game_id = wait_for(&mut a, "game_start").await["game_id"]
+        .as_str()
+        .expect("game id")
+        .to_string();
+
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    assert_eq!(state["white"]["id"], a_id.as_str());
+    assert_eq!(state["black"]["name"], "Rubrik");
+
+    let game = rubrik_core::Game::new(rubrik_core::GameConfig::default());
+    let mv = game.legal_moves(9).first().expect("legal move").clone();
+    send(&mut a, json!({"t":"move","game_id":game_id,"move":mv})).await;
+    assert_eq!(wait_for(&mut a, "move").await["ply"], 1);
+    // the bot replies by itself
+    let reply = wait_for_within(&mut a, "move", 3).await;
+    assert_eq!(reply["ply"], 2);
+    assert_eq!(reply["turn"], "white");
+
+    // it declines draw offers instantly
+    send(&mut a, json!({"t":"draw","game_id":game_id,"offer":true})).await;
+    let offer = wait_for(&mut a, "draw_offer").await;
+    assert!(offer["by"].is_null(), "draw offer {offer}");
 }

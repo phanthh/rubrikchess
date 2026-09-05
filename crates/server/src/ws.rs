@@ -13,6 +13,7 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+use crate::bot;
 use crate::db;
 use crate::db::User;
 use crate::lobby::{
@@ -422,7 +423,8 @@ fn handle(
                 persist(state, &r);
             }
             arm_timeout(state.clone(), room.clone());
-            arm_first_move_expiry(state.clone(), room);
+            arm_first_move_expiry(state.clone(), room.clone());
+            bot::poke(state.clone(), room);
         }
         ClientMsg::Resign { game_id } => {
             let Some(room) = room_of(state, &game_id) else {
@@ -469,7 +471,12 @@ fn handle(
                     },
                 );
             } else {
-                r.draw_offer = if offer { Some(color) } else { None };
+                // The bot declines instantly: the offer never stands.
+                r.draw_offer = if offer && !bot_game(&r) {
+                    Some(color)
+                } else {
+                    None
+                };
                 r.broadcast(json!({"t": "draw_offer", "game_id": r.id, "by": r.draw_offer}));
             }
             persist(state, &r);
@@ -517,7 +524,7 @@ fn handle(
                     err(out, "slow down");
                     return;
                 }
-                if offer && r.rematch_offer == Some(color.other()) {
+                if offer && (r.rematch_offer == Some(color.other()) || bot_game(&r)) {
                     r.rematch_offer = None;
                     // Colours swapped, same clock and rules.
                     Some((
@@ -563,14 +570,19 @@ fn handle(
                     let msg = r.state_msg(state);
                     r.broadcast(msg);
                 } else {
-                    r.takeback_offer = if offer { Some(color) } else { None };
+                    r.takeback_offer = if offer && !bot_game(&r) {
+                        Some(color)
+                    } else {
+                        None
+                    };
                     r.broadcast(
                         json!({"t": "takeback_offer", "game_id": r.id, "by": r.takeback_offer}),
                     );
                 }
                 persist(state, &r);
             }
-            arm_timeout(state.clone(), room);
+            arm_timeout(state.clone(), room.clone());
+            bot::poke(state.clone(), room);
         }
         ClientMsg::Challenge {
             clock,
@@ -620,6 +632,29 @@ fn handle(
                     }
                 }
             };
+            // Challenging the bot pairs immediately; it has no client to accept with.
+            if to.as_ref().is_some_and(|u| bot::is_bot(&u.id)) {
+                if clock.unlimited() {
+                    err(out, "the bot needs a clock");
+                    return;
+                }
+                let opponent = to.expect("bot");
+                pair(
+                    state,
+                    Seek {
+                        id: rand_id(8),
+                        user: user.clone(),
+                        clock,
+                        walled,
+                        layout,
+                        color,
+                        setup,
+                    },
+                    opponent,
+                    SeekColor::Random,
+                );
+                return;
+            }
             let challenge = Challenge {
                 id: rand_id(8),
                 user: user.clone(),
@@ -904,5 +939,11 @@ pub fn create_game(
     state.send_to_user(&white.id, &msg);
     state.send_to_user(&black.id, &msg);
     arm_timeout(state.clone(), room.clone());
-    arm_first_move_expiry(state.clone(), room);
+    arm_first_move_expiry(state.clone(), room.clone());
+    bot::poke(state.clone(), room);
+}
+
+/// Is the bot one of the players? Its offers are answered by the server.
+fn bot_game(room: &Room) -> bool {
+    bot::is_bot(&room.white.id) || bot::is_bot(&room.black.id)
 }

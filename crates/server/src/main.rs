@@ -1,3 +1,4 @@
+mod bot;
 mod db;
 mod lobby;
 mod rating;
@@ -598,6 +599,14 @@ async fn get_conversation(
     Json(messages).into_response()
 }
 
+/// The bot's user row, so a client can show its rating next to "play the bot".
+async fn get_bot(State(state): State<Arc<AppState>>) -> Response {
+    match db::user(&state.db.lock(), db::SYSTEM_USER_ID) {
+        Some(user) => Json(user).into_response(),
+        None => error(StatusCode::NOT_FOUND, "not found"),
+    }
+}
+
 async fn get_leaderboard(
     State(state): State<Arc<AppState>>,
     Query(q): Query<LeaderQuery>,
@@ -924,6 +933,7 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/api/messages/{name}",
             get(get_conversation).post(post_message),
         )
+        .route("/api/bot", get(get_bot))
         .route("/api/leaderboard", get(get_leaderboard))
         .route("/api/games", get(get_games))
         .route("/api/tv", get(get_tv))

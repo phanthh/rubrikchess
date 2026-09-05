@@ -147,3 +147,5 @@ export const block = (name: string) =>
 	post<{ blocked: boolean }>(`/block/${encodeURIComponent(name)}`, {});
 export const unblock = (name: string) =>
 	req<{ blocked: boolean }>(`/block/${encodeURIComponent(name)}`, { method: 'DELETE' });
+
+export const bot = () => req<User>('/bot');
