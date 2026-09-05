@@ -274,3 +274,4 @@ Pairing/scoring details:
 
 Lock order (`parking_lot`, no timeouts → an inversion is a hard deadlock): **`rooms` → `tournaments` → `db`**.
 `GET /api/tournaments` takes `tournaments` before `db` like every other path.
+Challenges (not lobby seeks) may carry `setup` (16- or 48-row board-editor position, validated: 8 chars/row, piece letters or `-`, exactly one king per side) → `GameConfig.setup`; rematches keep it.

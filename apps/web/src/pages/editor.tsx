@@ -1,5 +1,6 @@
 import { Net, NetCell } from '@/components/round/net';
 import { Shell } from '@/components/shell';
+import { SetupDialog } from '@/components/setup-dialog';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { baseConfig } from '@/store/game';
@@ -22,6 +23,7 @@ export function EditorPage() {
 	const [brush, setBrush] = useState<Placement | null>({ kind: 'pawn', color: 'white' });
 	const [walled, setWalled] = useState(false);
 	const [rubrik, setRubrik] = useState(false);
+	const [challenge, setChallenge] = useState(false);
 
 	// initial geometry: cell id ↔ position, before any rotation
 	const base = useMemo(() => {
@@ -112,12 +114,20 @@ export function EditorPage() {
 						<Button variant="outline" disabled={!valid} onClick={() => navigate(`/local?ai=3&${query()}`)}>
 							Play vs computer
 						</Button>
+						<Button variant="outline" disabled={!valid} onClick={() => setChallenge(true)}>
+							Challenge a friend
+						</Button>
 						<Link to="/local" className="text-xs text-center">
 							Back to the sandbox
 						</Link>
 					</div>
 				</div>
 			</div>
+			<SetupDialog
+				mode={challenge ? 'friend' : null}
+				onClose={() => setChallenge(false)}
+				position={{ setup: toSetup(pieces), walled, layout: rubrik ? 'rubrik' : 'standard' }}
+			/>
 		</Shell>
 	);
 }

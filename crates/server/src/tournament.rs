@@ -339,8 +339,7 @@ fn tick(state: &Arc<AppState>) {
             white,
             black,
             clock,
-            walled,
-            layout,
+            crate::lobby::game_config(walled, layout, None),
             Some(tid.clone()),
         );
         if let Some(arena) = state.tournaments.lock().get_mut(&tid) {

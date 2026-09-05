@@ -19,23 +19,35 @@ const COLORS: [SeekColor, string][] = [
 	['black', 'Black'],
 ];
 
-export function SetupDialog({ mode, onClose, opponent }: { mode: SetupMode | null; onClose: () => void; opponent?: string }) {
+export function SetupDialog({
+	mode,
+	onClose,
+	opponent,
+	position,
+}: {
+	mode: SetupMode | null;
+	onClose: () => void;
+	opponent?: string;
+	/** Board-editor position: `{setup, walled, layout}`; only friend challenges support it. */
+	position?: { setup: string; walled: boolean; layout: Layout };
+}) {
 	const [mi, setMi] = useState(9); // 5 min
 	const [ii, setIi] = useState(3); // 3 s
-	const [walled, setWalled] = useState(false);
-	const [layout, setLayout] = useState<Layout>('standard');
+	const [walled, setWalled] = useState(position?.walled ?? false);
+	const [layout, setLayout] = useState<Layout>(position?.layout ?? 'standard');
 	const [to, setTo] = useState(opponent ?? '');
 	const [color, setColor] = useState<SeekColor>('random');
 	const clock = { initial_ms: MINUTES[mi] * 60_000, increment_ms: INCREMENTS[ii] * 1000 };
 
 	const submit = () => {
-		if (mode === 'friend') send({ t: 'challenge', clock, walled, color, layout, to: to.trim() || undefined });
+		if (mode === 'friend') send({ t: 'challenge', clock, walled, color, layout, to: to.trim() || undefined, setup: position?.setup });
 		else send({ t: 'seek', clock, walled, color, layout });
 		onClose();
 	};
 
 	return (
 		<Dialog open={mode !== null} onClose={onClose} title={mode === 'friend' ? 'Play with a friend' : 'Create a game'}>
+			{position && <div className="text-xs text-center text-brag">Custom position from the board editor</div>}
 			<div className="text-center">
 				<div className="text-3xl font-bold font-mono">{clockLabel(clock)}</div>
 				<div className="text-xs text-muted-foreground">

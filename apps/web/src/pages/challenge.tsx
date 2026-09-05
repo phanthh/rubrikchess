@@ -42,7 +42,7 @@ export function ChallengePage() {
 							<div className="text-center">
 								<div className="text-3xl font-bold font-mono">{clockLabel(c.clock)}</div>
 								<div className="text-xs text-muted-foreground">
-									{speedOf(c.clock)} · {variantLabel(c.walled, c.layout)} · rated
+									{speedOf(c.clock)} · {variantLabel(c.walled, c.layout)}{c.setup ? ' · custom position' : ''} · rated
 								</div>
 							</div>
 							{own ? (

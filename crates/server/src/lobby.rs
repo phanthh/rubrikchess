@@ -1,4 +1,4 @@
-use rubrik_core::{LAYOUT_RUBRIK, LAYOUT_STANDARD};
+use rubrik_core::{GameConfig, Rules, LAYOUT_RUBRIK, LAYOUT_STANDARD};
 use serde::{Deserialize, Serialize};
 
 use crate::db::User;
@@ -82,6 +82,43 @@ pub struct Seek {
     pub walled: bool,
     pub layout: Layout,
     pub color: SeekColor,
+    /// Custom start position (board-editor challenges only; lobby seeks never carry one).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup: Option<String>,
+}
+
+/// Engine config for a variant choice; `setup` None = standard start position.
+pub fn game_config(walled: bool, layout: Layout, setup: Option<String>) -> GameConfig {
+    let default = GameConfig::default();
+    GameConfig {
+        rules: Rules { walled },
+        layout: layout.faces(),
+        setup: setup.unwrap_or(default.setup),
+    }
+}
+
+/// A board-editor setup: 16 or 48 rows of 8 piece letters / `-`, exactly one king per side.
+pub fn valid_setup(setup: &str) -> bool {
+    let rows: Vec<&str> = setup.split_whitespace().collect();
+    if rows.len() != 16 && rows.len() != 48 {
+        return false;
+    }
+    let mut kings = (0, 0);
+    for row in &rows {
+        if row.chars().count() != 8 {
+            return false;
+        }
+        for ch in row.chars() {
+            match ch {
+                '-' => {}
+                'K' => kings.0 += 1,
+                'k' => kings.1 += 1,
+                c if "pnbrqxscotPNBRQXSCOT".contains(c) => {}
+                _ => return false,
+            }
+        }
+    }
+    kings == (1, 1)
 }
 
 /// Private invite: not in the lobby, joined by link.
@@ -93,6 +130,8 @@ pub struct Challenge {
     pub walled: bool,
     pub layout: Layout,
     pub color: SeekColor,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup: Option<String>,
     /// Direct challenge: only this user may join.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub to: Option<User>,
@@ -140,5 +179,26 @@ impl Lobby {
     /// `online` = users with at least one open socket.
     pub fn msg(&self, online: usize) -> serde_json::Value {
         serde_json::json!({ "t": "lobby", "seeks": self.seeks, "online": online })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn setup_validation() {
+        let mut rows = vec!["--------"; 48];
+        rows[0] = "K-------";
+        rows[47] = "-------k";
+        assert!(valid_setup(&rows.join("\n")));
+        rows[1] = "K-------"; // two white kings
+        assert!(!valid_setup(&rows.join("\n")));
+        rows[1] = "--------";
+        rows[2] = "Z-------"; // unknown piece
+        assert!(!valid_setup(&rows.join("\n")));
+        rows[2] = "--------";
+        assert!(!valid_setup(&rows[..47].join("\n"))); // wrong row count
+        assert!(valid_setup(rubrik_core::SETUP_STANDARD));
     }
 }

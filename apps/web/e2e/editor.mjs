@@ -16,6 +16,33 @@ await p.locator('button[title="King"]').nth(0).click(); await groups.nth(10).cli
 await p.locator('button[title="King"]').nth(1).click(); await groups.nth(3 * 64 + 10).click();
 await p.locator('button[title="Queen"]').nth(0).click(); await groups.nth(2 * 64 + 5).click();
 await p.screenshot({ path: `${process.env.SHOTS ?? '/tmp/shots'}/editor.png` });
+// challenge a friend from this position
+await p.getByRole('button', { name: 'Challenge a friend' }).click();
+await p.getByRole('button', { name: 'Create challenge link' }).click();
+await p.waitForURL(/\/c\//, { timeout: 5000 });
+await p.waitForTimeout(500);
+console.log('challenge shows custom position:', (await p.getByText('custom position').count()) === 1 ? 'ok' : 'FAIL');
+const q = await c.newPage();
+await q.goto(p.url());
+await q.waitForTimeout(600);
+await q.getByRole('button', { name: 'Accept' }).click().catch(() => null);
+// same session can't join its own challenge; use a fresh context
+const c2 = await b.newContext({ viewport: { width: 1400, height: 900 } });
+const r = await c2.newPage();
+await r.goto(p.url());
+await r.waitForTimeout(600);
+await r.getByRole('button', { name: 'Accept' }).click();
+await r.waitForURL(/\/g\//, { timeout: 5000 });
+await r.waitForTimeout(1200);
+const online = await r.evaluate(() => window.__game.getState().cells.filter((c) => c.piece).length);
+console.log('online game from custom position:', online === 3 ? 'ok' : `FAIL (${online})`);
+await c2.close();
+await p.goto(BASE + '/editor');
+await p.waitForTimeout(800);
+await p.getByRole('button', { name: 'Clear' }).click();
+await p.locator('button[title="King"]').nth(0).click(); await groups.nth(10).click();
+await p.locator('button[title="King"]').nth(1).click(); await groups.nth(3 * 64 + 10).click();
+await p.locator('button[title="Queen"]').nth(0).click(); await groups.nth(2 * 64 + 5).click();
 await p.getByRole('button', { name: 'Play in sandbox' }).click();
 await p.waitForURL(/\/local\?setup=/, { timeout: 5000 });
 await p.waitForTimeout(1200);

@@ -7,7 +7,7 @@ use axum::http::{header, HeaderMap};
 use axum::response::Response;
 use futures_util::{SinkExt, StreamExt};
 use parking_lot::Mutex;
-use rubrik_core::{EndReason, Game, GameConfig, Rules, Status};
+use rubrik_core::{EndReason, Game, GameConfig, Status};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
@@ -15,7 +15,9 @@ use tokio::task::JoinHandle;
 
 use crate::db;
 use crate::db::User;
-use crate::lobby::{Challenge, ClockSpec, Layout, Seek, SeekColor, CHALLENGE_TTL_MS};
+use crate::lobby::{
+    game_config, valid_setup, Challenge, ClockSpec, Layout, Seek, SeekColor, CHALLENGE_TTL_MS,
+};
 use crate::room::{arm_first_move_expiry, arm_timeout, evict_when_idle, persist, Clock, Room};
 use crate::tournament;
 use crate::{now_ms, rand_id, AppState};
@@ -83,6 +85,9 @@ enum ClientMsg {
         /// Username of a specific opponent (direct challenge).
         #[serde(default)]
         to: Option<String>,
+        /// Board-editor start position (see `lobby::valid_setup`).
+        #[serde(default)]
+        setup: Option<String>,
     },
     CancelChallenge,
     Join {
@@ -310,6 +315,7 @@ fn handle(
             let seek = Seek {
                 id: rand_id(8),
                 user: user.clone(),
+                setup: None,
                 clock,
                 walled,
                 layout,
@@ -510,8 +516,7 @@ fn handle(
                         r.black.clone(),
                         r.white.clone(),
                         r.clock.spec(),
-                        r.game.config.rules.walled,
-                        Layout::of(r.game.config.layout),
+                        r.game.config.clone(),
                     ))
                 } else {
                     r.rematch_offer = if offer { Some(color) } else { None };
@@ -521,8 +526,8 @@ fn handle(
                     None
                 }
             };
-            if let Some((white, black, clock, walled, layout)) = accepted {
-                create_game(state, white, black, clock, walled, layout, None);
+            if let Some((white, black, clock, config)) = accepted {
+                create_game(state, white, black, clock, config, None);
             }
         }
         ClientMsg::Takeback { game_id, offer } => {
@@ -565,9 +570,15 @@ fn handle(
             layout,
             color,
             to,
+            setup,
         } => {
             if !clock.valid() {
                 err(out, "invalid clock");
+                return;
+            }
+            let setup = setup.filter(|s| !s.trim().is_empty());
+            if setup.as_deref().is_some_and(|s| !valid_setup(s)) {
+                err(out, "invalid position");
                 return;
             }
             if !state.allow(&user.id, "seek", 10, 10_000) {
@@ -595,6 +606,7 @@ fn handle(
                 walled,
                 layout,
                 color,
+                setup,
                 to,
                 created_at: now_ms(),
             };
@@ -654,6 +666,7 @@ fn handle(
                     walled: c.walled,
                     layout: c.layout,
                     color: c.color,
+                    setup: c.setup,
                 },
                 user.clone(),
                 SeekColor::Random,
@@ -799,8 +812,7 @@ fn pair(state: &Arc<AppState>, seek: Seek, joiner: User, joiner_color: SeekColor
         white,
         black,
         seek.clock,
-        seek.walled,
-        seek.layout,
+        game_config(seek.walled, seek.layout, seek.setup),
         None,
     );
     state.broadcast_lobby();
@@ -812,15 +824,9 @@ pub fn create_game(
     white: User,
     black: User,
     clock: ClockSpec,
-    walled: bool,
-    layout: Layout,
+    config: GameConfig,
     tournament_id: Option<String>,
 ) {
-    let config = GameConfig {
-        rules: Rules { walled },
-        layout: layout.faces(),
-        ..Default::default()
-    };
     let now = now_ms();
     let clock = Clock::new(clock, now);
     let id = rand_id(8);
