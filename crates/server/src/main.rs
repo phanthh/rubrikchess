@@ -74,6 +74,22 @@ impl AppState {
         true
     }
 
+    /// Drop bookkeeping nobody can read any more: long-gone users and spent
+    /// rate-limit windows. Called periodically; both maps are driven by
+    /// anonymous clients and would grow without bound otherwise.
+    pub fn sweep(&self) {
+        let now = now_ms();
+        self.gone
+            .lock()
+            .retain(|_, since| now - *since < GONE_KEEP_MS);
+        self.limits.lock().retain(|_, recent| {
+            while recent.front().is_some_and(|t| now - t >= LIMIT_KEEP_MS) {
+                recent.pop_front();
+            }
+            !recent.is_empty()
+        });
+    }
+
     pub fn broadcast_lobby(&self) {
         let online = self.conns.lock().len();
         let msg = self.lobby.lock().msg(online).to_string();
@@ -88,6 +104,12 @@ impl AppState {
         }
     }
 }
+
+const SWEEP_EVERY: std::time::Duration = std::time::Duration::from_secs(600);
+/// `gone` entries this old are past any claim window.
+const GONE_KEEP_MS: i64 = 3_600_000;
+/// Longer than the widest rate-limit window.
+const LIMIT_KEEP_MS: i64 = 60_000;
 
 pub fn now_ms() -> i64 {
     std::time::SystemTime::now()
@@ -113,7 +135,12 @@ fn sid_cookie(headers: &HeaderMap) -> Option<String> {
 }
 
 fn set_cookie(sid: &str) -> String {
-    format!("sid={sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000")
+    // Behind TLS (SECURE_COOKIES=1) the session id must never travel in clear.
+    let secure = match std::env::var("SECURE_COOKIES").as_deref() {
+        Ok("1") => "; Secure",
+        _ => "",
+    };
+    format!("sid={sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000{secure}")
 }
 
 /// Fresh session bound to `user_id`; returns the `Set-Cookie` value.
@@ -123,15 +150,22 @@ fn new_session(conn: &rusqlite::Connection, user_id: &str) -> String {
     set_cookie(&sid)
 }
 
-/// Resolve the `sid` cookie to a user, creating an anonymous one if needed.
+/// Resolve the `sid` cookie to a user; `None` when there is no valid session.
+pub fn current_user(state: &AppState, headers: &HeaderMap) -> Option<User> {
+    let conn = state.db.lock();
+    let sid = sid_cookie(headers)?;
+    db::session_user(&conn, &sid)
+}
+
+/// As `current_user`, but minting an anonymous user when there is none. Only
+/// for `GET /ws` and `GET /api/me`: every other endpoint must not let an
+/// unauthenticated request write user + session rows.
 /// Returns the `Set-Cookie` value when a new session was minted.
 pub fn session(state: &AppState, headers: &HeaderMap) -> (User, Option<String>) {
-    let conn = state.db.lock();
-    if let Some(sid) = sid_cookie(headers) {
-        if let Some(u) = db::session_user(&conn, &sid) {
-            return (u, None);
-        }
+    if let Some(u) = current_user(state, headers) {
+        return (u, None);
     }
+    let conn = state.db.lock();
     let user = User::anon(rand_id(16), format!("Anon-{}", rand_id(4)));
     db::create_user(&conn, &user);
     let cookie = new_session(&conn, &user.id);
@@ -175,7 +209,9 @@ async fn post_me(
     headers: HeaderMap,
     Json(body): Json<NameBody>,
 ) -> Response {
-    let (mut user, cookie) = session(&state, &headers);
+    let Some(mut user) = current_user(&state, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
     let name = body.name.trim().to_string();
     if !valid_name(&name) {
         return error(StatusCode::BAD_REQUEST, "invalid name");
@@ -186,7 +222,7 @@ async fn post_me(
         _ => db::rename_user(&conn, &user.id, &name),
     }
     user.name = name;
-    with_cookie(cookie, json!(user))
+    Json(json!(user)).into_response()
 }
 
 #[derive(Deserialize)]
@@ -219,7 +255,9 @@ async fn post_register(
     headers: HeaderMap,
     Json(body): Json<CredsBody>,
 ) -> Response {
-    let (mut user, cookie) = session(&state, &headers);
+    let Some(mut user) = current_user(&state, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
     let name = body.name.trim().to_string();
     if !valid_name(&name) {
         return error(StatusCode::BAD_REQUEST, "invalid name");
@@ -240,7 +278,7 @@ async fn post_register(
     db::register_user(&conn, &user.id, &name, &hash);
     user.name = name;
     user.registered = true;
-    with_cookie(cookie, json!(user))
+    Json(json!(user)).into_response()
 }
 
 async fn post_login(State(state): State<Arc<AppState>>, Json(body): Json<CredsBody>) -> Response {
@@ -258,6 +296,9 @@ async fn post_login(State(state): State<Arc<AppState>>, Json(body): Json<CredsBo
 
 /// Drop the session and hand out a fresh anonymous one.
 async fn post_logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    if current_user(&state, &headers).is_none() {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    }
     let conn = state.db.lock();
     if let Some(sid) = sid_cookie(&headers) {
         db::delete_session(&conn, &sid);
@@ -443,9 +484,48 @@ async fn main() {
         .unwrap_or(3000);
     let state = Arc::new(AppState::new(&db_path));
     room::rehydrate(&state);
+    tokio::spawn({
+        let state = state.clone();
+        async move {
+            loop {
+                tokio::time::sleep(SWEEP_EVERY).await;
+                state.sweep();
+            }
+        }
+    });
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
         .await
         .expect("bind");
     tracing::info!("listening on {}", listener.local_addr().expect("addr"));
     axum::serve(listener, router(state)).await.expect("serve");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sweep_drops_stale_bookkeeping() {
+        let state = AppState::new(":memory:");
+        let now = now_ms();
+        {
+            let mut gone = state.gone.lock();
+            gone.insert("old".into(), now - GONE_KEEP_MS - 1);
+            gone.insert("fresh".into(), now);
+        }
+        state
+            .limits
+            .lock()
+            .insert(("u".into(), "k".into()), [now - LIMIT_KEEP_MS - 1].into());
+        assert!(state.allow("v", "k", 5, 10_000));
+
+        state.sweep();
+
+        let gone = state.gone.lock();
+        assert!(!gone.contains_key("old"));
+        assert!(gone.contains_key("fresh"));
+        let limits = state.limits.lock();
+        assert!(!limits.contains_key(&("u".into(), "k".into())));
+        assert_eq!(limits.len(), 1);
+    }
 }

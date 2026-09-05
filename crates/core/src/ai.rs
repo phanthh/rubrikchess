@@ -165,8 +165,8 @@ mod tests {
     #[test]
     fn greedy_takes_free_material_and_search_avoids_hanging() {
         // White queen ('Q') next to an undefended black rook: greedy grabs it.
-        let mut cfg = GameConfig::default();
-        cfg.setup = "
+        let cfg = GameConfig {
+            setup: "
 --------
 --------
 --------
@@ -185,7 +185,9 @@ mod tests {
 --------
 -----k--
 "
-        .into();
+            .into(),
+            ..Default::default()
+        };
         let g = Game::new(cfg);
         let mv = best_move(&g, 2, 1).unwrap();
         let mut g2 = g.clone();

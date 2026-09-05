@@ -164,7 +164,6 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
     }
     lobby_task.abort();
     writer.abort();
-    state.lobby.lock().remove_user(&user.id);
     let last_conn = {
         let mut conns = state.conns.lock();
         let gone = match conns.get_mut(&user.id) {
@@ -180,6 +179,10 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
         gone
     };
     drop(out_tx);
+    if last_conn {
+        // Other tabs of the same user keep their seek alive.
+        state.lobby.lock().remove_user(&user.id);
+    }
     state.broadcast_lobby();
     if last_conn {
         state.gone.lock().insert(user.id.clone(), now_ms());
@@ -253,6 +256,11 @@ fn err(out: &mpsc::UnboundedSender<String>, msg: &str) {
     send(out, json!({"t": "error", "msg": msg}));
 }
 
+/// Shared budget for the room-wide offers (draw, takeback, rematch).
+fn offer_allowed(state: &AppState, user_id: &str, game_id: &str) -> bool {
+    state.allow(user_id, &format!("offer:{game_id}"), 10, 10_000)
+}
+
 fn handle(
     state: &Arc<AppState>,
     user: &User,
@@ -320,6 +328,10 @@ fn handle(
             pair(state, seek, user.clone(), SeekColor::Random);
         }
         ClientMsg::Watch { game_id } => {
+            if !state.allow(&user.id, "watch", 20, 10_000) {
+                err(out, "slow down");
+                return;
+            }
             let Some(room) = room_of(state, &game_id) else {
                 err(out, "no such game");
                 return;
@@ -404,6 +416,10 @@ fn handle(
                 err(out, "game is over");
                 return;
             }
+            if !offer_allowed(state, &user.id, &game_id) {
+                err(out, "slow down");
+                return;
+            }
             if offer && r.draw_offer == Some(color.other()) {
                 r.end(
                     state,
@@ -454,6 +470,10 @@ fn handle(
                     err(out, "game in progress");
                     return;
                 }
+                if !offer_allowed(state, &user.id, &game_id) {
+                    err(out, "slow down");
+                    return;
+                }
                 if offer && r.rematch_offer == Some(color.other()) {
                     r.rematch_offer = None;
                     // Colours swapped, same clock and rules.
@@ -491,6 +511,10 @@ fn handle(
                 };
                 if r.game.status != Status::Playing || r.game.history.is_empty() {
                     err(out, "no takeback");
+                    return;
+                }
+                if !offer_allowed(state, &user.id, &game_id) {
+                    err(out, "slow down");
                     return;
                 }
                 if offer && r.takeback_offer == Some(color.other()) {
@@ -539,9 +563,17 @@ fn handle(
             send(out, json!({"t": "challenge", "challenge": challenge}));
         }
         ClientMsg::CancelChallenge => {
+            if !state.allow(&user.id, "cancel_challenge", 20, 10_000) {
+                err(out, "slow down");
+                return;
+            }
             state.challenges.lock().retain(|_, c| c.user.id != user.id);
         }
         ClientMsg::Join { challenge_id } => {
+            if !state.allow(&user.id, "join", 20, 10_000) {
+                err(out, "slow down");
+                return;
+            }
             let challenge = {
                 let mut challenges = state.challenges.lock();
                 match challenges.get(&challenge_id) {
@@ -623,6 +655,10 @@ fn handle(
             persist(state, &r);
         }
         ClientMsg::Moretime { game_id } => {
+            if !state.allow(&user.id, &format!("moretime:{game_id}"), 3, 60_000) {
+                err(out, "slow down");
+                return;
+            }
             let Some(room) = room_of(state, &game_id) else {
                 err(out, "no such game");
                 return;
@@ -638,6 +674,8 @@ fn handle(
                     return;
                 }
                 r.clock.add_time(color.other(), MORETIME_MS);
+                // Re-base on now (same remaining times) so clients can read `at` as "now".
+                r.clock = r.clock.normalized(now_ms());
                 r.broadcast(json!({"t": "clock", "game_id": r.id, "clock": r.clock}));
                 persist(state, &r);
             }

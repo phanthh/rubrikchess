@@ -416,7 +416,8 @@ async fn restart_rehydrates_game() {
     assert_eq!(state["game"]["turn"], "black");
     assert_eq!(state["clock"]["running"], "black");
     // downtime is not charged: black's budget is intact and its clock restarts now
-    assert_eq!(state["clock"]["black_ms"], 60000);
+    let black_ms = state["clock"]["black_ms"].as_i64().expect("black_ms");
+    assert!((59000..=60000).contains(&black_ms), "black_ms {black_ms}");
     assert!(state["clock"]["at"].as_i64().expect("at") >= restart_at);
     let white_ms = state["clock"]["white_ms"].as_i64().expect("white_ms");
     assert!((60000..=61000).contains(&white_ms), "white_ms {white_ms}");
@@ -534,10 +535,11 @@ async fn takeback() {
         (&mut b, &mut a)
     };
 
-    let game = rubrik_core::Game::new(rubrik_core::GameConfig::default());
+    let mut game = rubrik_core::Game::new(rubrik_core::GameConfig::default());
     let mv = game.legal_moves(9).first().expect("legal move").clone();
     send(white, json!({"t":"move","game_id":game_id,"move":mv})).await;
     wait_for(black, "move").await;
+    game.play(mv.clone()).expect("replay white move");
 
     send(
         white,
@@ -560,6 +562,34 @@ async fn takeback() {
     assert_eq!(state["game"]["turn"], "white");
     assert_eq!(state["clock"]["running"], "white");
     assert!(state["takeback_offer"].is_null());
+
+    // Two plies: white asks once black has already replied, so both moves go.
+    send(white, json!({"t":"move","game_id":game_id,"move":mv})).await;
+    wait_for(black, "move").await;
+    let reply = (0..game.board.cells.len() as u16)
+        .find_map(|c| game.legal_moves(c).into_iter().next())
+        .expect("black move");
+    send(black, json!({"t":"move","game_id":game_id,"move":reply})).await;
+    wait_for(white, "move").await;
+
+    send(
+        white,
+        json!({"t":"takeback","game_id":game_id,"offer":true}),
+    )
+    .await;
+    assert_eq!(wait_for(black, "takeback_offer").await["by"], "white");
+    send(
+        black,
+        json!({"t":"takeback","game_id":game_id,"offer":true}),
+    )
+    .await;
+    let state = wait_for(white, "game_state").await;
+    assert_eq!(
+        state["game"]["history"].as_array().expect("history").len(),
+        0
+    );
+    assert_eq!(state["game"]["turn"], "white");
+    assert_eq!(state["clock"]["running"], "white");
 }
 
 /// `moretime` gifts the opponent 15s; `abort` ends an unplayed game unrated.
@@ -581,7 +611,9 @@ async fn moretime_and_abort() {
     let clock = wait_for(black, "clock").await;
     assert_eq!(clock["game_id"], game_id.as_str());
     assert_eq!(clock["clock"]["black_ms"], 75000);
-    assert_eq!(clock["clock"]["white_ms"], 60000);
+    // white is running, so its remaining time is re-based on `at`
+    let white_ms = clock["clock"]["white_ms"].as_i64().expect("white_ms");
+    assert!((59000..=60000).contains(&white_ms), "white_ms {white_ms}");
     assert_eq!(clock["clock"]["running"], "white");
 
     // nothing played yet, so either player may abort; the game stays unrated

@@ -81,7 +81,10 @@ Server accepts a step move by `from`+last of `path` only (path may be empty-ish?
 
 ## Server (crates/server) — axum + tokio + rusqlite
 
-HTTP (all JSON; anon session cookie `sid` set on first request, user auto-created "Anon-xxxx"):
+HTTP (all JSON; anon session cookie `sid`, user auto-created "Anon-xxxx" — but *only* on `GET /ws` and
+`GET /api/me`; every other endpoint without a valid session → 401 `{"error":"no session"}`).
+Cookie: `sid=...; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000`, plus `Secure` when env
+`SECURE_COOKIES=1` (set in the Dockerfile; assumes TLS is terminated in front of the server):
 ```
 GET  /api/me                → {id, name}
 POST /api/me  {name}        → {id, name}
@@ -112,6 +115,9 @@ server→client
   {t:"error", msg}
 ```
 Clock object everywhere = {initial_ms, increment_ms, white_ms, black_ms, running, at}. Ended game → running:null.
+Every clock the server *sends* (`game_state`, `moretime`'s `clock`) is normalized: the running colour's
+elapsed time is folded into its remaining ms and `at = now`, so a client may read `at` as "now on arrival"
+(`move` clocks are already fresh). Room-internal semantics are unchanged.
 Color on accept: random. draw_offer broadcast to whole room; decline → by:null.
 Clock: server authoritative. white_ms/black_ms = remaining at `at`; client extrapolates for `running` colour.
 Timeout: on each move, spawn tokio timer for deadline; on fire, if ply unchanged → end game Won{other, Timeout}.
@@ -151,7 +157,11 @@ server→client
   {t:"chat", game_id, user: User, text, at: unix_ms}   broadcast to room; not persisted
   {t:"rematch_offer", game_id, by: Color|null}         broadcast; null = withdrawn
 ```
-Rate limits (per user, all tabs): chat 5 / 5s per room (dropped silently); seek+challenge 10 / 10s and move 30 / 5s (→ `error "slow down"`).
+Rate limits (per user, all tabs): chat 5 / 5s per room (dropped silently); seek+challenge 10 / 10s, move 30 / 5s,
+offers (draw+takeback+rematch, shared budget) 10 / 10s per game, moretime 3 / 60s per game,
+watch / join / cancel_challenge 20 / 10s (→ `error "slow down"`).
+`AppState.gone` + `AppState.limits` are swept every 10 min (gone entries older than 1h, spent limit windows).
+A user's lobby seek is dropped when their *last* socket closes, not on every tab close.
 
 ## Phase 5: pairing, takeback, challenges, tv, presence, rating history
 
@@ -164,7 +174,8 @@ WS additions:
 ```
 client→server
   {t:"takeback", game_id, offer: bool}   players only, game playing, history non-empty. Accept (offer:true when opponent has pending offer) →
-                                         undo until it is the *requester's* turn (1 or 2 plies), clock: running = new turn, at = now, times unchanged.
+                                         undo at least one ply, then until it is the *requester's* turn (1 or 2 plies),
+                                         clock: running = new turn, at = now, times unchanged.
                                          Server broadcasts full `game_state` (clients reload). Any move clears pending takeback offer.
   {t:"challenge", clock, walled, color}  creates in-memory challenge {id (8 chars), user, clock, walled, color, created_at}; expires after 1h; one per user (replaces).
                                          reply {t:"challenge", challenge: Challenge}

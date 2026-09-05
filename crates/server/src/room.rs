@@ -60,6 +60,17 @@ impl Clock {
         }
     }
 
+    /// Same clock re-based on `now`: the running colour's elapsed time is folded
+    /// into its remaining ms, so a client may read `at` as "now on arrival".
+    pub fn normalized(&self, now: i64) -> Clock {
+        let mut c = self.clone();
+        if let Some(color) = self.running {
+            c.set(color, self.remaining(color, now).max(0));
+        }
+        c.at = now;
+        c
+    }
+
     fn on_move(&mut self, mover: Color, now: i64) {
         let left = self.remaining(mover, now).max(0) + self.increment_ms;
         self.set(mover, left);
@@ -96,6 +107,8 @@ pub struct Room {
     pub black_diff: Option<i64>,
     /// Connections currently subscribed to this room (players included).
     pub watchers: usize,
+    /// Identity of this in-memory instance; a re-loaded room gets a new one.
+    instance: u64,
     /// Eviction loop already armed.
     evicting: bool,
     pub tx: broadcast::Sender<String>,
@@ -123,6 +136,7 @@ impl Room {
             white_diff: None,
             black_diff: None,
             watchers: 0,
+            instance: NEXT_INSTANCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             evicting: false,
             tx: broadcast::channel(64).0,
         }
@@ -162,7 +176,7 @@ impl Room {
             "game": self.game,
             "white": self.white,
             "black": self.black,
-            "clock": self.clock,
+            "clock": self.clock.normalized(now_ms()),
             "draw_offer": self.draw_offer,
             "takeback_offer": self.takeback_offer,
             "watchers": self.watchers,
@@ -224,8 +238,11 @@ impl Room {
     /// Undo plies until it is `color`'s turn again (1 or 2). The clock keeps its
     /// times and restarts for whoever is now on move.
     pub fn takeback(&mut self, color: Color) {
-        while self.game.turn != color && !self.game.history.is_empty() {
+        while !self.game.history.is_empty() {
             self.game.undo();
+            if self.game.turn == color {
+                break;
+            }
         }
         self.takeback_offer = None;
         self.draw_offer = None;
@@ -338,19 +355,33 @@ pub fn rehydrate(state: &Arc<AppState>) {
 
 const EVICT_EVERY: std::time::Duration = std::time::Duration::from_secs(600);
 
+static NEXT_INSTANCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Drop `id` from the room map, but only while it still holds *this* instance:
+/// an evicted room may have been re-loaded meanwhile (new instance, live
+/// subscribers). Returns whether it was removed.
+fn evict(state: &AppState, id: &str, instance: u64) -> bool {
+    let mut rooms = state.rooms.lock();
+    if rooms.get(id).is_some_and(|r| r.lock().instance == instance) {
+        rooms.remove(id);
+        return true;
+    }
+    false
+}
+
 /// Drop a finished room from memory once nobody is subscribed to it; a later
-/// `watch` reloads it from the DB.
+/// `watch` reloads it from the DB. One task per room instance.
 pub fn evict_when_idle(state: Arc<AppState>, room: &mut Room) {
     if room.evicting {
         return;
     }
     room.evicting = true;
-    let (id, tx) = (room.id.clone(), room.tx.clone());
+    let (id, tx, instance) = (room.id.clone(), room.tx.clone(), room.instance);
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(EVICT_EVERY).await;
             if tx.receiver_count() == 0 {
-                state.rooms.lock().remove(&id);
+                evict(&state, &id, instance);
                 return;
             }
         }
@@ -360,7 +391,7 @@ pub fn evict_when_idle(state: Arc<AppState>, room: &mut Room) {
 /// Arm the flag-fall timer for whoever is on move. Fires once; if the ply is
 /// unchanged and the game is still running, the player on move loses on time.
 pub fn arm_timeout(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
-    let (ply, color, delay) = {
+    let (ply, at, color, delay) = {
         let r = room.lock();
         if r.game.status != Status::Playing {
             return;
@@ -368,6 +399,7 @@ pub fn arm_timeout(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
         let Some(color) = r.clock.running else { return };
         (
             r.game.history.len(),
+            r.clock.at,
             color,
             r.clock.remaining(color, now_ms()).max(0) as u64,
         )
@@ -375,7 +407,7 @@ pub fn arm_timeout(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
         let mut r = room.lock();
-        if r.game.status != Status::Playing || r.game.history.len() != ply {
+        if r.game.status != Status::Playing || r.game.history.len() != ply || r.clock.at != at {
             return;
         }
         if r.clock.remaining(color, now_ms()) > 0 {
@@ -390,4 +422,56 @@ pub fn arm_timeout(state: Arc<AppState>, room: Arc<Mutex<Room>>) {
         );
         persist(&state, &r);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rubrik_core::GameConfig;
+
+    fn test_room(id: &str) -> Arc<Mutex<Room>> {
+        let user = User::anon("u".into(), "U".into());
+        let spec = ClockSpec {
+            initial_ms: 60_000,
+            increment_ms: 0,
+        };
+        Arc::new(Mutex::new(Room::new(
+            id.into(),
+            Game::new(GameConfig::default()),
+            user.clone(),
+            user,
+            Clock::new(spec, 0),
+            0,
+        )))
+    }
+
+    /// A stale eviction task must not drop a re-loaded room with the same id.
+    #[test]
+    fn evict_only_removes_its_own_instance() {
+        let state = AppState::new(":memory:");
+        let (old, new) = (test_room("g"), test_room("g"));
+        let (old_i, new_i) = (old.lock().instance, new.lock().instance);
+        assert_ne!(old_i, new_i);
+        state.rooms.lock().insert("g".into(), new);
+        assert!(!evict(&state, "g", old_i));
+        assert!(state.rooms.lock().contains_key("g"));
+        assert!(evict(&state, "g", new_i));
+        assert!(!state.rooms.lock().contains_key("g"));
+    }
+
+    #[test]
+    fn normalized_rebases_the_running_clock() {
+        let clock = Clock::new(
+            ClockSpec {
+                initial_ms: 60_000,
+                increment_ms: 0,
+            },
+            1_000,
+        );
+        let n = clock.normalized(6_000);
+        assert_eq!(n.at, 6_000);
+        assert_eq!(n.white_ms, 55_000);
+        assert_eq!(n.black_ms, 60_000);
+        assert_eq!(n.remaining(Color::White, 6_000), 55_000);
+    }
 }
