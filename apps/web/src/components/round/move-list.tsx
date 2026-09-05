@@ -6,6 +6,7 @@ import { useReplayKeys } from './use-replay-keys';
 
 export function MoveList({ className }: { className?: string }) {
 	const sans = useGameStore((s) => s.sans);
+	const marks = useGameStore((s) => s.marks);
 	const cursor = useGameStore((s) => s.cursor);
 	const status = useGameStore((s) => s.status);
 	const animating = useGameStore((s) => s.animating);
@@ -79,9 +80,9 @@ export function MoveList({ className }: { className?: string }) {
 							<span className="px-2 py-0.5 text-muted-foreground bg-muted/30 text-right">
 								{i / 2 + 1}
 							</span>
-							<Ply n={i + 1} san={w} cursor={cursor} active={active} />
+							<Ply n={i + 1} san={w + (marks[i + 1] ?? '')} cursor={cursor} active={active} />
 							{b !== undefined ? (
-								<Ply n={i + 2} san={b} cursor={cursor} active={active} />
+								<Ply n={i + 2} san={b + (marks[i + 2] ?? '')} cursor={cursor} active={active} />
 							) : (
 								<span />
 							)}

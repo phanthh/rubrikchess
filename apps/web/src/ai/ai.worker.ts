@@ -4,7 +4,8 @@ import type { GameConfig, GameState, Move } from '@/types';
 export type AiRequest =
 	| { id: number; kind: 'move'; state: GameState; level: number }
 	| { id: number; kind: 'analyse'; config: GameConfig; moves: Move[]; level: number }
-	| { id: number; kind: 'scan'; config: GameConfig; moves: Move[] };
+	| { id: number; kind: 'scan'; config: GameConfig; moves: Move[] }
+	| { id: number; kind: 'evalgame'; config: GameConfig; moves: Move[] };
 export type Analysis = { move: Move; score: number };
 /** A position where the two-ply best move wins ≥ `gain` centipawns and greedy play would miss it. */
 export type Puzzle = { ply: number; solution: Move; gain: number };
@@ -13,6 +14,8 @@ export type AiResponse = {
 	move: Move | null;
 	analysis: Analysis | null;
 	puzzles: Puzzle[];
+	/** evalgame: white-view centipawns per position, index = ply (0 = start). */
+	evals: number[];
 };
 
 const ready = init();
@@ -21,7 +24,7 @@ self.onmessage = async (e: MessageEvent<AiRequest>) => {
 	await ready;
 	const req = e.data;
 	const seed = (Date.now() ^ (req.id * 7919)) >>> 0;
-	const res: AiResponse = { id: req.id, move: null, analysis: null, puzzles: [] };
+	const res: AiResponse = { id: req.id, move: null, analysis: null, puzzles: [], evals: [] };
 	if (req.kind === 'move') {
 		const g = WasmGame.fromState(req.state);
 		res.move = g.bestMove(req.level, seed) as Move | null;
@@ -29,6 +32,17 @@ self.onmessage = async (e: MessageEvent<AiRequest>) => {
 	} else if (req.kind === 'analyse') {
 		const g = WasmGame.replay(req.config, req.moves);
 		res.analysis = g.analyse(req.level, seed) as Analysis | null;
+		g.free();
+	} else if (req.kind === 'evalgame') {
+		const g = new WasmGame(req.config);
+		const limit = Math.min(req.moves.length, 200);
+		for (let ply = 0; ply <= limit; ply++) {
+			const turn = (g.state() as GameState).turn;
+			const a = g.analyse(3, seed) as Analysis | null;
+			const score = a ? (turn === 'white' ? a.score : -a.score) : 0;
+			res.evals.push(score);
+			if (ply < limit) g.play(req.moves[ply]);
+		}
 		g.free();
 	} else {
 		const g = new WasmGame(req.config);

@@ -1,5 +1,6 @@
 import { BoardPage } from '@/components/round/board-page';
 import { EngineBox } from '@/components/round/engine-box';
+import { EvalGraph } from '@/components/round/eval-graph';
 import { MoveList } from '@/components/round/move-list';
 import { Button } from '@/components/ui/button';
 import { getGame } from '@/net/api';
@@ -69,6 +70,7 @@ export function AnalysisPage() {
 						</div>
 					</div>
 					<EngineBox />
+					<EvalGraph />
 					<MoveList className="flex-1 min-h-40 lg:min-h-0" />
 				</>
 			}

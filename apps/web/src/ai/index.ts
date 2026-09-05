@@ -37,9 +37,13 @@ export const requestAnalysis = (config: GameConfig, moves: Move[], level: number
 export const scanPuzzles = (config: GameConfig, moves: Move[]) =>
 	ask({ kind: 'scan', config, moves }).then((r) => r.puzzles);
 
+/** White-view eval per position of a whole game (two-ply search each). */
+export const evalGame = (config: GameConfig, moves: Move[]) =>
+	ask({ kind: 'evalgame', config, moves }).then((r) => r.evals);
+
 /** Drop answers for moves requested before now (new game / undo). */
 export function cancelAiMoves() {
 	for (const resolve of pending.values())
-		resolve({ id: 0, move: null, analysis: null, puzzles: [] });
+		resolve({ id: 0, move: null, analysis: null, puzzles: [], evals: [] });
 	pending.clear();
 }

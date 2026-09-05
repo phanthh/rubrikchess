@@ -187,6 +187,8 @@ interface IGameStore {
 	/** Local game against the engine: which colour it plays and how deep it looks. */
 	ai: { color: Color; level: number } | null;
 	tournamentId: string | null;
+	/** Move annotations from computer analysis, by ply number (1-based): '?', '??', '!'. */
+	marks: Record<number, string>;
 	/** Online move waiting for the player's confirmation (prefs.confirmMove). */
 	pendingMove: Move | null;
 	// settings
@@ -227,6 +229,7 @@ interface IGameStore {
 				| 'watchers'
 				| 'clock'
 				| 'pendingMove'
+				| 'marks'
 			>
 		>,
 	) => void;
@@ -261,6 +264,7 @@ export const useGameStore = create(
 		ai: null,
 		tournamentId: null,
 		pendingMove: null,
+		marks: {},
 		walled: false,
 		layout: 'standard',
 		debug: false,
@@ -429,6 +433,7 @@ export const useGameStore = create(
 				presence: msg.presence ?? { white: true, black: true },
 				watchers: msg.watchers ?? 0,
 				tournamentId: msg.tournament_id ?? null,
+				marks: {},
 				myColor,
 				flipped: sameGame ? get().flipped : myColor === 'black',
 				cursor: engine.historyLen(),
@@ -523,6 +528,7 @@ function loadLocal(engine: WasmGame, patch: Partial<IGameStore>) {
 		watchers: 0,
 		presence: { white: true, black: true },
 		tournamentId: null,
+		marks: {},
 		flipped: false,
 		cursor: engine.historyLen(),
 		sans: [],
