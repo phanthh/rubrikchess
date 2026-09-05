@@ -70,7 +70,7 @@ Cell = {pos: V3, side: V3, color: 0..5, piece: Piece|null}   // color palette id
 Move = {kind:"step", from, path: CellId[], capture: bool}
      | {kind:"rotate", from, axis:"x"|"y"|"z", sign: 1|-1}
 Status = {kind:"playing"} | {kind:"won", winner: Color, reason} | {kind:"draw", reason}
-   reason = "kingcaptured"|"resign"|"timeout"|"agreement"|"abandoned"
+   reason = "kingcaptured"|"resign"|"timeout"|"agreement"|"abandoned"|"noprogress" (100 plies without a capture → draw, decided by the engine)
 GameConfig = {layout: number[6], setup: string, rules: {walled: bool}}   // setup: 16 rows (faces 0,3) or 48 rows (all faces), '-' empty, upper=white
 Game = {config, board: {cells: Cell[384], pos_index}, turn: Color, status, history: Move[]}
 ```

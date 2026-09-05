@@ -12,6 +12,7 @@ const REASONS: Record<string, string> = {
 	timeout: 'timeout',
 	agreement: 'agreement',
 	abandoned: 'abandonment',
+	noprogress: '100 moves without a capture',
 };
 
 export function statusLabel(status: Status) {

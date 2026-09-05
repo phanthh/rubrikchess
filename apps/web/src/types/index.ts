@@ -40,7 +40,13 @@ export type Move =
 	| { kind: 'step'; from: CellId; path: CellId[]; capture: boolean }
 	| { kind: 'rotate'; from: CellId; axis: Axis; sign: number };
 
-export type EndReason = 'kingcaptured' | 'resign' | 'timeout' | 'agreement' | 'abandoned';
+export type EndReason =
+	| 'kingcaptured'
+	| 'resign'
+	| 'timeout'
+	| 'agreement'
+	| 'abandoned'
+	| 'noprogress';
 
 export type Status =
 	| { kind: 'playing' }

@@ -19,7 +19,12 @@ pub enum EndReason {
     Timeout,
     Agreement,
     Abandoned,
+    /// 100 consecutive plies without a capture (the fifty-move rule).
+    NoProgress,
 }
+
+/// Plies without a capture before the game is drawn.
+pub const NO_PROGRESS_PLIES: usize = 100;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum PlayError {
@@ -151,6 +156,16 @@ impl Game {
         }
         self.history.push(matched);
         self.turn = self.turn.other();
+        if self.status == Status::Playing
+            && self.history.len() >= NO_PROGRESS_PLIES
+            && self.history[self.history.len() - NO_PROGRESS_PLIES..]
+                .iter()
+                .all(|m| !matches!(m, Move::Step { capture: true, .. }))
+        {
+            self.status = Status::Draw {
+                reason: EndReason::NoProgress,
+            };
+        }
     }
 
     /// Undo last move by replaying history. ponytail: O(n) replay, fine at 384 cells.
@@ -200,6 +215,48 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hundred_quiet_plies_draw_the_game() {
+        // two lone kings shuffling: no capture is ever possible
+        let cfg = GameConfig {
+            setup: "
+K-------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+
+k-------
+--------
+--------
+--------
+--------
+--------
+--------
+--------
+"
+            .into(),
+            ..Default::default()
+        };
+        let mut g = Game::new(cfg);
+        let mut ply = 0;
+        while g.status == Status::Playing && ply < 200 {
+            let mv = crate::ai::best_move(&g, 1, ply as u64).expect("king can move");
+            g.play(mv).unwrap();
+            ply += 1;
+        }
+        assert_eq!(ply, NO_PROGRESS_PLIES);
+        assert_eq!(
+            g.status,
+            Status::Draw {
+                reason: EndReason::NoProgress
+            }
+        );
+    }
 
     #[test]
     fn play_validates_turn_and_legality() {
