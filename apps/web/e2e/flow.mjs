@@ -386,6 +386,12 @@ await K.waitForTimeout(800);
 assert((await K.locator('div[title]', { hasText: 'hello there' }).count()) === 1, 'thread shows the message');
 await shot(K, 'inbox');
 
+// api sanity: endpoints the UI swallows errors for must answer 200
+for (const path of ['/api/leaderboard?limit=10', '/api/leaderboard?perf=blitz', '/api/tv', '/api/games?limit=5', '/api/tournaments']) {
+	const status = await U.evaluate((p) => fetch(p).then((r) => r.status), path);
+	assert(status === 200, `${path} → ${status}`);
+}
+
 // 3D picking + tooltip (regression: a stray global `stop` once broke every hover)
 const L = await b.newContext({ viewport: { width: 1200, height: 800 } });
 const lp = await L.newPage();
