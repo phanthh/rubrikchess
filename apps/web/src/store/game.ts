@@ -187,6 +187,8 @@ interface IGameStore {
 	/** Local game against the engine: which colour it plays and how deep it looks. */
 	ai: { color: Color; level: number } | null;
 	tournamentId: string | null;
+	/** Remaining ms of the mover after each ply (server clocks); empty for local boards. */
+	times: number[];
 	/** Move annotations from computer analysis, by ply number (1-based): '?', '??', '!'. */
 	marks: Record<number, string>;
 	/** Online move waiting for the player's confirmation (prefs.confirmMove). */
@@ -230,6 +232,7 @@ interface IGameStore {
 				| 'clock'
 				| 'pendingMove'
 				| 'marks'
+				| 'times'
 			>
 		>,
 	) => void;
@@ -264,6 +267,7 @@ export const useGameStore = create(
 		ai: null,
 		tournamentId: null,
 		pendingMove: null,
+		times: [],
 		marks: {},
 		walled: false,
 		layout: 'standard',
@@ -434,6 +438,7 @@ export const useGameStore = create(
 				watchers: msg.watchers ?? 0,
 				tournamentId: msg.tournament_id ?? null,
 				marks: {},
+				times: msg.times ?? [],
 				myColor,
 				flipped: sameGame ? get().flipped : myColor === 'black',
 				cursor: engine.historyLen(),
@@ -470,10 +475,12 @@ export const useGameStore = create(
 				} catch (e) {
 					toast.error(`out of sync: ${String(e)}`);
 				}
+				const mover = msg.turn === 'white' ? 'black' : 'white';
 				set({
 					animating: false,
 					selected: null,
 					clock: msg.clock,
+					times: [...get().times, mover === 'white' ? msg.clock.white_ms : msg.clock.black_ms],
 					drawOffer: null,
 					takebackOffer: null,
 					pendingMove: null,
@@ -529,6 +536,7 @@ function loadLocal(engine: WasmGame, patch: Partial<IGameStore>) {
 		presence: { white: true, black: true },
 		tournamentId: null,
 		marks: {},
+		times: [],
 		flipped: false,
 		cursor: engine.historyLen(),
 		sans: [],

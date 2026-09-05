@@ -251,6 +251,7 @@ export type ServerMsg =
 			tournament_id?: string | null;
 			white_diff?: number | null;
 			black_diff?: number | null;
+			times?: number[];
 	  }
 	| {
 			t: 'move';

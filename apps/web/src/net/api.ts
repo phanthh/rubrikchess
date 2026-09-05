@@ -76,6 +76,7 @@ export type GameDetail = {
 	status: Status;
 	clock: ClockSpec;
 	created_at: number;
+	times?: number[];
 };
 export const getGame = (id: string) => req<GameDetail>(`/games/${encodeURIComponent(id)}`);
 

@@ -28,7 +28,10 @@ export function AnalysisPage() {
 	useEffect(() => {
 		if (!id) return;
 		getGame(id)
-			.then((g) => game().loadAnalysis(g.config, g.moves, { white: g.white, black: g.black }))
+			.then((g) => {
+				game().loadAnalysis(g.config, g.moves, { white: g.white, black: g.black });
+				game().setSetting({ times: g.times ?? [] });
+			})
 			.catch((e) => setError(String(e)));
 	}, [id]);
 
