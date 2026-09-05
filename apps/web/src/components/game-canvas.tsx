@@ -2,6 +2,12 @@ import { PerformanceMonitor, Stats } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { Suspense } from 'react';
 import { INITAL_CAM_CORD } from '../settings';
+
+/** Portrait viewports (phones) need to back off so the cube is not clipped horizontally. */
+function initialCamera() {
+	const aspect = window.innerWidth / Math.max(1, window.innerHeight * 0.55);
+	return aspect < 1 ? INITAL_CAM_CORD.clone().multiplyScalar(aspect ** -0.7) : INITAL_CAM_CORD;
+}
 import { game, useGameStore } from '../store/game';
 import { Board } from './board';
 import { Controls } from './controls';
@@ -18,7 +24,7 @@ export function GameCanvas() {
 			shadows={'soft'}
 			onPointerMissed={() => game().select(null)}
 			className="w-full flex-grow"
-			camera={{ position: INITAL_CAM_CORD, fov: 50 }}
+			camera={{ position: initialCamera(), fov: 50 }}
 			dpr={[1, 1.5]}
 		>
 			<color attach="background" args={['#101010']} />
