@@ -2,11 +2,19 @@ import { Vector3 } from 'three';
 import { PieceKind } from '@/types';
 import { vec } from './funcs';
 
-/** Cell palette index -> hex (matches rubrik-core palette). */
-export const PALETTE = ['#aaaaaa', '#444444', '#aa0000', '#0000aa', '#aaaa00', '#00aa00'];
+/** Light/dark face colours per board theme; indices 2..5 (rubrik layout) are fixed. */
+export const BOARD_THEMES = {
+	grey: ['#aaaaaa', '#444444'],
+	wood: ['#d5b48a', '#6e4a2c'],
+	blue: ['#9db5c2', '#3b5566'],
+	green: ['#b7c4a1', '#4b6b45'],
+} as const;
+export type BoardTheme = keyof typeof BOARD_THEMES;
 
-export const WHITE = PALETTE[0];
-export const BLACK = PALETTE[1];
+/** Cell palette index -> hex (matches rubrik-core palette). */
+export function palette(theme: BoardTheme): string[] {
+	return [...BOARD_THEMES[theme], '#aa0000', '#0000aa', '#aaaa00', '#00aa00'];
+}
 /** Piece colours, offset from the face colours so pieces stay visible on same-colour faces. */
 export const PIECE_WHITE = '#f2ead8';
 export const PIECE_BLACK = '#1a1a1a';

@@ -6,12 +6,14 @@ interface INetStore {
 	connected: boolean;
 	me: User | null;
 	seeks: Seek[];
+	online: number;
 }
 
 export const useNetStore = create<INetStore>(() => ({
 	connected: false,
 	me: null,
 	seeks: [],
+	online: 0,
 }));
 
 type Handler = (msg: ServerMsg) => void;
@@ -52,7 +54,7 @@ export function connect() {
 				useNetStore.setState({ me: msg.me });
 				break;
 			case 'lobby':
-				useNetStore.setState({ seeks: msg.seeks });
+				useNetStore.setState({ seeks: msg.seeks, online: msg.online ?? 0 });
 				break;
 			case 'error':
 				toast.error(msg.msg);

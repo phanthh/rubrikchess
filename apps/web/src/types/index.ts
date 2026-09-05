@@ -71,7 +71,8 @@ export type TCellState =
 	| 'capturable'
 	| 'active'
 	| 'targeted'
-	| 'targeted:path';
+	| 'targeted:path'
+	| 'lastmove';
 
 export type TCell = {
 	id: CellId;
@@ -142,6 +143,7 @@ export type LiveGame = {
 	created_at: number;
 };
 export type RatingPoint = { at: number; rating: number };
+export type Crosstable = { a_score: number; b_score: number; games: number; recent: { id: string; winner: 'a' | 'b' | null }[] };
 
 export type GameRow = {
 	id: string;
@@ -163,6 +165,8 @@ export type ClientMsg =
 	| { t: 'cancel_challenge' }
 	| { t: 'join'; challenge_id: string }
 	| { t: 'claim'; game_id: string }
+	| { t: 'abort'; game_id: string }
+	| { t: 'moretime'; game_id: string }
 	| { t: 'accept'; seek_id: string }
 	| { t: 'watch'; game_id: string }
 	| { t: 'unwatch'; game_id: string }
@@ -174,7 +178,7 @@ export type ClientMsg =
 
 export type ServerMsg =
 	| { t: 'hello'; me: User }
-	| { t: 'lobby'; seeks: Seek[] }
+	| { t: 'lobby'; seeks: Seek[]; online?: number }
 	| { t: 'game_start'; game_id: string }
 	| {
 			t: 'game_state';
@@ -212,4 +216,5 @@ export type ServerMsg =
 	| { t: 'watchers'; game_id: string; n: number }
 	| { t: 'presence'; game_id: string; white: boolean; black: boolean }
 	| { t: 'gone'; game_id: string; color: Color }
+	| { t: 'clock'; game_id: string; clock: ClockState }
 	| { t: 'error'; msg: string };

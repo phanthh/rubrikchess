@@ -1,6 +1,7 @@
 import { useAnimationStore } from '@/store/animation';
 import { useGameStore } from '@/store/game';
-import { BLACK, MAX_INT, PALETTE, WHITE } from '@/utils/consts';
+import { MAX_INT, palette } from '@/utils/consts';
+import { usePrefs } from '@/store/prefs';
 import { usePreventPropagation } from '@/utils/hooks';
 import { ThreeEvent } from '@react-three/fiber';
 import { memo, useLayoutEffect, useMemo, useRef } from 'react';
@@ -19,12 +20,13 @@ type CellProps = {
 
 const cache = new Map<string, Texture>();
 
-const INDICATED = ['reachable', 'capturable', 'targeted', 'targeted:path'];
+const INDICATED = ['reachable', 'capturable', 'targeted', 'targeted:path', 'lastmove'];
 
 export const Cell = memo(({ cell, onPick }: CellProps) => {
 	const ref = useRef<Mesh>(null);
 	const debug = useGameStore((store) => store.debug);
 	const flipped = useGameStore((store) => store.flipped);
+	const theme = usePrefs((s) => s.boardTheme);
 	const preventProgagationProps = usePreventPropagation();
 
 	useLayoutEffect(() => {
@@ -48,7 +50,7 @@ export const Cell = memo(({ cell, onPick }: CellProps) => {
 	};
 
 	const texture = useMemo(() => {
-		const color = PALETTE[cell.color];
+		const color = palette(theme)[cell.color];
 		// plain cells share one texture per colour; debug labels need one per cell
 		const cacheKey = debug ? `${cell.id}-${color}-debug` : color;
 		const cached = cache.get(cacheKey);
@@ -65,14 +67,14 @@ export const Cell = memo(({ cell, onPick }: CellProps) => {
 		if (debug) {
 			const fontSize = 70;
 			ctx.font = `Bold ${fontSize}px Arial`;
-			ctx.fillStyle = color === BLACK ? WHITE : BLACK;
+			ctx.fillStyle = cell.color === 1 ? '#ffffff' : '#000000';
 			ctx.fillText(String(cell.id), 0, fontSize);
 		}
 		const texture = new Texture(canvas);
 		texture.needsUpdate = true;
 		cache.set(cacheKey, texture);
 		return texture;
-	}, [cell.id, cell.color, debug]);
+	}, [cell.id, cell.color, debug, theme]);
 
 	return (
 		<mesh

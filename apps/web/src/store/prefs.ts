@@ -1,3 +1,4 @@
+import { BoardTheme } from '@/utils/consts';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -12,6 +13,8 @@ interface IPrefs {
 	clockBar: boolean;
 	showThreats: boolean;
 	theme: 'dark' | 'light';
+	boardTheme: BoardTheme;
+	highlightLastMove: boolean;
 	set: (patch: Partial<Omit<IPrefs, 'set'>>) => void;
 }
 
@@ -26,6 +29,8 @@ export const usePrefs = create<IPrefs>()(
 			clockBar: true,
 			showThreats: true,
 			theme: 'dark',
+			boardTheme: 'grey',
+			highlightLastMove: true,
 			set: (patch) => set(patch),
 		}),
 		{ name: 'rubrik-prefs' },

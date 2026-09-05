@@ -16,6 +16,21 @@ const CL_R = C_S / 2;
 
 export const CellIndicator = memo(({ cell }: CellIndicatorProps) => {
 	const lowPerf = useGameStore((store) => store.lowPerf);
+	if (cell.state === 'lastmove') return <LastMove />;
+	return <Indicator cell={cell} lowPerf={lowPerf} />;
+});
+
+/** Flat translucent tint on the from/to cells of the last move (not interactive). */
+function LastMove() {
+	return (
+		<mesh position={[0, 0, 0.05]}>
+			<planeGeometry args={[C_S, C_S]} />
+			<meshBasicMaterial color="#ccaa22" transparent opacity={0.45} depthWrite={false} />
+		</mesh>
+	);
+}
+
+function Indicator({ cell, lowPerf }: CellIndicatorProps & { lowPerf: boolean }) {
 	const rotate = cell.move?.kind === 'rotate';
 	const [color, props] = useInteractiveMesh(
 		{
@@ -62,4 +77,4 @@ export const CellIndicator = memo(({ cell }: CellIndicatorProps) => {
 			)}
 		</mesh>
 	);
-});
+}

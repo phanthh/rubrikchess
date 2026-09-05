@@ -135,6 +135,20 @@ await W.waitForTimeout(1200);
 const s2 = await state(W);
 assert(s2.myColor === 'black' && s2.plies === 0, `rematch started with swapped colours (${s2.myColor})`);
 
+// moretime: W (now black) gives 15s → opponent (white) clock grows
+const before = (await state(W)).clock.white_ms;
+await W.getByTitle('Give your opponent 15 seconds').click();
+await W.waitForTimeout(500);
+const after = (await state(W)).clock.white_ms;
+assert(after - before >= 14_000, `moretime added 15s (${after - before})`);
+// abort before ply 2
+await W.getByTitle('Abort game').click();
+await W.waitForTimeout(600);
+const ab = await state(W);
+assert(ab.status.kind === 'draw' && ab.status.reason === 'abandoned', `abort → unrated draw (${JSON.stringify(ab.status)})`);
+await shot(W, 'game-aborted');
+assert((await S.getByText(/\d+ online/).count()) === 1, 'online count in header');
+
 // challenge flow
 const C = await ctx();
 await C.goto(BASE);

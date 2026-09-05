@@ -1,4 +1,4 @@
-import { Challenge, ClockSpec, GameConfig, GameRow, LiveGame, Move, RatingPoint, Status, User } from '@/types';
+import { Challenge, ClockSpec, Crosstable, GameConfig, GameRow, LiveGame, Move, RatingPoint, Status, User } from '@/types';
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
 	const res = await fetch(`/api${path}`, {
@@ -57,3 +57,6 @@ export type GameDetail = {
 	created_at: number;
 };
 export const getGame = (id: string) => req<GameDetail>(`/games/${encodeURIComponent(id)}`);
+
+export const crosstable = (a: string, b: string) =>
+	req<Crosstable>(`/crosstable?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`);

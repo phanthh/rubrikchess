@@ -92,6 +92,12 @@ function computeCells(
 	const states: TCellState[] = raw.map(() => 'normal');
 	const moves: (Move | undefined)[] = raw.map(() => undefined);
 
+	const last = view.history[view.history.length - 1];
+	if (last && prefs().highlightLastMove) {
+		states[last.from] = 'lastmove';
+		if (last.kind === 'step') states[last.path[last.path.length - 1]] = 'lastmove';
+	}
+
 	for (const [id, path] of threats) {
 		for (const p of path) states[p] = 'targeted:path';
 		states[id] = 'targeted';
@@ -200,7 +206,7 @@ interface IGameStore {
 	setDrawOffer: (by: Color | null) => void;
 	setSetting: (
 		patch: Partial<
-			Pick<IGameStore, 'walled' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers' | 'zen'>
+			Pick<IGameStore, 'walled' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers' | 'zen' | 'clock'>
 		>,
 	) => void;
 }
@@ -516,7 +522,9 @@ function runMove(move: Move, done: () => void) {
 	startAnimation({ cells: ids, cuboids, config: { type: 'rotate', axis, angle }, onEnd: done });
 }
 
-usePrefs.subscribe((s, prev) => s.showThreats !== prev.showThreats && game().render());
+usePrefs.subscribe(
+	(s, prev) => (s.showThreats !== prev.showThreats || s.highlightLastMove !== prev.highlightLastMove) && game().render(),
+);
 
 // Debug handle: `__game.getState()` in devtools.
 (globalThis as unknown as { __game: typeof useGameStore }).__game = useGameStore;

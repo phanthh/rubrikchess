@@ -5,7 +5,7 @@ import { prefs } from '@/store/prefs';
 import { Color } from '@/types';
 import { moveText } from '@/utils/notation';
 import { cn, statusLabel } from '@/utils/ui';
-import { Check, Download, Flag, RefreshCw, Undo2, X } from 'lucide-react';
+import { Check, Download, Flag, Plus, RefreshCw, Undo2, X } from 'lucide-react';
 import { ReactNode, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
@@ -254,8 +254,20 @@ export function RoundControls({
 					>
 						½
 					</IconBtn>
-					<IconBtn title="Resign" onClick={() => (prefs().confirmResign ? setConfirm('resign') : act('resign'))}>
-						<Flag className="h-4 w-4" />
+					{history.length < 2 ? (
+						<IconBtn title="Abort game" onClick={() => send({ t: 'abort', game_id: gameId })}>
+							<X className="h-4 w-4" />
+						</IconBtn>
+					) : (
+						<IconBtn title="Resign" onClick={() => (prefs().confirmResign ? setConfirm('resign') : act('resign'))}>
+							<Flag className="h-4 w-4" />
+						</IconBtn>
+					)}
+					<IconBtn title="Give your opponent 15 seconds" onClick={() => send({ t: 'moretime', game_id: gameId })}>
+						<span className="flex items-center text-xs font-semibold">
+							<Plus className="h-3 w-3" />
+							15s
+						</span>
 					</IconBtn>
 					{flip}
 					{download}

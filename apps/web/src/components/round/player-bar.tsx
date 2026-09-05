@@ -49,10 +49,12 @@ export function PlayerBar({
 					<RatingDiff diff={diff} />
 					{myColor === color && <span className="text-xs text-muted-foreground">(you)</span>}
 				</div>
-				<div className="text-[11px] text-muted-foreground flex items-center gap-1">
-					<span className={cn('h-1.5 w-1.5 rounded-full', online ? 'bg-secondary' : 'bg-destructive')} />
-					{online ? (toMove ? 'thinking…' : 'online') : 'disconnected'}
-				</div>
+				{!over && (
+					<div className="text-[11px] text-muted-foreground flex items-center gap-1">
+						<span className={cn('h-1.5 w-1.5 rounded-full', online ? 'bg-secondary' : 'bg-destructive')} />
+						{online ? (toMove ? 'thinking…' : 'online') : 'disconnected'}
+					</div>
+				)}
 			</div>
 			{ms !== null && <Clock ms={ms} running={toMove} initial={initial} over={over} />}
 		</div>

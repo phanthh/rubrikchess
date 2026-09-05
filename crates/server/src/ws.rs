@@ -163,14 +163,13 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
         unwatch(&state, &game_id);
     }
     lobby_task.abort();
-    drop(out_tx);
     writer.abort();
     state.lobby.lock().remove_user(&user.id);
     let last_conn = {
         let mut conns = state.conns.lock();
         let gone = match conns.get_mut(&user.id) {
             Some(list) => {
-                list.retain(|tx| !tx.is_closed());
+                list.retain(|tx| !tx.same_channel(&out_tx));
                 list.is_empty()
             }
             None => false,
@@ -180,6 +179,7 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
         }
         gone
     };
+    drop(out_tx);
     state.broadcast_lobby();
     if last_conn {
         state.gone.lock().insert(user.id.clone(), now_ms());

@@ -1,6 +1,7 @@
 import { Dialog } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { ClockTenths, usePrefs } from '@/store/prefs';
+import { BOARD_THEMES, BoardTheme } from '@/utils/consts';
 import { play } from '@/utils/sound';
 import { ReactNode } from 'react';
 
@@ -26,6 +27,22 @@ export function PrefsDialog({ open, onClose }: { open: boolean; onClose: () => v
 					<option value="dark">Dark</option>
 					<option value="light">Light</option>
 				</select>
+			</Row>
+			<Row label="Board colours">
+				<select
+					className="field capitalize"
+					value={p.boardTheme}
+					onChange={(e) => p.set({ boardTheme: e.target.value as BoardTheme })}
+				>
+					{(Object.keys(BOARD_THEMES) as BoardTheme[]).map((t) => (
+						<option key={t} value={t}>
+							{t}
+						</option>
+					))}
+				</select>
+			</Row>
+			<Row label="Highlight last move">
+				<Switch checked={p.highlightLastMove} onCheckedChange={(highlightLastMove) => p.set({ highlightLastMove })} />
 			</Row>
 			<Row label="Sound">
 				<Switch

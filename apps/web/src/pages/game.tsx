@@ -1,5 +1,6 @@
 import { BoardPage } from '@/components/round/board-page';
 import { Chat, ChatLine } from '@/components/round/chat';
+import { Crosstable } from '@/components/round/crosstable';
 import { useClock } from '@/components/round/use-clock';
 import { MoveList } from '@/components/round/move-list';
 import { PlayerBar } from '@/components/round/player-bar';
@@ -79,6 +80,9 @@ export function GamePage() {
 					g.setSetting({ presence: { white: msg.white, black: msg.black } });
 					if (msg.white && msg.black) setGone(null);
 					break;
+				case 'clock':
+					g.setSetting({ clock: msg.clock });
+					break;
 				case 'gone':
 					setGone(msg.color);
 					sys(`${side(msg.color)} left the game`);
@@ -125,6 +129,9 @@ export function GamePage() {
 							Game <span className="font-mono">{id}</span>
 						</div>
 					</div>
+					{id && players.white && players.black && (
+						<Crosstable white={players.white} black={players.black} gameId={id} />
+					)}
 					{id && <Chat gameId={id} lines={chat} watchers={watchers} className="flex-1" />}
 				</>
 			}

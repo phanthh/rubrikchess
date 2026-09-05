@@ -23,6 +23,7 @@ const NAV = [
 export function Shell({ children, fill }: { children: ReactNode; fill?: boolean }) {
 	const me = useNetStore((s) => s.me);
 	const connected = useNetStore((s) => s.connected);
+	const online = useNetStore((s) => s.online);
 	const [prefsOpen, setPrefsOpen] = useState(false);
 	const [authMode, setAuthMode] = useState<AuthMode | null>(null);
 	const [menu, setMenu] = useState(false);
@@ -83,6 +84,9 @@ export function Shell({ children, fill }: { children: ReactNode; fill?: boolean 
 					))}
 				</nav>
 				<div className="ml-auto flex items-center gap-1">
+					{connected && online > 0 && (
+						<span className="hidden sm:inline text-xs text-muted-foreground mr-1">{online} online</span>
+					)}
 					<span
 						title={connected ? 'connected' : 'reconnecting…'}
 						className={cn(
