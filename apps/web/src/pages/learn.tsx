@@ -57,6 +57,12 @@ export function LearnPage() {
 					<div className="box p-3 text-sm flex flex-col gap-2">
 						<div className="font-semibold">Learn the pieces</div>
 						<p className="text-xs text-muted-foreground">
+							The board is a cube: six 8×8 faces. White starts on the top face, black on the bottom;
+							sliding pieces walk straight over an edge onto the next face, and the tesseract can
+							rotate a whole slice of the cube. Toggle the 2D net (top-right of the board) to see
+							all six faces at once.
+						</p>
+						<p className="text-xs text-muted-foreground">
 							Green cells are where the {PIECE_NAMES[kind].toLowerCase()} may go; red is a capture.
 							Play the move and click the piece again to keep exploring
 							{selected === null && ' (click it to re-select)'}.
