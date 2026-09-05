@@ -160,7 +160,7 @@ export function TournamentPage() {
 								onSend={(text) => send({ t: 'tour_chat', id, text })}
 							/>
 						)}
-						<section className="box self-start">
+						<section className="box">
 							<div className="box-title">Games</div>
 							{data.games.length === 0 && (
 								<div className="p-4 text-sm text-muted-foreground">No games yet.</div>
