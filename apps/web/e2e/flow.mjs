@@ -348,6 +348,18 @@ await U.getByRole('button', { name: 'Go' }).click();
 await U.waitForURL(new RegExp('/u/' + uname), { timeout: 5000 });
 assert(true, 'player search navigates to profile');
 
+// follow: U follows the registered opponent-less player K; lobby shows Friends box
+await U.goto(BASE + '/u/' + encodeURIComponent(kName));
+await U.waitForTimeout(800);
+await U.getByRole('button', { name: 'Follow' }).click();
+await U.waitForTimeout(500);
+assert((await U.getByRole('button', { name: 'Unfollow' }).count()) === 1, 'follow toggles');
+assert((await U.getByText(/1 follower/).count()) === 1, 'follower count');
+await U.goto(BASE);
+await U.waitForTimeout(1200);
+assert((await U.locator('section', { hasText: 'Friends' }).getByText(kName).count()) >= 1, 'lobby friends box lists them');
+await shot(U, 'lobby-friends');
+
 // 3D picking + tooltip (regression: a stray global `stop` once broke every hover)
 const L = await b.newContext({ viewport: { width: 1200, height: 800 } });
 const lp = await L.newPage();

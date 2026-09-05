@@ -377,7 +377,11 @@ async fn post_logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> 
     with_cookie(Some(cookie), json!(user))
 }
 
-async fn get_user(State(state): State<Arc<AppState>>, Path(name): Path<String>) -> Response {
+async fn get_user(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Response {
     let conn = state.db.lock();
     let Some(user) = db::user_by_name(&conn, &name) else {
         return error(StatusCode::NOT_FOUND, "not found");
@@ -400,7 +404,10 @@ async fn get_user(State(state): State<Arc<AppState>>, Path(name): Path<String>) 
             }))
         })
         .collect();
+    let followers = db::follower_count(&conn, &user.id);
     drop(conn);
+    let following = current_user(&state, &headers)
+        .is_some_and(|me| db::is_following(&state.db.lock(), &me.id, &user.id));
     let online = state.conns.lock().contains_key(&user.id);
     Json(json!({
         "user": user,
@@ -408,8 +415,78 @@ async fn get_user(State(state): State<Arc<AppState>>, Path(name): Path<String>) 
         "history": history,
         "online": online,
         "tournaments": tournaments,
+        "following": following,
+        "followers": followers,
     }))
     .into_response()
+}
+
+async fn post_follow(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Response {
+    set_follow(&state, &headers, &name, true)
+}
+
+async fn delete_follow(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Response {
+    set_follow(&state, &headers, &name, false)
+}
+
+fn set_follow(state: &AppState, headers: &HeaderMap, name: &str, on: bool) -> Response {
+    let Some(me) = current_user(state, headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    if !state.allow(&me.id, "follow", 30, 600_000) {
+        return error(StatusCode::TOO_MANY_REQUESTS, "slow down");
+    }
+    let conn = state.db.lock();
+    let Some(target) = db::user_by_name(&conn, name) else {
+        return error(StatusCode::NOT_FOUND, "not found");
+    };
+    if target.id == me.id {
+        return error(StatusCode::BAD_REQUEST, "cannot follow yourself");
+    }
+    match on {
+        true => db::follow(&conn, &me.id, &target.id, now_ms()),
+        false => db::unfollow(&conn, &me.id, &target.id),
+    }
+    Json(json!({ "following": on })).into_response()
+}
+
+/// Users the session follows, with presence and the live game they are in.
+async fn get_friends(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
+    let Some(me) = current_user(&state, &headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    // One pass over the live rooms: user id → the game they play right now.
+    let rooms: Vec<_> = state.rooms.lock().values().cloned().collect();
+    let mut playing: HashMap<String, String> = HashMap::new();
+    for room in &rooms {
+        let r = room.lock();
+        if r.game.status != rubrik_core::Status::Playing {
+            continue;
+        }
+        playing.insert(r.white.id.clone(), r.id.clone());
+        playing.insert(r.black.id.clone(), r.id.clone());
+    }
+    let follows = db::following(&state.db.lock(), &me.id);
+    let conns = state.conns.lock();
+    let friends: Vec<serde_json::Value> = follows
+        .into_iter()
+        .map(|user| {
+            json!({
+                "online": conns.contains_key(&user.id),
+                "playing": playing.get(&user.id),
+                "user": user,
+            })
+        })
+        .collect();
+    Json(friends).into_response()
 }
 
 async fn get_leaderboard(
@@ -718,6 +795,11 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/login", post(post_login))
         .route("/api/logout", post(post_logout))
         .route("/api/users/{name}", get(get_user))
+        .route(
+            "/api/follow/{name}",
+            post(post_follow).delete(delete_follow),
+        )
+        .route("/api/friends", get(get_friends))
         .route("/api/leaderboard", get(get_leaderboard))
         .route("/api/games", get(get_games))
         .route("/api/tv", get(get_tv))

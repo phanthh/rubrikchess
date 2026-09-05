@@ -9,7 +9,7 @@ Chess, but on a Rubik's cube. 8×8×6 board, 11 piece types, slice rotations. A 
 - **Play**: quick-pairing grid, custom seeks (bullet → classical, days-per-move correspondence, unlimited), walled + rubrik-colour variants, colour choice, challenge links and direct challenges by username, custom start positions (board editor) for friend games
 - **Round**: server-authoritative clocks (tenths, low-time cues, per-second ticks), takeback / draw / resign / abort / +15s, rematch, chat with history, spectators + watcher count, opponent-gone claim, first-move expiry, 100-quiet-plies draw
 - **Arena tournaments**: hourly system arenas + user-created ones, auto pairing, live standings, results on profiles
-- **Accounts**: anonymous first, register to keep your Glicko-2 rating; profiles with rating chart, crosstable, tournament results; leaderboard, games archive, player search
+- **Accounts**: anonymous first, register to keep your Glicko-2 rating; profiles with rating chart, crosstable, tournament results, follow / friends-online box; leaderboard, games archive, player search
 - **Learn & improve**: interactive piece tutorial, play vs computer (4 levels, off-thread), tactics puzzles mined from played games, analysis board with branching, engine eval, full-game computer analysis (eval graph, blunder marks, move times), TV / watch page with live mini-boards
 - **UI**: 3D cube or unfolded 2D net, dark/light themes, board colour sets, sounds, desktop notifications, keyboard navigation, zen mode, mobile layout
 

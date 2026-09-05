@@ -1,8 +1,8 @@
 import { GameRowItem } from '@/components/game-row';
 import { RatingChart } from '@/components/rating-chart';
 import { Shell } from '@/components/shell';
-import { getUser, TourResult } from '@/net/api';
-import { Trophy } from 'lucide-react';
+import { follow, getUser, TourResult, unfollow } from '@/net/api';
+import { Trophy, UserMinus, UserPlus } from 'lucide-react';
 import { GameRow, RatingPoint, User } from '@/types';
 import { useEffect, useState } from 'react';
 import { SetupDialog } from '@/components/setup-dialog';
@@ -19,6 +19,8 @@ export function UserPage() {
 		history?: RatingPoint[];
 		online?: boolean;
 		tournaments?: TourResult[];
+		following?: boolean;
+		followers?: number;
 	} | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [challenge, setChallenge] = useState(false);
@@ -51,12 +53,38 @@ export function UserPage() {
 										className={`h-1.5 w-1.5 rounded-full ${data.online ? 'bg-secondary' : 'bg-muted-foreground/50'}`}
 									/>
 									{data.online ? 'Online' : 'Offline'} · {u.registered ? 'registered' : 'anonymous'}
+									{(data.followers ?? 0) > 0 &&
+										` · ${data.followers} follower${data.followers === 1 ? '' : 's'}`}
 								</div>
 							</div>
 							{me && me.id !== u.id && (
-								<Button variant="secondary" size="sm" onClick={() => setChallenge(true)}>
-									<Swords className="h-4 w-4 mr-1.5" /> Challenge
-								</Button>
+								<>
+									<Button variant="secondary" size="sm" onClick={() => setChallenge(true)}>
+										<Swords className="h-4 w-4 mr-1.5" /> Challenge
+									</Button>
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() =>
+											(data.following ? unfollow(u.name) : follow(u.name))
+												.then((r) =>
+													setData({
+														...data,
+														following: r.following,
+														followers: (data.followers ?? 0) + (r.following ? 1 : -1),
+													}),
+												)
+												.catch(() => undefined)
+										}
+									>
+										{data.following ? (
+											<UserMinus className="h-4 w-4 mr-1.5" />
+										) : (
+											<UserPlus className="h-4 w-4 mr-1.5" />
+										)}
+										{data.following ? 'Unfollow' : 'Follow'}
+									</Button>
+								</>
 							)}
 							<div className="ml-auto text-right">
 								<div className="text-3xl font-bold text-brag leading-none">

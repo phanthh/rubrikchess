@@ -7,7 +7,7 @@ import { send, useNetStore } from '@/net/ws';
 import { variantLabel } from '@/utils/variant';
 import { GameRow, LiveGame, Seek, Tournament, User } from '@/types';
 import { TourList } from './tournaments';
-import { listTournaments } from '@/net/api';
+import { Friend, friends, listTournaments } from '@/net/api';
 import { onServerMsg } from '@/net/ws';
 import { clockLabel, speedOf } from '@/utils/clock';
 import { requestNotifyPermission } from '@/utils/notify';
@@ -61,12 +61,17 @@ export function LobbyPage() {
 	const [live, setLive] = useState<LiveGame[]>([]);
 	const [top, setTop] = useState<User[]>([]);
 	const [setup, setSetup] = useState<SetupMode | null>(null);
+	const [challengeTo, setChallengeTo] = useState<string | null>(null);
 	const [tours, setTours] = useState<Tournament[]>([]);
+	const [pals, setPals] = useState<Friend[]>([]);
 
 	useEffect(() => {
 		const refresh = () => {
 			listGames(12)
 				.then(setGames)
+				.catch(() => undefined);
+			friends()
+				.then(setPals)
 				.catch(() => undefined);
 			liveGames()
 				.then(setLive)
@@ -307,6 +312,39 @@ export function LobbyPage() {
 						)}
 					</Box>
 
+					{pals.length > 0 && (
+						<Box title="Friends">
+							{pals.map((f) => (
+								<div key={f.user.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+									<span
+										className={cn(
+											'h-1.5 w-1.5 rounded-full',
+											f.online ? 'bg-secondary' : 'bg-muted-foreground/40',
+										)}
+									/>
+									<Link to={`/u/${f.user.name}`} className="text-foreground truncate flex-1">
+										{f.user.name}
+									</Link>
+									<span className="text-brag text-xs">{Math.round(f.user.rating)}</span>
+									{f.playing ? (
+										<Link to={`/g/${f.playing}`} className="text-xs">
+											watch
+										</Link>
+									) : (
+										f.online && (
+											<button
+												className="text-xs text-primary hover:underline"
+												onClick={() => setChallengeTo(f.user.name)}
+											>
+												challenge
+											</button>
+										)
+									)}
+								</div>
+							))}
+						</Box>
+					)}
+
 					<Box
 						title="Tournaments"
 						action={
@@ -355,6 +393,12 @@ export function LobbyPage() {
 				</div>
 			</div>
 			<SetupDialog mode={setup} onClose={() => setSetup(null)} />
+			<SetupDialog
+				key={challengeTo ?? ''}
+				mode={challengeTo ? 'friend' : null}
+				onClose={() => setChallengeTo(null)}
+				opponent={challengeTo ?? undefined}
+			/>
 		</Shell>
 	);
 }

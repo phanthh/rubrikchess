@@ -1159,3 +1159,103 @@ async fn my_games_and_setup_limits() {
         .expect("my games");
     assert_eq!(res.status(), reqwest::StatusCode::UNAUTHORIZED);
 }
+
+/// follow → the target shows up in `/api/friends` (online, in their live game)
+/// and in `/api/users/:name`; unfollow empties the list again.
+#[tokio::test]
+async fn follow_and_friends() {
+    let server = start_server().await;
+    let base = format!("http://127.0.0.1:{}", server.port);
+    let http = reqwest::Client::new();
+
+    let (mut a, a_sid) = connect_sid(server.port).await;
+    let mut b = connect(server.port).await;
+    let a_id = hello_id(&mut a).await;
+    wait_for(&mut b, "hello").await;
+    let (mut a, _b, a_id, game_id) = seek_accept_with(a, b, a_id).await;
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    let a_is_white = state["white"]["id"] == a_id.as_str();
+    let (me, opponent) = match a_is_white {
+        true => (&state["white"], &state["black"]),
+        false => (&state["black"], &state["white"]),
+    };
+    let name = opponent["name"].as_str().expect("name").to_string();
+    let my_name = me["name"].as_str().expect("name").to_string();
+
+    let res: Value = http
+        .post(format!("{base}/api/follow/{name}"))
+        .header("cookie", &a_sid)
+        .send()
+        .await
+        .expect("follow")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(res["following"], json!(true));
+
+    let friends: Value = http
+        .get(format!("{base}/api/friends"))
+        .header("cookie", &a_sid)
+        .send()
+        .await
+        .expect("friends")
+        .json()
+        .await
+        .expect("json");
+    let friends = friends.as_array().expect("array");
+    assert_eq!(friends.len(), 1);
+    assert_eq!(friends[0]["user"]["name"], name.as_str());
+    assert_eq!(friends[0]["online"], json!(true));
+    assert_eq!(friends[0]["playing"], game_id.as_str());
+
+    let view: Value = http
+        .get(format!("{base}/api/users/{name}"))
+        .header("cookie", &a_sid)
+        .send()
+        .await
+        .expect("user")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(view["following"], json!(true));
+    assert_eq!(view["followers"], json!(1));
+    // no session → not following
+    let anon: Value = reqwest::get(format!("{base}/api/users/{name}"))
+        .await
+        .expect("user")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(anon["following"], json!(false));
+
+    // self-follow is refused
+    let res = http
+        .post(format!("{base}/api/follow/{my_name}"))
+        .header("cookie", &a_sid)
+        .send()
+        .await
+        .expect("self follow");
+    assert_eq!(res.status(), reqwest::StatusCode::BAD_REQUEST);
+
+    let res: Value = http
+        .delete(format!("{base}/api/follow/{name}"))
+        .header("cookie", &a_sid)
+        .send()
+        .await
+        .expect("unfollow")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(res["following"], json!(false));
+    let friends: Value = http
+        .get(format!("{base}/api/friends"))
+        .header("cookie", &a_sid)
+        .send()
+        .await
+        .expect("friends")
+        .json()
+        .await
+        .expect("json");
+    assert!(friends.as_array().expect("array").is_empty());
+}

@@ -311,3 +311,7 @@ DELETE /api/follow/:name        → {following: false}
 GET    /api/friends             → [{user: User, online: bool, playing: game_id|null}]   users I follow; playing = a live game they are in
 GET    /api/users/:name         → gains `following: bool` (current session follows them), `followers: n`
 ```
+
+As implemented: `POST`/`DELETE /api/follow/:name` share one budget of 30 / 10 min per user; `/api/friends` is
+capped at 200 rows (newest follow first) and computes `playing` in one pass over the live rooms before touching
+the db (lock order `rooms` → `db`). `GET /api/users/:name` reports `following: false` for a session-less request.

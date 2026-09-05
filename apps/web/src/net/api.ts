@@ -58,6 +58,8 @@ export const getUser = (name: string) =>
 		history?: RatingPoint[];
 		online?: boolean;
 		tournaments?: TourResult[];
+		following?: boolean;
+		followers?: number;
 	}>(`/users/${encodeURIComponent(name)}`);
 
 export const leaderboard = (limit = 20) => req<User[]>(`/leaderboard?limit=${limit}`);
@@ -120,3 +122,10 @@ export type TourResult = {
 	score: number;
 	games: number;
 };
+
+export type Friend = { user: User; online: boolean; playing: string | null };
+export const friends = () => req<Friend[]>('/friends');
+export const follow = (name: string) =>
+	post<{ following: boolean }>(`/follow/${encodeURIComponent(name)}`, {});
+export const unfollow = (name: string) =>
+	req<{ following: boolean }>(`/follow/${encodeURIComponent(name)}`, { method: 'DELETE' });

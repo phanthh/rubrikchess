@@ -119,6 +119,13 @@ pub fn open(path: &str) -> Connection {
            at INTEGER NOT NULL,
            rating REAL NOT NULL
          );
+         CREATE TABLE IF NOT EXISTS follows(
+           user_id TEXT NOT NULL,
+           target_id TEXT NOT NULL,
+           created_at INTEGER NOT NULL,
+           PRIMARY KEY (user_id, target_id)
+         );
+         CREATE INDEX IF NOT EXISTS follows_target ON follows(target_id);
          CREATE INDEX IF NOT EXISTS games_created_at ON games(created_at);
          CREATE INDEX IF NOT EXISTS games_white ON games(white);
          CREATE INDEX IF NOT EXISTS games_black ON games(black);
@@ -331,6 +338,56 @@ pub fn rating_history(conn: &Connection, user_id: &str) -> Vec<serde_json::Value
         .collect();
     rows.reverse();
     rows
+}
+
+pub fn follow(conn: &Connection, user_id: &str, target_id: &str, now: i64) {
+    conn.execute(
+        "INSERT OR REPLACE INTO follows(user_id, target_id, created_at) VALUES (?1, ?2, ?3)",
+        params![user_id, target_id, now],
+    )
+    .expect("insert follow");
+}
+
+pub fn unfollow(conn: &Connection, user_id: &str, target_id: &str) {
+    conn.execute(
+        "DELETE FROM follows WHERE user_id = ?1 AND target_id = ?2",
+        params![user_id, target_id],
+    )
+    .expect("delete follow");
+}
+
+pub fn is_following(conn: &Connection, user_id: &str, target_id: &str) -> bool {
+    conn.query_row(
+        "SELECT 1 FROM follows WHERE user_id = ?1 AND target_id = ?2",
+        params![user_id, target_id],
+        |_| Ok(()),
+    )
+    .optional()
+    .expect("query follow")
+    .is_some()
+}
+
+pub fn follower_count(conn: &Connection, target_id: &str) -> i64 {
+    conn.query_row(
+        "SELECT COUNT(*) FROM follows WHERE target_id = ?1",
+        params![target_id],
+        |r| r.get(0),
+    )
+    .expect("count followers")
+}
+
+/// Users `user_id` follows, most recently followed first.
+pub fn following(conn: &Connection, user_id: &str) -> Vec<User> {
+    let mut stmt = conn
+        .prepare(&format!(
+            "SELECT {USER_COLS} JOIN follows f ON f.target_id = users.id
+             WHERE f.user_id = ?1 ORDER BY f.created_at DESC LIMIT 200"
+        ))
+        .expect("prepare following");
+    stmt.query_map(params![user_id], user_from_row)
+        .expect("following")
+        .filter_map(|r| r.ok())
+        .collect()
 }
 
 pub fn set_game_diffs(conn: &Connection, game_id: &str, white: i64, black: i64) {
