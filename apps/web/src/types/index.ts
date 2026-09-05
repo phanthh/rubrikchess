@@ -223,6 +223,7 @@ export type ClientMsg =
 	| { t: 'abort'; game_id: string }
 	| { t: 'tour_join'; id: string }
 	| { t: 'tour_leave'; id: string }
+	| { t: 'tour_chat'; id: string; text: string }
 	| { t: 'moretime'; game_id: string }
 	| { t: 'accept'; seek_id: string }
 	| { t: 'watch'; game_id: string }
@@ -281,4 +282,5 @@ export type ServerMsg =
 	| { t: 'gone'; game_id: string; color: Color }
 	| { t: 'clock'; game_id: string; clock: ClockState }
 	| { t: 'tour'; tournament: Tournament; joined?: boolean }
+	| { t: 'tour_chat'; id: string; user: User; text: string; at: number }
 	| { t: 'error'; msg: string };

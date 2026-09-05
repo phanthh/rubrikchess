@@ -1,4 +1,5 @@
 import { GameRowItem } from '@/components/game-row';
+import { Chat, ChatLine } from '@/components/round/chat';
 import { Shell } from '@/components/shell';
 import { Button } from '@/components/ui/button';
 import { getTournament } from '@/net/api';
@@ -39,6 +40,7 @@ export function TournamentPage() {
 		games: GameRow[];
 		joined: boolean;
 	} | null>(null);
+	const [chat, setChat] = useState<ChatLine[]>([]);
 	const [joined, setJoined] = useState(false);
 	const [missing, setMissing] = useState(false);
 
@@ -49,12 +51,17 @@ export function TournamentPage() {
 				.then((d) => {
 					setData(d);
 					setJoined(d.joined);
+					if (d.chat) setChat(d.chat.map((m) => ({ user: m.user.name, text: m.text, at: m.at })));
 				})
 				.catch(() => setMissing(true));
 		load();
 		// the 5s poll covers standings; `tour` messages for this arena refresh immediately
 		const i = setInterval(load, 5000);
-		const unsub = onServerMsg((msg) => msg.t === 'tour' && msg.tournament.id === id && load());
+		const unsub = onServerMsg((msg) => {
+			if (msg.t === 'tour' && msg.tournament.id === id) load();
+			if (msg.t === 'tour_chat' && msg.id === id)
+				setChat((prev) => [...prev, { user: msg.user.name, text: msg.text, at: msg.at }]);
+		});
 		return () => {
 			clearInterval(i);
 			unsub();
@@ -144,15 +151,25 @@ export function TournamentPage() {
 							</table>
 						</section>
 					</div>
-					<section className="box self-start">
-						<div className="box-title">Games</div>
-						{data.games.length === 0 && (
-							<div className="p-4 text-sm text-muted-foreground">No games yet.</div>
+					<div className="flex flex-col gap-4">
+						{id && (
+							<Chat
+								gameId={id}
+								lines={chat}
+								className="h-72"
+								onSend={(text) => send({ t: 'tour_chat', id, text })}
+							/>
 						)}
-						{data.games.map((g) => (
-							<GameRowItem key={g.id} g={g} perspective={me?.id} />
-						))}
-					</section>
+						<section className="box self-start">
+							<div className="box-title">Games</div>
+							{data.games.length === 0 && (
+								<div className="p-4 text-sm text-muted-foreground">No games yet.</div>
+							)}
+							{data.games.map((g) => (
+								<GameRowItem key={g.id} g={g} perspective={me?.id} />
+							))}
+						</section>
+					</div>
 				</div>
 			)}
 		</Shell>

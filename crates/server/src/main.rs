@@ -683,6 +683,7 @@ async fn post_tournament(
         created_by: user.id.clone(),
         status: TourStatus::Created,
         players: HashMap::new(),
+        chat: Default::default(),
     };
     let value = {
         let mut tours = state.tournaments.lock();
@@ -756,6 +757,7 @@ async fn get_tournament(
         "standings": arena.standings(&conn, &busy),
         "games": db::tournament_games(&conn, &id, 20),
         "joined": joined,
+        "chat": arena.chat,
     }))
     .into_response()
 }

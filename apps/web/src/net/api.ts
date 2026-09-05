@@ -93,9 +93,13 @@ export const crosstable = (a: string, b: string) =>
 export const listTournaments = () =>
 	req<{ upcoming: Tournament[]; running: Tournament[]; finished: Tournament[] }>('/tournaments');
 export const getTournament = (id: string) =>
-	req<{ tournament: Tournament; standings: Standing[]; games: GameRow[]; joined: boolean }>(
-		`/tournaments/${encodeURIComponent(id)}`,
-	);
+	req<{
+		tournament: Tournament;
+		standings: Standing[];
+		games: GameRow[];
+		joined: boolean;
+		chat?: { user: User; text: string; at: number }[];
+	}>(`/tournaments/${encodeURIComponent(id)}`);
 export const createTournament = (body: {
 	name: string;
 	clock: ClockSpec;

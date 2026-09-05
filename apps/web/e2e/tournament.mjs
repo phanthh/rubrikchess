@@ -42,6 +42,14 @@ await B.getByRole('button', { name: 'Join' }).click();
 await A.waitForTimeout(600);
 assert((await A.getByRole('button', { name: 'Leave' }).count()) === 1, 'join toggles to leave');
 assert((await A.locator('table tbody tr').count()) === 2, 'both in standings');
+// arena chat reaches the other page and survives a reload
+await A.locator('input[placeholder="Type a message…"]').fill('good luck all');
+await A.locator('input[placeholder="Type a message…"]').press('Enter');
+await B.waitForTimeout(600);
+assert((await B.getByText('good luck all').count()) === 1, 'tournament chat delivered');
+await B.reload();
+await B.waitForTimeout(1000);
+assert((await B.getByText('good luck all').count()) === 1, 'tournament chat history on reload');
 await A.screenshot({ path: `${SHOTS}/tournament-created.png` });
 await A.waitForURL(/\/g\//, { timeout: 25_000 });
 await B.waitForURL(/\/g\//, { timeout: 25_000 });

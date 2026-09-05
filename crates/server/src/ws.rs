@@ -108,6 +108,10 @@ enum ClientMsg {
     TourLeave {
         id: String,
     },
+    TourChat {
+        id: String,
+        text: String,
+    },
 }
 
 pub async fn handler(
@@ -774,6 +778,28 @@ fn handle(
             if let Err(e) = tournament::set_joined(state, user, &id, false) {
                 err(out, &e);
             }
+        }
+        ClientMsg::TourChat { id, text } => {
+            let text = text.trim();
+            if text.is_empty() || text.chars().count() > 300 {
+                err(out, "invalid chat");
+                return;
+            }
+            if !state.allow(&user.id, &format!("chat:{id}"), 5, 5000) {
+                return; // rate limited: drop silently
+            }
+            let line =
+                json!({"t": "tour_chat", "id": id, "user": user, "text": text, "at": now_ms()});
+            let mut tours = state.tournaments.lock();
+            let Some(arena) = tours.get_mut(&id) else {
+                err(out, "unknown tournament");
+                return;
+            };
+            arena.push_chat(line.clone());
+            drop(tours);
+            // ponytail: fan-out on the lobby channel (every socket gets it, clients filter by id);
+            // upgrade path = a per-arena broadcast channel like rooms have.
+            let _ = state.lobby_tx.send(line.to_string());
         }
     }
 }

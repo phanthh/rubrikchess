@@ -320,3 +320,5 @@ the db (lock order `rooms` → `db`). `GET /api/users/:name` reports `following:
 Perf of a game from its clock: `ultrabullet` (<30s est.), `bullet` (<180s), `blitz` (<480s), `rapid` (<1500s), `classical`, `correspondence` (unlimited or days-per-move); est = initial + 40×increment (seconds), same as the client's `speedOf`.
 Table `perfs(user_id, perf, rating, rd, vol, games, wins, PRIMARY KEY(user_id, perf))`. `Room::rate` updates the overall rating (unchanged, used for pairing/leaderboard) **and** the perf rating (own Glicko-2 state, default 1500/350/0.06).
 `User` gains `perfs: {perf: {rating, rd, games}}` (only perfs with games > 0). `GET /api/leaderboard?perf=blitz` → ranks by that perf (registered, games > 0, established first). `rating_history` rows gain a `perf` column; `GET /api/users/:name` history stays overall.
+
+Tournament chat: `{t:"tour_chat", id, text}` (1..300 chars, 5 / 5s per arena) → `{t:"tour_chat", id, user, text, at}` fanned out on the lobby channel (clients filter by id); last 50 lines returned as `chat` by `GET /api/tournaments/:id`.

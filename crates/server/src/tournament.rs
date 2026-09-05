@@ -48,6 +48,8 @@ pub struct Arena {
     pub created_by: String,
     pub status: TourStatus,
     pub players: HashMap<String, Player>,
+    /// Last `CHAT_HISTORY` chat lines (memory only).
+    pub chat: std::collections::VecDeque<Value>,
 }
 
 /// Points for a win / draw.
@@ -56,7 +58,16 @@ const DRAW: i64 = 1;
 
 pub const TICK: std::time::Duration = std::time::Duration::from_secs(3);
 
+const CHAT_HISTORY: usize = 50;
+
 impl Arena {
+    pub fn push_chat(&mut self, line: Value) {
+        if self.chat.len() == CHAT_HISTORY {
+            self.chat.pop_front();
+        }
+        self.chat.push_back(line);
+    }
+
     pub fn ends_at(&self) -> i64 {
         self.starts_at + self.duration_ms
     }
@@ -315,6 +326,7 @@ fn schedule(state: &Arc<AppState>, now: i64) -> Option<Value> {
         created_by: db::SYSTEM_USER_ID.into(),
         status: TourStatus::Created,
         players: HashMap::new(),
+        chat: Default::default(),
     };
     let conn = state.db.lock();
     db::insert_tournament(&conn, &arena);

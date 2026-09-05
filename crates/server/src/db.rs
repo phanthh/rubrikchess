@@ -802,6 +802,7 @@ fn arena_from_row(r: &Row) -> rusqlite::Result<Arena> {
         created_by: r.get(7)?,
         status: de(r.get(8)?)?,
         players: Default::default(),
+        chat: Default::default(),
     })
 }
 

@@ -9,11 +9,15 @@ export function Chat({
 	lines,
 	watchers,
 	className,
+	onSend,
 }: {
 	gameId: string;
 	lines: ChatLine[];
-	watchers: number;
+	/** Shown as "n watching"; omit for non-game chats. */
+	watchers?: number;
 	className?: string;
+	/** Override the transport (default: game room chat). */
+	onSend?: (text: string) => void;
 }) {
 	const me = useNetStore((s) => s.me);
 	const [draft, setDraft] = useState('');
@@ -27,7 +31,8 @@ export function Chat({
 	const submit = () => {
 		const text = draft.trim();
 		if (!text) return;
-		send({ t: 'chat', game_id: gameId, text });
+		if (onSend) onSend(text);
+		else send({ t: 'chat', game_id: gameId, text });
 		setDraft('');
 	};
 
@@ -35,12 +40,12 @@ export function Chat({
 		<div className={cn('box flex flex-col min-h-0', className)}>
 			<div className="box-title flex items-center">
 				<span className="mr-auto">Chat</span>
-				<span className="normal-case tracking-normal font-normal">{watchers} watching</span>
+				{watchers !== undefined && (
+					<span className="normal-case tracking-normal font-normal">{watchers} watching</span>
+				)}
 			</div>
 			<div ref={list} className="flex-1 min-h-0 overflow-auto p-2 text-sm flex flex-col gap-0.5">
-				{lines.length === 0 && (
-					<span className="text-xs text-muted-foreground">Say hi to your opponent.</span>
-				)}
+				{lines.length === 0 && <span className="text-xs text-muted-foreground">Say hi.</span>}
 				{lines.map((m, i) =>
 					m.user ? (
 						<div key={i} className="break-words">
