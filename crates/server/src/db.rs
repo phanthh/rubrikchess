@@ -53,6 +53,8 @@ pub struct GameRow {
     /// Mirror of `config.rules.walled`, so game lists need not parse the config.
     pub walled: bool,
     pub moves: Vec<Move>,
+    /// Remaining ms of the mover after each ply (0 for unlimited clocks).
+    pub times: Vec<i64>,
     pub status: Status,
     pub clock: Clock,
     pub created_at: i64,
@@ -140,6 +142,7 @@ pub fn open(path: &str) -> Connection {
     add_column(&conn, "games", "white_diff", "INTEGER");
     add_column(&conn, "games", "black_diff", "INTEGER");
     add_column(&conn, "games", "tournament_id", "TEXT");
+    add_column(&conn, "games", "times", "TEXT NOT NULL DEFAULT '[]'");
     // Owner of the auto-scheduled arenas; cannot log in (no password), never plays.
     if user(&conn, SYSTEM_USER_ID).is_none() {
         create_user(&conn, &User::anon(SYSTEM_USER_ID.into(), "Rubrik".into()));
@@ -401,17 +404,27 @@ pub fn insert_game(
     .expect("insert game");
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_game(
     conn: &Connection,
     id: &str,
     moves: &[Move],
+    times: &[i64],
     status: &Status,
     clock: &Clock,
     now: i64,
 ) {
     conn.execute(
-        "UPDATE games SET moves = ?1, status = ?2, clock = ?3, updated_at = ?4 WHERE id = ?5",
-        params![json(&moves), json(status), json(clock), now, id],
+        "UPDATE games SET moves = ?1, times = ?2, status = ?3, clock = ?4, updated_at = ?5
+         WHERE id = ?6",
+        params![
+            json(&moves),
+            json(&times),
+            json(status),
+            json(clock),
+            now,
+            id
+        ],
     )
     .expect("update game");
 }
@@ -423,6 +436,7 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
         black_id,
         config,
         moves,
+        times,
         status,
         clock,
         created_at,
@@ -437,6 +451,7 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
         String,
         String,
         String,
+        String,
         i64,
         i64,
         Option<i64>,
@@ -444,7 +459,7 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
         Option<String>,
     ) = conn
         .query_row(
-            "SELECT white, black, config, moves, status, clock, created_at, updated_at,
+            "SELECT white, black, config, moves, times, status, clock, created_at, updated_at,
                     white_diff, black_diff, tournament_id
              FROM games WHERE id = ?1",
             params![id],
@@ -461,6 +476,7 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
                     r.get(8)?,
                     r.get(9)?,
                     r.get(10)?,
+                    r.get(11)?,
                 ))
             },
         )
@@ -477,6 +493,7 @@ pub fn load_game(conn: &Connection, id: &str) -> Option<GameRow> {
         config,
         plies: moves.len(),
         moves,
+        times: serde_json::from_str(&times).unwrap_or_default(),
         status: serde_json::from_str(&status).ok()?,
         clock: serde_json::from_str(&clock).ok()?,
         created_at,

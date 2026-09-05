@@ -111,6 +111,8 @@ pub struct Room {
     pub white: User,
     pub black: User,
     pub clock: Clock,
+    /// Remaining ms of the mover after each ply (post-increment; 0 for unlimited clocks).
+    pub times: Vec<i64>,
     pub draw_offer: Option<Color>,
     pub rematch_offer: Option<Color>,
     pub takeback_offer: Option<Color>,
@@ -148,6 +150,7 @@ impl Room {
             white,
             black,
             clock,
+            times: Vec::new(),
             draw_offer: None,
             rematch_offer: None,
             takeback_offer: None,
@@ -172,6 +175,7 @@ impl Room {
         clock.at = now_ms();
         let mut room = Room::new(row.id, game, row.white, row.black, clock, row.created_at);
         room.last_move_at = row.updated_at;
+        room.times = row.times;
         room.white_diff = row.white_diff;
         room.black_diff = row.black_diff;
         room.tournament_id = row.tournament_id;
@@ -208,6 +212,7 @@ impl Room {
             "watchers": self.watchers,
             "presence": {"white": white_on, "black": black_on},
             "chat": self.chat,
+            "times": self.times,
             "tournament_id": self.tournament_id,
         })
     }
@@ -245,6 +250,11 @@ impl Room {
         self.game.play(mv).map_err(|e| e.to_string())?;
         let now = now_ms();
         self.clock.on_move(color, now);
+        self.times.push(if self.clock.unlimited() {
+            0
+        } else {
+            self.clock.remaining(color, now)
+        });
         self.last_move_at = now;
         self.draw_offer = None;
         self.takeback_offer = None;
@@ -281,6 +291,7 @@ impl Room {
                 break;
             }
         }
+        self.times.truncate(self.game.history.len());
         self.takeback_offer = None;
         self.draw_offer = None;
         self.clock.running = Some(self.game.turn);
@@ -384,6 +395,7 @@ pub fn persist(state: &AppState, room: &Room) {
         &conn,
         &room.id,
         &room.game.history,
+        &room.times,
         &room.game.status,
         &room.clock,
         now_ms(),

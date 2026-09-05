@@ -524,6 +524,61 @@ async fn quick_pairing_and_tv() {
     assert_eq!(tv[0]["clock"]["initial_ms"], 60000);
 }
 
+/// Move times: remaining ms of the mover after each ply, in `game_state` and the API row.
+#[tokio::test]
+async fn move_times() {
+    let server = start_server().await;
+    let (mut a, mut b, a_id, game_id) = seek_accept(server.port).await;
+    send(&mut a, json!({"t":"watch","game_id":game_id})).await;
+    send(&mut b, json!({"t":"watch","game_id":game_id})).await;
+    let state = wait_for(&mut a, "game_state").await;
+    wait_for(&mut b, "game_state").await;
+    assert_eq!(state["times"].as_array().expect("times").len(), 0);
+    let (white, black) = if state["white"]["id"] == a_id.as_str() {
+        (&mut a, &mut b)
+    } else {
+        (&mut b, &mut a)
+    };
+
+    let mut game = rubrik_core::Game::new(rubrik_core::GameConfig::default());
+    let mv = game.legal_moves(9).first().expect("legal move").clone();
+    send(white, json!({"t":"move","game_id":game_id,"move":mv})).await;
+    wait_for(black, "move").await;
+    game.play(mv).expect("replay white move");
+    let reply = (0..game.board.cells.len() as u16)
+        .find_map(|c| game.legal_moves(c).into_iter().next())
+        .expect("black move");
+    send(black, json!({"t":"move","game_id":game_id,"move":reply})).await;
+    wait_for(white, "move").await;
+
+    // a late spectator sees both times (clock is 60s + 1s increment)
+    let mut c = connect(server.port).await;
+    wait_for(&mut c, "hello").await;
+    send(&mut c, json!({"t":"watch","game_id":game_id})).await;
+    let times = wait_for(&mut c, "game_state").await["times"]
+        .as_array()
+        .expect("times")
+        .iter()
+        .map(|t| t.as_i64().expect("ms"))
+        .collect::<Vec<_>>();
+    assert_eq!(times.len(), 2);
+    assert!(
+        times.iter().all(|&t| (0..=61_000).contains(&t)),
+        "{times:?}"
+    );
+
+    let row: Value = reqwest::get(format!(
+        "http://127.0.0.1:{}/api/games/{game_id}",
+        server.port
+    ))
+    .await
+    .expect("get game")
+    .json()
+    .await
+    .expect("json");
+    assert_eq!(row["times"], json!(times));
+}
+
 /// Offer + accept a takeback: the move is rewound and everyone is resynced.
 #[tokio::test]
 async fn takeback() {
@@ -566,6 +621,7 @@ async fn takeback() {
     assert_eq!(state["game"]["turn"], "white");
     assert_eq!(state["clock"]["running"], "white");
     assert!(state["takeback_offer"].is_null());
+    assert_eq!(state["times"].as_array().expect("times").len(), 0);
 
     // Two plies: white asks once black has already replied, so both moves go.
     send(white, json!({"t":"move","game_id":game_id,"move":mv})).await;

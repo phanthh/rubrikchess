@@ -667,6 +667,7 @@ async fn get_game(State(state): State<Arc<AppState>>, Path(id): Path<String>) ->
             "layout": Layout::of(r.game.config.layout),
             "walled": r.game.config.rules.walled,
             "moves": r.game.history,
+            "times": r.times,
             "status": r.game.status,
             "clock": r.clock,
             "created_at": r.created_at,
