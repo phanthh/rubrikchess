@@ -10,7 +10,7 @@ import { Lights } from './lights';
 
 export function GameCanvas() {
 	const debug = useGameStore((store) => store.debug);
-	const myColor = useGameStore((store) => store.myColor);
+	const flipped = useGameStore((store) => store.flipped);
 
 	return (
 		<Canvas
@@ -26,7 +26,7 @@ export function GameCanvas() {
 			<Suspense fallback={<CubeFrame />}>
 				<Lights />
 				{/* black sees its own (-Y) face on top: flip the scene, not the camera */}
-				<group rotation-z={myColor === 'black' ? Math.PI : 0}>
+				<group rotation-z={flipped ? Math.PI : 0}>
 					<Board />
 				</group>
 				{debug && (

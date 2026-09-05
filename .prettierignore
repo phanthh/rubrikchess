@@ -11,3 +11,4 @@ analyze.html
 **/.cache
 **/.pk.json
 pnpm-lock.yaml
+apps/web/e2e

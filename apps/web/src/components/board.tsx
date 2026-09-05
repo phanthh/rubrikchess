@@ -1,4 +1,5 @@
 import { game, useGameStore } from '@/store/game';
+import { usePrefs } from '@/store/prefs';
 import { TCell } from '@/types';
 import { CUBOIDS } from '@/utils/cuboids';
 import { useCallback } from 'react';
@@ -10,7 +11,7 @@ import { Cuboid } from './cuboid';
 export function Board() {
 	const cells = useGameStore((store) => store.cells);
 	const walled = useGameStore((store) => store.config?.rules.walled ?? false);
-	const animate = useGameStore((store) => store.animate);
+	const animate = usePrefs((s) => s.animate);
 
 	const handlePick = useCallback((cell: TCell) => {
 		if (cell.move) {

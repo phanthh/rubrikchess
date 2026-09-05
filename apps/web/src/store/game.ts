@@ -19,7 +19,10 @@ import {
 import { AXES } from '@/utils/consts';
 import { CUBOIDS } from '@/utils/cuboids';
 import { clamp, vec, vkey } from '@/utils/funcs';
+import { notation } from '@/utils/notation';
 import { stepCurves } from '@/utils/path';
+import { play as playSound } from '@/utils/sound';
+import { prefs, usePrefs } from './prefs';
 import { WasmGame } from 'rubrik-wasm';
 import { toast } from 'sonner';
 import { Vector3 } from 'three';
@@ -46,10 +49,26 @@ export function localConfig(walled: boolean): GameConfig {
 	return config;
 }
 
-export function notation(move: Move): string {
-	return move.kind === 'step'
-		? `${move.from}>${move.path[move.path.length - 1]}${move.capture ? 'x' : ''}`
-		: `${move.from}@${move.axis}${move.sign > 0 ? '+' : '-'}`;
+/**
+ * Readable notation per ply. Extends the previous list by replaying only the
+ * new tail, so a full load costs one replay and a move costs one step.
+ */
+function sansFor(config: GameConfig, history: Move[], prev: string[]): string[] {
+	if (prev.length === history.length) return prev;
+	if (prev.length > history.length) return prev.slice(0, history.length);
+	const g = WasmGame.replay(config, history.slice(0, prev.length));
+	const out = [...prev];
+	for (let i = prev.length; i < history.length; i++) {
+		const kind = (g.state() as GameState).board.cells[history[i].from].piece?.kind;
+		out.push(notation(history[i], kind));
+		g.play(history[i]);
+	}
+	g.free();
+	return out;
+}
+
+function moveSound(move: Move) {
+	playSound(move.kind === 'rotate' ? 'rotate' : move.capture ? 'capture' : 'move');
 }
 
 const v3 = (v: V3) => vec(v.x, v.y, v.z);
@@ -134,6 +153,7 @@ interface IGameStore {
 	turn: Color;
 	status: Status;
 	history: Move[];
+	sans: string[];
 	cursor: number; // replay index, === history.length when live
 	selected: CellId | null;
 	legal: Move[];
@@ -149,8 +169,12 @@ interface IGameStore {
 	diffs: { white: number | null; black: number | null };
 	clock: ClockState | null;
 	drawOffer: Color | null;
+	takebackOffer: Color | null;
+	presence: { white: boolean; black: boolean };
+	watchers: number;
+	/** Board orientation; defaults to own colour online. */
+	flipped: boolean;
 	// settings
-	animate: boolean;
 	walled: boolean;
 	debug: boolean;
 	lowPerf: boolean;
@@ -165,7 +189,11 @@ interface IGameStore {
 	applyRemoteMove: (msg: Extract<ServerMsg, { t: 'move' }>) => void;
 	setEnd: (msg: Extract<ServerMsg, { t: 'game_end' }>) => void;
 	setDrawOffer: (by: Color | null) => void;
-	setSetting: (patch: Partial<Pick<IGameStore, 'animate' | 'walled' | 'debug' | 'lowPerf'>>) => void;
+	setSetting: (
+		patch: Partial<
+			Pick<IGameStore, 'walled' | 'debug' | 'lowPerf' | 'flipped' | 'takebackOffer' | 'presence' | 'watchers'>
+		>,
+	) => void;
 }
 
 export const useGameStore = create(
@@ -176,6 +204,7 @@ export const useGameStore = create(
 		turn: 'white',
 		status: { kind: 'playing' },
 		history: [],
+		sans: [],
 		cursor: 0,
 		selected: null,
 		legal: [],
@@ -189,7 +218,10 @@ export const useGameStore = create(
 		diffs: { white: null, black: null },
 		clock: null,
 		drawOffer: null,
-		animate: true,
+		takebackOffer: null,
+		presence: { white: true, black: true },
+		watchers: 0,
+		flipped: false,
 		walled: false,
 		debug: false,
 		lowPerf: false,
@@ -204,7 +236,7 @@ export const useGameStore = create(
 			const replay = live ? null : WasmGame.replay(head.config, head.history.slice(0, at));
 			const source = replay ?? engine;
 			const view = live ? head : (replay!.state() as GameState);
-			const threats = source.threats() as Threat[];
+			const threats = prefs().showThreats ? (source.threats() as Threat[]) : [];
 			const pick = live ? selected : null;
 			const legal = pick === null ? [] : (source.legalMoves(pick) as Move[]);
 			replay?.free();
@@ -215,6 +247,7 @@ export const useGameStore = create(
 				turn: view.turn,
 				status: live ? (get().endStatus ?? view.status) : view.status,
 				history: head.history,
+				sans: sansFor(head.config, head.history, get().sans),
 				cursor: at,
 				selected: pick,
 				legal,
@@ -233,7 +266,10 @@ export const useGameStore = create(
 				diffs: { white: null, black: null },
 				clock: null,
 				drawOffer: null,
+				takebackOffer: null,
+				flipped: false,
 				cursor: 0,
+				sans: [],
 				selected: null,
 				cells: [],
 				animating: false,
@@ -270,6 +306,7 @@ export const useGameStore = create(
 			runMove(move, () => {
 				try {
 					engine.play(move);
+					moveSound(move);
 				} catch (e) {
 					toast.error(String(e));
 				}
@@ -294,19 +331,26 @@ export const useGameStore = create(
 
 		loadOnline: (msg) => {
 			const me = useNetStore.getState().me;
+			const sameGame = get().gameId === msg.game_id;
 			get().engine?.free();
 			const engine = WasmGame.fromState(msg.game);
+			const myColor =
+				me && msg.white.id === me.id ? 'white' : me && msg.black.id === me.id ? 'black' : null;
 			set({
 				engine,
 				mode: 'online',
 				gameId: msg.game_id,
 				players: { white: msg.white, black: msg.black },
-				diffs: { white: null, black: null },
+				diffs: sameGame ? get().diffs : { white: null, black: null },
 				clock: msg.clock,
 				drawOffer: msg.draw_offer,
-				myColor:
-					me && msg.white.id === me.id ? 'white' : me && msg.black.id === me.id ? 'black' : null,
+				takebackOffer: msg.takeback_offer ?? null,
+				presence: msg.presence ?? { white: true, black: true },
+				watchers: msg.watchers ?? 0,
+				myColor,
+				flipped: sameGame ? get().flipped : myColor === 'black',
 				cursor: engine.historyLen(),
+				sans: [],
 				selected: null,
 				cells: [],
 				animating: false,
@@ -323,6 +367,7 @@ export const useGameStore = create(
 			const commit = () => {
 				try {
 					engine.play(msg.move);
+					moveSound(msg.move);
 				} catch (e) {
 					toast.error(`out of sync: ${String(e)}`);
 				}
@@ -331,6 +376,7 @@ export const useGameStore = create(
 					selected: null,
 					clock: msg.clock,
 					drawOffer: null,
+					takebackOffer: null,
 					cursor: live ? engine.historyLen() : cursor,
 					endStatus: msg.status.kind === 'playing' ? null : msg.status,
 				});
@@ -347,9 +393,11 @@ export const useGameStore = create(
 				diffs: { white: msg.white_diff, black: msg.black_diff },
 				selected: null,
 				drawOffer: null,
+				takebackOffer: null,
 				clock: clock && { ...clock, running: null },
 			});
 			get().render();
+			playSound('end');
 		},
 
 		setDrawOffer: (by) => set({ drawOffer: by }),
@@ -364,8 +412,8 @@ export function game() {
 
 /** Run the move animation (or skip it) then `done()` commits it to the engine. */
 function runMove(move: Move, done: () => void) {
-	const { animate, cells, engine } = game();
-	if (!animate || !engine) return done();
+	const { cells, engine } = game();
+	if (!prefs().animate || !engine) return done();
 
 	if (move.kind === 'step') {
 		const from = cells[move.from];
@@ -396,6 +444,8 @@ function runMove(move: Move, done: () => void) {
 	game().render();
 	startAnimation({ cells: ids, cuboids, config: { type: 'rotate', axis, angle }, onEnd: done });
 }
+
+usePrefs.subscribe((s, prev) => s.showThreats !== prev.showThreats && game().render());
 
 // Debug handle: `__game.getState()` in devtools.
 (globalThis as unknown as { __game: typeof useGameStore }).__game = useGameStore;

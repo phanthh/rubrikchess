@@ -24,7 +24,7 @@ const INDICATED = ['reachable', 'capturable', 'targeted', 'targeted:path'];
 export const Cell = memo(({ cell, onPick }: CellProps) => {
 	const ref = useRef<Mesh>(null);
 	const debug = useGameStore((store) => store.debug);
-	const flipped = useGameStore((store) => store.myColor === 'black');
+	const flipped = useGameStore((store) => store.flipped);
 	const preventProgagationProps = usePreventPropagation();
 
 	useLayoutEffect(() => {
@@ -49,7 +49,8 @@ export const Cell = memo(({ cell, onPick }: CellProps) => {
 
 	const texture = useMemo(() => {
 		const color = PALETTE[cell.color];
-		const cacheKey = `${cell.id}-${color}-${debug}`;
+		// plain cells share one texture per colour; debug labels need one per cell
+		const cacheKey = debug ? `${cell.id}-${color}-debug` : color;
 		const cached = cache.get(cacheKey);
 		if (cached) {
 			cached.needsUpdate = true;

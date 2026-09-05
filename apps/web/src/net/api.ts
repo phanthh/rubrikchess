@@ -1,4 +1,4 @@
-import { GameRow, User } from '@/types';
+import { Challenge, GameRow, LiveGame, RatingPoint, User } from '@/types';
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
 	const res = await fetch(`/api${path}`, {
@@ -33,8 +33,15 @@ export const login = (name: string, password: string) => post<User>('/login', { 
 export const logout = () => post<User>('/logout', {});
 
 export const getUser = (name: string) =>
-	req<{ user: User; games: GameRow[] }>(`/users/${encodeURIComponent(name)}`);
+	req<{ user: User; games: GameRow[]; history?: RatingPoint[] }>(`/users/${encodeURIComponent(name)}`);
 
 export const leaderboard = (limit = 20) => req<User[]>(`/leaderboard?limit=${limit}`);
 
 export const listGames = (limit = 20) => req<GameRow[]>(`/games?limit=${limit}`);
+
+export const listGamesBefore = (before: number, limit = 20) =>
+	req<GameRow[]>(`/games?limit=${limit}&before=${before}`);
+
+export const liveGames = () => req<LiveGame[]>('/tv');
+
+export const getChallenge = (id: string) => req<Challenge>(`/challenges/${encodeURIComponent(id)}`);

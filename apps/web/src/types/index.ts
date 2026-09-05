@@ -117,6 +117,7 @@ export type User = {
 	rating: number;
 	rd: number;
 	games: number;
+	wins?: number;
 	registered: boolean;
 };
 export type ClockSpec = { initial_ms: number; increment_ms: number };
@@ -127,7 +128,20 @@ export type ClockState = ClockSpec & {
 	running: Color | null;
 	at: number; // unix ms
 };
-export type Seek = { id: string; user: User; clock: ClockSpec; walled: boolean };
+export type SeekColor = 'white' | 'black' | 'random';
+export type Seek = { id: string; user: User; clock: ClockSpec; walled: boolean; color?: SeekColor };
+export type Challenge = { id: string; user: User; clock: ClockSpec; walled: boolean; color: SeekColor };
+export type Presence = { white: boolean; black: boolean };
+export type LiveGame = {
+	id: string;
+	white: User;
+	black: User;
+	clock: ClockSpec;
+	plies: number;
+	watchers: number;
+	created_at: number;
+};
+export type RatingPoint = { at: number; rating: number };
 
 export type GameRow = {
 	id: string;
@@ -142,8 +156,13 @@ export type GameRow = {
 };
 
 export type ClientMsg =
-	| { t: 'seek'; clock: ClockSpec; walled: boolean }
+	| { t: 'seek'; clock: ClockSpec; walled: boolean; color?: SeekColor }
 	| { t: 'unseek' }
+	| { t: 'takeback'; game_id: string; offer: boolean }
+	| { t: 'challenge'; clock: ClockSpec; walled: boolean; color: SeekColor }
+	| { t: 'cancel_challenge' }
+	| { t: 'join'; challenge_id: string }
+	| { t: 'claim'; game_id: string }
 	| { t: 'accept'; seek_id: string }
 	| { t: 'watch'; game_id: string }
 	| { t: 'unwatch'; game_id: string }
@@ -165,6 +184,9 @@ export type ServerMsg =
 			black: User;
 			clock: ClockState;
 			draw_offer: Color | null;
+			takeback_offer?: Color | null;
+			presence?: Presence;
+			watchers?: number;
 		}
 	| {
 			t: 'move';
@@ -185,4 +207,9 @@ export type ServerMsg =
 	| { t: 'draw_offer'; game_id: string; by: Color | null }
 	| { t: 'chat'; game_id: string; user: User; text: string; at: number }
 	| { t: 'rematch_offer'; game_id: string; by: Color | null }
+	| { t: 'takeback_offer'; game_id: string; by: Color | null }
+	| { t: 'challenge'; challenge: Challenge }
+	| { t: 'watchers'; game_id: string; n: number }
+	| { t: 'presence'; game_id: string; white: boolean; black: boolean }
+	| { t: 'gone'; game_id: string; color: Color }
 	| { t: 'error'; msg: string };

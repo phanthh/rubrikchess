@@ -1,255 +1,245 @@
-import { RatingDiff } from '@/components/rating-diff';
-import { RulesButton } from '@/components/rules-panel';
+import { GameRowItem } from '@/components/game-row';
+import { SetupDialog, SetupMode } from '@/components/setup-dialog';
+import { Shell } from '@/components/shell';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { leaderboard, listGames, login, logout, register, setName } from '@/net/api';
-import { connect, reconnect, send, useNetStore } from '@/net/ws';
-import { GameRow, User } from '@/types';
-import { statusLabel } from '@/utils/ui';
-import { useEffect, useState } from 'react';
+import { leaderboard, listGames, liveGames } from '@/net/api';
+import { send, useNetStore } from '@/net/ws';
+import { GameRow, LiveGame, Seek, User } from '@/types';
+import { clockLabel, speedOf } from '@/utils/clock';
+import { cn } from '@/utils/ui';
+import { Loader2, Users } from 'lucide-react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { toast } from 'sonner';
+
+const POOLS: [minutes: number, inc: number][] = [
+	[1, 0],
+	[2, 1],
+	[3, 0],
+	[3, 2],
+	[5, 0],
+	[5, 3],
+	[10, 0],
+	[10, 5],
+	[15, 10],
+	[30, 0],
+	[30, 20],
+];
+
+function Box({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+	return (
+		<section className="box flex flex-col overflow-hidden">
+			<div className="box-title flex items-center">
+				<span className="mr-auto">{title}</span>
+				{action}
+			</div>
+			{children}
+		</section>
+	);
+}
+
+const Empty = ({ children }: { children: ReactNode }) => (
+	<div className="px-3 py-4 text-sm text-muted-foreground text-center">{children}</div>
+);
 
 export function LobbyPage() {
-	const { me, seeks, connected } = useNetStore();
-	const [name, setNameInput] = useState('');
-	const [minutes, setMinutes] = useState(5);
-	const [increment, setIncrement] = useState(3);
-	const [walled, setWalled] = useState(false);
+	const me = useNetStore((s) => s.me);
+	const seeks = useNetStore((s) => s.seeks);
 	const [games, setGames] = useState<GameRow[]>([]);
+	const [live, setLive] = useState<LiveGame[]>([]);
 	const [top, setTop] = useState<User[]>([]);
-	const [authMode, setAuthMode] = useState<'register' | 'login' | null>(null);
-	const [authName, setAuthName] = useState('');
-	const [authPassword, setAuthPassword] = useState('');
+	const [setup, setSetup] = useState<SetupMode | null>(null);
 
 	useEffect(() => {
-		connect();
-		listGames()
-			.then(setGames)
-			.catch(() => undefined);
-		leaderboard()
-			.then(setTop)
-			.catch(() => undefined);
-	}, []);
-
-	useEffect(() => {
-		if (me) setNameInput(me.name);
-	}, [me]);
+		const refresh = () => {
+			listGames(12).then(setGames).catch(() => undefined);
+			liveGames().then(setLive).catch(() => undefined);
+		};
+		refresh();
+		leaderboard(10).then(setTop).catch(() => undefined);
+		const t = setInterval(refresh, 10_000);
+		return () => clearInterval(t);
+	}, [me?.id]);
 
 	const mySeek = seeks.find((s) => s.user.id === me?.id);
-
-	const rename = async () => {
-		try {
-			useNetStore.setState({ me: await setName(name) });
-		} catch (e) {
-			toast.error(e instanceof Error ? e.message : String(e));
-		}
-	};
-
-	// The server session changes on register/login/logout, so the socket must be redialled.
-	const auth = async (run: () => Promise<User>) => {
-		try {
-			useNetStore.setState({ me: await run() });
-			setAuthMode(null);
-			setAuthName('');
-			setAuthPassword('');
-			reconnect();
-			leaderboard()
-				.then(setTop)
-				.catch(() => undefined);
-		} catch (e) {
-			toast.error(e instanceof Error ? e.message : String(e));
-		}
-	};
+	const isPool = (s: Seek | undefined, m: number, i: number) =>
+		!!s && s.clock.initial_ms === m * 60_000 && s.clock.increment_ms === i * 1000 && !s.walled && (s.color ?? 'random') === 'random';
+	const myPool = POOLS.find(([m, i]) => isPool(mySeek, m, i));
 
 	return (
-		<div className="min-h-screen bg-background text-foreground p-6 flex flex-col gap-6">
-			<header className="flex items-center gap-3 flex-wrap">
-				<h1 className="text-2xl font-bold mr-auto">Rubrik Chess</h1>
-				{me && (
-					<span>
-						{me.registered ? (
-							<Link to={`/u/${me.name}`} className="hover:underline">
-								{me.name}
-							</Link>
-						) : (
-							me.name
-						)}{' '}
-						<span className="text-muted-foreground">({Math.round(me.rating)})</span>
-					</span>
-				)}
-				{me?.registered ? (
-					<Button variant="outline" onClick={() => auth(logout)}>
-						Logout
-					</Button>
-				) : (
-					<>
-						<input
-							className="rounded border bg-background px-2 py-1"
-							value={name}
-							onChange={(e) => setNameInput(e.target.value)}
-							placeholder="name"
-						/>
-						<Button variant="outline" onClick={rename} disabled={!name || name === me?.name}>
-							Rename
-						</Button>
-						<Button
-							variant="outline"
-							onClick={() => setAuthMode(authMode === 'register' ? null : 'register')}
-						>
-							Register
-						</Button>
-						<Button
-							variant="outline"
-							onClick={() => setAuthMode(authMode === 'login' ? null : 'login')}
-						>
-							Login
-						</Button>
-					</>
-				)}
-				<Link to="/local" className="underline">
-					Play locally
-				</Link>
-				<RulesButton />
-				<span className="text-muted-foreground">{connected ? 'online' : 'offline'}</span>
-			</header>
-
-			{authMode && (
-				<form
-					className="flex flex-wrap items-center gap-3 p-3 rounded border"
-					onSubmit={(e) => {
-						e.preventDefault();
-						auth(() =>
-							authMode === 'register'
-								? register(authName, authPassword)
-								: login(authName, authPassword),
-						);
-					}}
-				>
-					<span className="font-semibold">{authMode === 'register' ? 'Register' : 'Login'}</span>
-					<input
-						className="rounded border bg-background px-2 py-1"
-						value={authName}
-						onChange={(e) => setAuthName(e.target.value)}
-						placeholder="name"
-						autoComplete="username"
-					/>
-					<input
-						className="rounded border bg-background px-2 py-1"
-						type="password"
-						value={authPassword}
-						onChange={(e) => setAuthPassword(e.target.value)}
-						placeholder="password"
-						autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
-					/>
-					<Button type="submit" disabled={!authName || !authPassword}>
-						{authMode === 'register' ? 'Create account' : 'Log in'}
-					</Button>
-					<Button type="button" variant="outline" onClick={() => setAuthMode(null)}>
-						Cancel
-					</Button>
-				</form>
-			)}
-
-			<section className="flex flex-wrap items-center gap-3 p-3 rounded border">
-				<label className="flex items-center gap-2">
-					Minutes
-					<input
-						type="number"
-						min={0}
-						className="w-16 rounded border bg-background px-2 py-1"
-						value={minutes}
-						onChange={(e) => setMinutes(Number(e.target.value))}
-					/>
-				</label>
-				<label className="flex items-center gap-2">
-					Increment (s)
-					<input
-						type="number"
-						min={0}
-						className="w-16 rounded border bg-background px-2 py-1"
-						value={increment}
-						onChange={(e) => setIncrement(Number(e.target.value))}
-					/>
-				</label>
-				<label className="flex items-center gap-2">
-					Walled
-					<Switch checked={walled} onCheckedChange={setWalled} />
-				</label>
-				<Button
-					onClick={() =>
-						send({
-							t: 'seek',
-							clock: { initial_ms: minutes * 60_000, increment_ms: increment * 1000 },
-							walled,
-						})
-					}
-				>
-					Create seek
-				</Button>
-				{mySeek && (
-					<Button variant="destructive" onClick={() => send({ t: 'unseek' })}>
-						Cancel my seek
-					</Button>
-				)}
-			</section>
-
-			<section className="flex flex-col gap-2">
-				<h2 className="text-lg font-semibold">Open seeks</h2>
-				{seeks.length === 0 && <span className="text-muted-foreground">no seeks</span>}
-				{seeks.map((seek) => (
-					<div key={seek.id} className="flex items-center gap-3 p-2 rounded border">
-						<span className="font-medium">
-							{seek.user.name}{' '}
-							<span className="text-muted-foreground">({Math.round(seek.user.rating)})</span>
-						</span>
-						<span className="text-muted-foreground">
-							{Math.round(seek.clock.initial_ms / 60000)}+{Math.round(seek.clock.increment_ms / 1000)}
-							{seek.walled ? ' · walled' : ''}
-						</span>
-						{seek.user.id !== me?.id && (
-							<Button
-								className="ml-auto"
-								variant="outline"
-								onClick={() => send({ t: 'accept', seek_id: seek.id })}
+		<Shell>
+			<div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+				<div className="flex flex-col gap-4 min-w-0">
+					<Box title="Quick pairing">
+						<div className="grid grid-cols-3 sm:grid-cols-4 gap-2 p-3">
+							{POOLS.map(([m, i]) => {
+								const active = myPool?.[0] === m && myPool?.[1] === i;
+								const clock = { initial_ms: m * 60_000, increment_ms: i * 1000 };
+								return (
+									<button
+										key={`${m}+${i}`}
+										onClick={() =>
+											active ? send({ t: 'unseek' }) : send({ t: 'seek', clock, walled: false, color: 'random' })
+										}
+										className={cn(
+											'relative flex flex-col items-center justify-center h-20 rounded-md border border-border bg-background/40 hover:bg-accent hover:border-primary/40 transition-colors',
+											mySeek && !active && 'opacity-40',
+											active && 'border-primary bg-primary/10',
+										)}
+									>
+										{active ? (
+											<>
+												<Loader2 className="h-6 w-6 animate-spin text-primary" />
+												<span className="text-[11px] text-muted-foreground mt-1">Waiting… click to cancel</span>
+											</>
+										) : (
+											<>
+												<span className="text-2xl font-semibold font-mono leading-none">{clockLabel(clock)}</span>
+												<span className="text-[11px] text-muted-foreground mt-1.5">{speedOf(clock)}</span>
+											</>
+										)}
+									</button>
+								);
+							})}
+							<button
+								onClick={() => setSetup('seek')}
+								className="flex flex-col items-center justify-center h-20 rounded-md border border-dashed border-border hover:bg-accent hover:border-primary/40"
 							>
-								Accept
-							</Button>
+								<span className="text-lg font-semibold">Custom</span>
+								<span className="text-[11px] text-muted-foreground">time · variant · colour</span>
+							</button>
+						</div>
+					</Box>
+
+					<div className="flex flex-wrap gap-2">
+						<Button variant="secondary" size="lg" className="flex-1" onClick={() => setSetup('seek')}>
+							Create a game
+						</Button>
+						<Button variant="outline" size="lg" className="flex-1" onClick={() => setSetup('friend')}>
+							Play with a friend
+						</Button>
+						<Button variant="outline" size="lg" className="flex-1" asChild>
+							<Link to="/local" className="text-foreground hover:no-underline">
+								Sandbox
+							</Link>
+						</Button>
+					</div>
+
+					<Box title={`Open seeks (${seeks.length})`}>
+						{seeks.length === 0 ? (
+							<Empty>Nobody is waiting. Pick a time control above and someone will find you.</Empty>
+						) : (
+							<table className="w-full text-sm">
+								<thead className="text-xs text-muted-foreground">
+									<tr className="[&>th]:px-3 [&>th]:py-1.5 [&>th]:font-normal [&>th]:text-left">
+										<th>Player</th>
+										<th>Rating</th>
+										<th>Time</th>
+										<th>Mode</th>
+										<th />
+									</tr>
+								</thead>
+								<tbody>
+									{seeks.map((seek) => {
+										const own = seek.user.id === me?.id;
+										return (
+											<tr
+												key={seek.id}
+												onClick={() => (own ? send({ t: 'unseek' }) : send({ t: 'accept', seek_id: seek.id }))}
+												className={cn(
+													'cursor-pointer border-t border-border/40 hover:bg-accent/60 [&>td]:px-3 [&>td]:py-2',
+													own && 'bg-primary/10',
+												)}
+											>
+												<td className="font-medium">{seek.user.name}</td>
+												<td className="text-brag">{Math.round(seek.user.rating)}</td>
+												<td className="font-mono">
+													{clockLabel(seek.clock)}{' '}
+													<span className="text-xs text-muted-foreground font-sans">{speedOf(seek.clock)}</span>
+												</td>
+												<td className="text-muted-foreground">
+													{seek.walled ? 'Walled' : 'Standard'}
+													{seek.color && seek.color !== 'random' ? ` · plays ${seek.color}` : ''}
+												</td>
+												<td className="text-right text-xs text-muted-foreground">{own ? 'cancel' : 'join'}</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
 						)}
-					</div>
-				))}
-			</section>
+					</Box>
 
-			<section className="flex flex-col gap-2">
-				<h2 className="text-lg font-semibold">Leaderboard</h2>
-				{top.length === 0 && <span className="text-muted-foreground">no rated players yet</span>}
-				{top.map((user, i) => (
-					<div key={user.id} className="flex items-center gap-3 p-2 rounded border">
-						<span className="text-muted-foreground w-6">{i + 1}</span>
-						<Link to={`/u/${user.name}`} className="underline">
-							{user.name}
-						</Link>
-						<span className="ml-auto">{Math.round(user.rating)}</span>
-					</div>
-				))}
-			</section>
+					<Box title="Recent games">
+						{games.length === 0 ? <Empty>No games yet.</Empty> : games.map((g) => <GameRowItem key={g.id} g={g} />)}
+					</Box>
+				</div>
 
-			<section className="flex flex-col gap-2">
-				<h2 className="text-lg font-semibold">Recent games</h2>
-				{games.map((g) => (
-					<Link key={g.id} to={`/g/${g.id}`} className="flex items-center gap-3 p-2 rounded border">
-						<span className="font-mono">{g.id}</span>
-						<span className="flex items-center gap-1">
-							{g.white.name} ({Math.round(g.white.rating)}
-							<RatingDiff diff={g.white_diff} />) vs {g.black.name} ({Math.round(g.black.rating)}
-							<RatingDiff diff={g.black_diff} />)
-						</span>
-						<span className="ml-auto text-muted-foreground">
-							{statusLabel(g.status) ?? `${g.plies} plies`}
-						</span>
-					</Link>
-				))}
-			</section>
-		</div>
+				<div className="flex flex-col gap-4 min-w-0">
+					<Box
+						title="Live games"
+						action={
+							live.length > 0 && (
+								<Link to="/tv" className="text-xs normal-case tracking-normal font-normal">
+									Watch TV
+								</Link>
+							)
+						}
+					>
+						{live.length === 0 ? (
+							<Empty>No games in progress.</Empty>
+						) : (
+							live.slice(0, 8).map((g) => (
+								<Link
+									key={g.id}
+									to={`/g/${g.id}`}
+									className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent/50 hover:no-underline"
+								>
+									<div className="min-w-0 flex-1">
+										<div className="truncate">
+											{g.white.name} <span className="text-brag text-xs">{Math.round(g.white.rating)}</span>
+											<span className="text-muted-foreground text-xs px-1">vs</span>
+											{g.black.name} <span className="text-brag text-xs">{Math.round(g.black.rating)}</span>
+										</div>
+										<div className="text-xs text-muted-foreground">
+											{clockLabel(g.clock)} · ply {g.plies}
+										</div>
+									</div>
+									<span className="flex items-center gap-1 text-xs text-muted-foreground">
+										<Users className="h-3 w-3" />
+										{g.watchers}
+									</span>
+								</Link>
+							))
+						)}
+					</Box>
+
+					<Box
+						title="Leaderboard"
+						action={
+							<Link to="/players" className="text-xs normal-case tracking-normal font-normal">
+								All
+							</Link>
+						}
+					>
+						{top.length === 0 ? (
+							<Empty>No established ratings yet. Register and play a few games.</Empty>
+						) : (
+							<ol className="text-sm">
+								{top.map((u, i) => (
+									<li key={u.id} className="flex items-center gap-2 px-3 py-1.5 border-t border-border/40 first:border-0">
+										<span className="w-5 text-xs text-muted-foreground">{i + 1}</span>
+										<Link to={`/u/${u.name}`} className="flex-1 truncate text-foreground">
+											{u.name}
+										</Link>
+										<span className="text-brag font-medium">{Math.round(u.rating)}</span>
+									</li>
+								))}
+							</ol>
+						)}
+					</Box>
+				</div>
+			</div>
+			<SetupDialog mode={setup} onClose={() => setSetup(null)} />
+		</Shell>
 	);
 }

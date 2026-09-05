@@ -24,7 +24,8 @@ cargo run -p rubrik-server          # :3000 (api + ws)
 pnpm dev                            # :5173, proxies /api and /ws → :3000
 ```
 
-Tests: `cargo test --workspace` (engine unit tests + server ws integration test). `pnpm typecheck`.
+Tests: `cargo test --workspace` (engine unit tests + server ws integration test). `pnpm typecheck`, `pnpm lint`.
+Browser flow (needs playwright + chromium, dev stack running): `PW=<playwright/index.mjs> CHROME=<chrome> node apps/web/e2e/flow.mjs`.
 
 ## Deploy
 
