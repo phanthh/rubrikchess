@@ -1,7 +1,11 @@
 {
   "name": "rubrikchess",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Rubrik Chess multiplayer platform",
+  "repository": "https://github.com/phanthh/rubrikchess",
+  "homepage": "https://github.com/phanthh/rubrikchess",
+  "bugs": "https://github.com/phanthh/rubrikchess/issues",
   "scripts": {
     "dev": "pnpm --filter @rubrikchess/web dev",
     "build": "pnpm build:wasm && pnpm -r build",

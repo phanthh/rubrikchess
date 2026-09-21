@@ -1,0 +1,5 @@
+# Replace example.com, then install as /etc/caddy/Caddyfile.
+# Caddy provisions TLS and handles WebSocket upgrades for reverse_proxy.
+example.com {
+	reverse_proxy 127.0.0.1:3000
+}

@@ -1,8 +1,8 @@
-# Rubrikchess platform — architecture notes
+# Rubrikchess developer notes
 
-Goal: lichess-like multiplayer platform for Rubrik Chess (chess on 8x8x6 cube).
+Architecture and protocol history for Rubrik Chess (chess on an 8×8×6 cube). This is implementation reference, not a stable public API; `README.md` is current user/deployment documentation.
 
-## Layout (target)
+## Layout
 
 ```
 rubrikchess/

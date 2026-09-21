@@ -1,0 +1,15 @@
+services:
+  rubrikchess:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      SECURE_COOKIES: "1"
+      TRUST_PROXY: "1"
+    volumes:
+      - rubrik-data:/data
+
+volumes:
+  rubrik-data:
+    name: rubrik-data

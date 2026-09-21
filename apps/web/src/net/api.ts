@@ -47,7 +47,10 @@ export const register = (name: string, password: string) =>
 
 export const login = (name: string, password: string) => post<User>('/login', { name, password });
 
-export const logout = () => post<User>('/logout', {});
+export const logout = async () => {
+	await post<unknown>('/logout', {});
+	return getMe();
+};
 
 export const changePassword = (old: string, next: string) =>
 	post<User>('/password', { old, new: next });

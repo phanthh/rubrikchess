@@ -14,8 +14,8 @@ use std::sync::Arc;
 use argon2::password_hash::rand_core::OsRng;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
-use axum::extract::{ConnectInfo, Path, Query, State};
-use axum::http::{header, HeaderMap, StatusCode};
+use axum::extract::{ConnectInfo, DefaultBodyLimit, Path, Query, State};
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -24,8 +24,8 @@ use rand::Rng;
 use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::{broadcast, mpsc};
-use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::db::User;
@@ -162,13 +162,26 @@ fn sid_cookie(headers: &HeaderMap) -> Option<String> {
         .map(str::to_string)
 }
 
-fn set_cookie(sid: &str) -> String {
+fn cookie_flags() -> &'static str {
     // Behind TLS (SECURE_COOKIES=1) the session id must never travel in clear.
-    let secure = match std::env::var("SECURE_COOKIES").as_deref() {
+    match std::env::var("SECURE_COOKIES").as_deref() {
         Ok("1") => "; Secure",
         _ => "",
-    };
-    format!("sid={sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000{secure}")
+    }
+}
+
+fn set_cookie(sid: &str) -> String {
+    format!(
+        "sid={sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000{}",
+        cookie_flags()
+    )
+}
+
+fn clear_cookie() -> String {
+    format!(
+        "sid=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{}",
+        cookie_flags()
+    )
 }
 
 /// Fresh session bound to `user_id`; returns the `Set-Cookie` value.
@@ -185,6 +198,20 @@ pub fn current_user(state: &AppState, headers: &HeaderMap) -> Option<User> {
     db::session_user(&conn, &sid)
 }
 
+/// Create an anonymous user and session. The database mutex makes the name check
+/// and insert atomic within this process, so public name routes stay unambiguous.
+fn new_anon_session(state: &AppState) -> (User, String) {
+    let conn = state.db.lock();
+    loop {
+        let user = User::anon(rand_id(16), format!("Anon-{}", rand_id(4)));
+        if db::user_by_name(&conn, &user.name).is_none() {
+            db::create_user(&conn, &user);
+            let cookie = new_session(&conn, &user.id);
+            return (user, cookie);
+        }
+    }
+}
+
 /// As `current_user`, but minting an anonymous user when there is none. Only
 /// for `GET /ws` and `GET /api/me`: every other endpoint must not let an
 /// unauthenticated request write user + session rows.
@@ -197,10 +224,7 @@ pub fn session(state: &AppState, headers: &HeaderMap, ip: &str) -> Option<(User,
     if !state.allow(&format!("ip:{ip}"), "anon", 30, 60_000) {
         return None;
     }
-    let conn = state.db.lock();
-    let user = User::anon(rand_id(16), format!("Anon-{}", rand_id(4)));
-    db::create_user(&conn, &user);
-    let cookie = new_session(&conn, &user.id);
+    let (user, cookie) = new_anon_session(state);
     Some((user, Some(cookie)))
 }
 
@@ -410,19 +434,16 @@ async fn post_login(
     with_cookie(Some(cookie), json!(user))
 }
 
-/// Drop the session and hand out a fresh anonymous one.
+/// Drop current session. `/api/me` mints a rate-limited anonymous session on demand.
 async fn post_logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> Response {
-    if current_user(&state, &headers).is_none() {
+    let Some(sid) = sid_cookie(&headers) else {
+        return error(StatusCode::UNAUTHORIZED, "no session");
+    };
+    if db::session_user(&state.db.lock(), &sid).is_none() {
         return error(StatusCode::UNAUTHORIZED, "no session");
     }
-    let conn = state.db.lock();
-    if let Some(sid) = sid_cookie(&headers) {
-        db::delete_session(&conn, &sid);
-    }
-    let user = User::anon(rand_id(16), format!("Anon-{}", rand_id(4)));
-    db::create_user(&conn, &user);
-    let cookie = new_session(&conn, &user.id);
-    with_cookie(Some(cookie), json!(user))
+    db::delete_session(&state.db.lock(), &sid);
+    with_cookie(Some(clear_cookie()), json!({}))
 }
 
 async fn get_user(
@@ -1014,11 +1035,16 @@ async fn get_game(State(state): State<Arc<AppState>>, Path(id): Path<String>) ->
     }
 }
 
+async fn healthz() -> Json<serde_json::Value> {
+    Json(json!({ "status": "ok" }))
+}
+
 pub fn router(state: Arc<AppState>) -> Router {
     let dist = std::env::var("WEB_DIST").unwrap_or_else(|_| "../../apps/web/dist".to_string());
     let index = std::path::Path::new(&dist).join("index.html");
     let static_files = ServeDir::new(&dist).fallback(ServeFile::new(index));
     Router::new()
+        .route("/healthz", get(healthz))
         .route("/api/me", get(get_me).post(post_me))
         .route("/api/me/games", get(get_my_games))
         .route("/api/register", post(post_register))
@@ -1054,7 +1080,24 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/games/{id}", get(get_game))
         .route("/ws", get(ws::handler))
         .fallback_service(static_files)
-        .layer(CorsLayer::permissive())
+        // Browser client is same-origin. Do not expose authenticated APIs cross-origin.
+        .layer(SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("x-content-type-options"),
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("x-frame-options"),
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("referrer-policy"),
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("permissions-policy"),
+            HeaderValue::from_static("camera=(), geolocation=(), microphone=()"),
+        ))
+        .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

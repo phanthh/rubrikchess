@@ -1,43 +1,106 @@
 # Rubrik Chess
 
-Chess, but on a Rubik's cube. 8×8×6 board, 11 piece types, slice rotations. A lichess-style multiplayer platform around it.
+Chess on a Rubik's cube: 8×8×6 board, 11 piece types, slice rotations. Multiplayer server + React client.
 
-<img width="675" height="620" alt="image" src="https://github.com/user-attachments/assets/8a7c89d3-fe77-4aee-8776-239829117095" />
+<img width="675" height="620" alt="Rubrik Chess game board" src="https://github.com/user-attachments/assets/8a7c89d3-fe77-4aee-8776-239829117095" />
 
 ## Features
 
-- **Play**: quick-pairing grid, custom seeks (bullet → classical, days-per-move correspondence, unlimited), walled + rubrik-colour variants, colour choice, challenge links and direct challenges by username, a rated server bot ("Rubrik") to challenge any time, custom start positions (board editor) for friend games
-- **Round**: server-authoritative clocks (tenths, low-time cues, per-second ticks), takeback / draw / resign / abort / +15s, rematch, chat with history, spectators + watcher count, opponent-gone claim, first-move expiry, 100-quiet-plies draw
-- **Arena tournaments**: hourly system arenas + user-created ones, auto pairing, live standings, arena chat, results on profiles
-- **Accounts**: anonymous first, register to keep your Glicko-2 rating (overall + per speed); profiles with rating chart, crosstable, tournament results, follow / friends-online box, private messages, blocking; leaderboard, games archive, player search
-- **Learn & improve**: interactive piece tutorial, play vs computer (4 levels, off-thread), tactics puzzles mined server-side from played games, analysis board with branching, engine eval, full-game computer analysis (eval graph, blunder marks, move times), TV / watch page with live mini-boards
-- **UI**: 3D cube or unfolded 2D net, dark/light themes, board colour sets, sounds, desktop notifications, keyboard navigation, zen mode, mobile layout
+- Real-time games: quick pairing, seeks, challenge links, direct challenges, rated bot, custom positions
+- Server-authoritative clocks, takebacks, draws, rematches, chat, spectators, correspondence games
+- Arenas, ratings, profiles, game archive, follows, blocks, private messages, leaderboards
+- Tutorials, local computer, puzzles, analysis, TV/watch page
+- 3D cube or unfolded 2D net; dark/light themes, sound, keyboard navigation, mobile layout
 
 ## Layout
 
-```
-crates/core     rubrik-core   pure rules engine + AI (Rust) — single source of truth
-crates/wasm     rubrik-wasm   wasm-bindgen wrapper → packages/core-wasm (built, gitignored)
-crates/server   rubrik-server axum: HTTP + WebSocket lobby/rooms/clocks/tournaments, sqlite
-apps/web        React + react-three-fiber client (vite 8, oxlint/oxfmt)
+```text
+crates/core     rules engine + AI; source of truth
+crates/wasm     wasm-bindgen wrapper → packages/core-wasm (generated, ignored)
+crates/server   Axum HTTP/WebSocket server + SQLite
+apps/web        React + react-three-fiber Vite client
 ```
 
-Rules + protocol: see [NOTES.md](NOTES.md).
+`NOTES.md` is developer design/protocol history, not a stable public API.
 
-## Dev
+## Local development
+
+Needs Rust stable, Node 22, pnpm 8, `wasm-pack` 0.13.1, and Rust's WASM target:
 
 ```sh
-pnpm build:wasm                     # needs rustup target wasm32-unknown-unknown + wasm-pack
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack --version 0.13.1 --locked
+corepack enable
 pnpm install
-cargo run -p rubrik-server          # :3000 (api + ws)
-pnpm dev                            # :5173, proxies /api and /ws → :3000
+pnpm build:wasm
+
+cargo run -p rubrik-server                    # API + WebSocket on :3000
+pnpm dev                                      # Vite on :5173; proxies /api and /ws
 ```
 
-Checks: `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `pnpm typecheck`, `pnpm lint`, `pnpm --filter @rubrikchess/web format:check`.
-Browser flows (need playwright + chromium, dev stack running): `PW=<playwright/index.mjs> CHROME=<chrome> node apps/web/e2e/flow.mjs` (also `tournament.mjs`, `editor.mjs`, `selfplay.mjs`).
+Production-like local static serving:
 
-## Deploy
+```sh
+pnpm build
+WEB_DIST=apps/web/dist cargo run -p rubrik-server
+```
 
-`docker build -t rubrikchess . && docker run -p 3000:3000 -v rubrik-data:/data rubrikchess`
+Checks:
 
-Env: `PORT`, `DATABASE_PATH`, `WEB_DIST`, `SECURE_COOKIES=1` (behind TLS), `TRUST_PROXY=1` (client IP from `X-Forwarded-For`, for per-IP rate limits behind a proxy).
+```sh
+cargo fmt --all -- --check
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+pnpm typecheck && pnpm lint
+pnpm --filter @rubrikchess/web format:check
+pnpm build
+```
+
+Browser flows need Playwright, Chromium, and both dev processes:
+
+```sh
+PW=<playwright/index.mjs> CHROME=<chrome> node apps/web/e2e/flow.mjs
+```
+
+Also available: `tournament.mjs`, `editor.mjs`, `selfplay.mjs`.
+
+## Deploy on one VPS
+
+This server keeps live games, sockets, seeks, challenges, and arena state in memory. Run **one replica**. SQLite data lives in Docker volume `rubrik-data`.
+
+1. Install Docker Engine, Docker Compose plugin, Caddy; point DNS at VPS.
+2. Copy `deploy/Caddyfile.example` to `/etc/caddy/Caddyfile`, replace `example.com`, then reload Caddy. Caddy obtains TLS and proxies WebSockets automatically.
+3. Start app from clone:
+
+   ```sh
+   docker compose up -d --build
+   docker compose ps
+   curl -fsS http://127.0.0.1:3000/healthz
+   ```
+
+`compose.yaml` binds app only to `127.0.0.1`; Caddy is public TLS endpoint. `SECURE_COOKIES=1` and `TRUST_PROXY=1` are correct only in this topology. Never set `TRUST_PROXY=1` for a directly exposed container.
+
+Before upgrades, back up SQLite. This uses SQLite's consistent backup command:
+
+```sh
+backup_dir="$HOME/rubrik-backups"
+mkdir -p "$backup_dir"
+stamp=$(date +%F-%H%M%S)
+tmp="/tmp/rubrik-${stamp}.db"
+docker compose exec -T rubrikchess sqlite3 /data/rubrik.db ".backup '$tmp'"
+if ! docker compose cp "rubrikchess:$tmp" "$backup_dir/rubrik-${stamp}.db"; then
+  docker compose exec -T rubrikchess rm -f "$tmp"
+  exit 1
+fi
+docker compose exec -T rubrikchess rm -f "$tmp"
+```
+
+Test restore on a stopped instance before relying on it. Schema migrations run at server startup; retain a backup before every image update.
+
+## Security and privacy
+
+The service stores account names, password hashes, session identifiers, games, chats, follows, blocks, private messages, ratings, and IP-based rate-limit counters. Operators must publish their own privacy/retention policy before accepting public users. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Licensed under [MIT](LICENSE).

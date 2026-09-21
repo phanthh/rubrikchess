@@ -28,6 +28,7 @@ export function PlayersPage() {
 				<input
 					className="field flex-1"
 					placeholder="Find a player by name"
+					aria-label="Find a player by name"
 					value={q}
 					onChange={(e) => setQ(e.target.value)}
 				/>

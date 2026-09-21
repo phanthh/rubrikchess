@@ -69,6 +69,7 @@ export function Chat({
 				value={draft}
 				maxLength={300}
 				placeholder="Type a message…"
+				aria-label="Chat message"
 				onChange={(e) => setDraft(e.target.value)}
 				onKeyDown={(e) => e.key === 'Enter' && submit()}
 			/>

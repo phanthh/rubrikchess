@@ -323,15 +323,21 @@ async fn register_logout_login() {
     assert_eq!(reg["name"], "Kasparov");
     assert_eq!(reg["registered"], true);
 
-    let out: Value = http
+    let out = http
         .post(format!("{base}/api/logout"))
         .send()
         .await
-        .expect("logout")
+        .expect("logout");
+    assert!(out.status().is_success());
+    let fresh: Value = http
+        .get(format!("{base}/api/me"))
+        .send()
+        .await
+        .expect("fresh anonymous session")
         .json()
         .await
         .expect("json");
-    assert_ne!(out["id"], id.as_str());
+    assert_ne!(fresh["id"], id.as_str());
 
     // the freed name is now taken by the registered account
     let taken = http

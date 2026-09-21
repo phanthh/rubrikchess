@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{ConnectInfo, State};
-use axum::http::{header, HeaderMap};
+use axum::http::{header, HeaderMap, StatusCode, Uri};
 use axum::response::Response;
 use futures_util::{SinkExt, StreamExt};
 use parking_lot::Mutex;
@@ -28,6 +28,9 @@ pub const GONE_MS: i64 = 60_000;
 
 /// Time handed to the opponent by `moretime`.
 pub const MORETIME_MS: i64 = 15_000;
+
+/// One session may use several tabs, but not unbounded server tasks and queues.
+const MAX_CONNECTIONS_PER_USER: usize = 8;
 
 #[derive(Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
@@ -123,15 +126,34 @@ enum ClientMsg {
     TourUnsub,
 }
 
+/// Browser WebSockets carry cookies, so reject cross-site upgrade attempts. Non-browser
+/// clients without an `Origin` header remain supported for the API and integration tests.
+fn same_origin(headers: &HeaderMap) -> bool {
+    let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) else {
+        return true;
+    };
+    let Some(host) = headers.get(header::HOST).and_then(|v| v.to_str().ok()) else {
+        return false;
+    };
+    origin
+        .parse::<Uri>()
+        .ok()
+        .and_then(|uri| uri.authority().map(|authority| authority.as_str() == host))
+        .unwrap_or(false)
+}
+
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Response {
+    if !same_origin(&headers) {
+        return crate::error(StatusCode::FORBIDDEN, "cross-origin websocket denied");
+    }
     let ip = crate::client_ip(&headers, peer);
     let Some((user, cookie)) = crate::session(&state, &headers, &ip) else {
-        return crate::error(axum::http::StatusCode::TOO_MANY_REQUESTS, "slow down");
+        return crate::error(StatusCode::TOO_MANY_REQUESTS, "slow down");
     };
     // No client message is near this; without a cap an anon socket can make us buffer
     // (and parse) megabytes.
@@ -147,8 +169,18 @@ pub async fn handler(
 }
 
 async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
-    let (mut sink, mut stream) = socket.split();
     let (out_tx, mut out_rx) = mpsc::unbounded_channel::<String>();
+    // The cap and reservation share one lock. Handlers can upgrade concurrently.
+    let first_conn = {
+        let mut conns = state.conns.lock();
+        let list = conns.entry(user.id.clone()).or_default();
+        if list.len() >= MAX_CONNECTIONS_PER_USER {
+            return;
+        }
+        list.push(out_tx.clone());
+        list.len() == 1
+    };
+    let (mut sink, mut stream) = socket.split();
 
     // Periodic pings keep idle sockets alive through proxies (nginx drops after 60s by default).
     let writer = tokio::spawn(async move {
@@ -167,12 +199,6 @@ async fn session_loop(state: Arc<AppState>, user: User, socket: WebSocket) {
             }
         }
     });
-    let first_conn = {
-        let mut conns = state.conns.lock();
-        let list = conns.entry(user.id.clone()).or_default();
-        list.push(out_tx.clone());
-        list.len() == 1
-    };
     if first_conn {
         state.gone.lock().remove(&user.id);
         broadcast_presence(&state, &user.id);
@@ -1009,4 +1035,20 @@ pub fn create_game(
 /// Is the bot one of the players? Its offers are answered by the server.
 fn bot_game(room: &Room) -> bool {
     bot::is_bot(&room.white.id) || bot::is_bot(&room.black.id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn websocket_origin_must_match_host() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::HOST, "rubrik.example".parse().unwrap());
+        headers.insert(header::ORIGIN, "https://rubrik.example".parse().unwrap());
+        assert!(same_origin(&headers));
+
+        headers.insert(header::ORIGIN, "https://attacker.example".parse().unwrap());
+        assert!(!same_origin(&headers));
+    }
 }

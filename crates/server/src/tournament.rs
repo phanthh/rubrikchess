@@ -348,6 +348,9 @@ fn schedule(state: &Arc<AppState>, now: i64) -> Option<Value> {
 fn tick(state: &Arc<AppState>) {
     let now = now_ms();
     let (busy_anywhere, busy_by_tour) = busy_players(state);
+    // Reserve entrants as pairings are queued. A player may join several arenas,
+    // but one tick must never create more than one live game for them.
+    let mut reserved = busy_anywhere;
     let online: HashSet<String> = state.conns.lock().keys().cloned().collect();
     let mut announce: Vec<Value> = Vec::new();
     announce.extend(schedule(state, now));
@@ -377,11 +380,13 @@ fn tick(state: &Arc<AppState>) {
             let free: Vec<String> = arena
                 .players
                 .iter()
-                .filter(|(id, p)| p.joined && online.contains(*id) && !busy_anywhere.contains(*id))
+                .filter(|(id, p)| p.joined && online.contains(*id) && !reserved.contains(*id))
                 .map(|(id, _)| id)
                 .cloned()
                 .collect();
             for (white, black) in arena.pair(free) {
+                reserved.insert(white.clone());
+                reserved.insert(black.clone());
                 pairings.push((
                     arena.id.clone(),
                     arena.clock,
@@ -420,5 +425,60 @@ fn tick(state: &Arc<AppState>) {
         if let Some(arena) = state.tournaments.lock().get_mut(&tid) {
             arena.applied(&white_id, &black_id);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn arena(id: &str, players: &[&str]) -> Arena {
+        Arena {
+            id: id.into(),
+            name: id.into(),
+            clock: ClockSpec {
+                initial_ms: 60_000,
+                increment_ms: 0,
+            },
+            walled: false,
+            layout: Layout::Standard,
+            starts_at: now_ms() - 1,
+            duration_ms: 120_000,
+            created_by: "owner".into(),
+            status: TourStatus::Created,
+            players: players
+                .iter()
+                .map(|id| {
+                    (
+                        (*id).into(),
+                        Player {
+                            joined: true,
+                            joined_at: now_ms(),
+                            ..Player::default()
+                        },
+                    )
+                })
+                .collect(),
+            chat: Default::default(),
+            tx: chat_channel(),
+        }
+    }
+
+    #[tokio::test]
+    async fn tick_does_not_pair_a_player_into_two_arenas() {
+        let state = Arc::new(AppState::new(":memory:"));
+        for (id, name) in [("a", "Alice"), ("b", "Bob")] {
+            db::create_user(&state.db.lock(), &User::anon(id.into(), name.into()));
+            let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+            state.conns.lock().insert(id.into(), vec![tx]);
+        }
+        let mut tours = state.tournaments.lock();
+        tours.insert("first".into(), arena("first", &["a", "b"]));
+        tours.insert("second".into(), arena("second", &["a", "b"]));
+        drop(tours);
+
+        tick(&state);
+
+        assert_eq!(state.rooms.lock().len(), 1);
     }
 }

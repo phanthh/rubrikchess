@@ -56,6 +56,7 @@ export function AuthDialog({ mode, onClose }: { mode: AuthMode | null; onClose: 
 						value={oldPassword}
 						onChange={(e) => setOldPassword(e.target.value)}
 						placeholder="current password"
+						aria-label="Current password"
 						autoComplete="current-password"
 						autoFocus
 					/>
@@ -65,6 +66,7 @@ export function AuthDialog({ mode, onClose }: { mode: AuthMode | null; onClose: 
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						placeholder="username"
+						aria-label="Username"
 						autoComplete="username"
 						autoFocus
 					/>
@@ -75,6 +77,7 @@ export function AuthDialog({ mode, onClose }: { mode: AuthMode | null; onClose: 
 					value={password}
 					onChange={(e) => setPassword(e.target.value)}
 					placeholder={isPassword ? 'new password (6+ chars)' : 'password'}
+					aria-label={isPassword ? 'New password' : 'Password'}
 					autoComplete={isRegister || isPassword ? 'new-password' : 'current-password'}
 				/>
 				<Button type="submit" disabled={(isPassword ? !oldPassword : !name) || !password || busy}>
